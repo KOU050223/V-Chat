@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebaseConfig';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import Image from 'next/image';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -50,7 +51,16 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">V-Chat</CardTitle>
+          <div className="flex justify-center mb-4">
+            <Image
+              src="/v-chat_logo.png"
+              alt="V-Chat Logo"
+              width={200}
+              height={60}
+              priority
+              className="h-12 w-auto"
+            />
+          </div>
           <CardDescription className="text-center">
             {isSignUp ? 'アカウントを作成してチャットを始めよう' : 'アカウントにログインしてチャットを始めよう'}
           </CardDescription>

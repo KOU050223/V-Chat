@@ -15,8 +15,53 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Firebase設定チェック
+  if (!auth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <div className="flex justify-center mb-4">
+              <Image
+                src="/v-chat_logo.png"
+                alt="V-Chat Logo"
+                width={200}
+                height={60}
+                priority
+                className="h-12 w-auto"
+              />
+            </div>
+            <CardTitle className="text-2xl font-bold text-center text-red-600">設定エラー</CardTitle>
+            <CardDescription className="text-center">
+              Firebase設定が正しくありません。環境変数を確認してください。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-gray-600">
+              <p>以下の環境変数が設定されていることを確認してください：</p>
+              <ul className="mt-2 list-disc list-inside space-y-1">
+                <li>NEXT_PUBLIC_FIREBASE_API_KEY</li>
+                <li>NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN</li>
+                <li>NEXT_PUBLIC_FIREBASE_PROJECT_ID</li>
+                <li>その他のFirebase設定項目</li>
+              </ul>
+              <p className="mt-4">
+                詳細は <a href="/docs/Firebase設定.md" className="text-blue-600 hover:underline">Firebase設定ガイド</a> を参照してください。
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) {
+      setError('Firebase Authentication is not initialized');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -34,6 +79,11 @@ export default function Login() {
   };
 
   const handleGithubLogin = async () => {
+    if (!auth) {
+      setError('Firebase Authentication is not initialized');
+      return;
+    }
+
     setLoading(true);
     setError('');
     

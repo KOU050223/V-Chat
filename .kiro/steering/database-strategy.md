@@ -5,12 +5,14 @@
 ### なぜFirestoreをメインに選ぶか
 
 #### 1. **V-Chatの特性に最適**
+
 - **リアルタイム性**: ビデオ通話、プレゼンス管理が核心機能
 - **Firebase統合**: 認証、ストレージとの親和性
 - **スケーラビリティ**: 自動スケーリング、グローバル展開対応
 - **開発速度**: MVPの迅速な開発
 
 #### 2. **要件との適合性**
+
 ```typescript
 // V-Chatで重要な機能
 - ユーザープレゼンス（オンライン/オフライン）
@@ -20,6 +22,7 @@
 ```
 
 #### 3. **PostgreSQLが必要な場面は限定的**
+
 - 複雑な分析クエリ → 将来の機能
 - 大量データの集計 → 初期段階では不要
 - 複雑なJOIN → Firestoreでも代替可能
@@ -173,6 +176,7 @@ interface RedisStructures {
 ## データアクセスパターン
 
 ### 1. **リアルタイム機能**
+
 ```typescript
 // Firestore Realtime Listeners
 const unsubscribePresence = onSnapshot(
@@ -193,6 +197,7 @@ const unsubscribeRoom = onSnapshot(
 ```
 
 ### 2. **マッチング機能**
+
 ```typescript
 // Redis + Firestore combination
 async function findMatch(userId: string): Promise<string | null> {
@@ -215,6 +220,7 @@ async function findMatch(userId: string): Promise<string | null> {
 ```
 
 ### 3. **VRM管理**
+
 ```typescript
 // Firestore with periodic sync from VroidHub
 async function syncVRMFromVroidHub(vroidModelId: string) {
@@ -279,6 +285,7 @@ service cloud.firestore {
 ## パフォーマンス最適化
 
 ### 1. **Firestore最適化**
+
 ```typescript
 // Composite indexes for efficient queries
 // users: status, lastActiveAt
@@ -302,6 +309,7 @@ const getVRMModels = (lastDoc?: DocumentSnapshot) => {
 ```
 
 ### 2. **Redis最適化**
+
 ```typescript
 // Use Redis for high-frequency operations
 const updateUserPresence = async (userId: string, status: string) => {
@@ -319,16 +327,19 @@ const updateUserPresence = async (userId: string, status: string) => {
 ## 移行戦略
 
 ### フェーズ1: Firestore Only
+
 - 基本機能の実装
 - MVP リリース
 - ユーザーフィードバック収集
 
 ### フェーズ2: Redis 追加
+
 - リアルタイム機能の最適化
 - マッチング性能向上
 - スケーラビリティ対応
 
 ### フェーズ3: 分析機能（オプション）
+
 - PostgreSQL 追加検討
 - 詳細分析・レポート機能
 - ビジネスインテリジェンス

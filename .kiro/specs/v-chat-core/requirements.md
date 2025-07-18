@@ -75,7 +75,7 @@ V-Chatは、3Dキャラクターモデル（V体）を使用してビデオ通�
 
 1. WHEN ユーザーがV体設定画面にアクセスする THEN システム SHALL VroidHubから利用可能なVRMファイルの一覧を表示する
 2. WHEN ユーザーがV体を選択する THEN システム SHALL プレビュー表示を提供する
-3. WHEN ユーザーがV体を確定する THEN システム SHALL VRMファイルをCloudflare R2にアップロードする
+3. WHEN ユーザーがV体を確定する THEN システム SHALL VRMファイルをFirebase Storageにアップロードする
 4. WHEN V体の設定が完了する THEN システム SHALL ユーザープロフィールにV体IDを保存する
 5. WHEN カスタムVRMをアップロードする THEN システム SHALL ファイル形式とサイズを検証する
 

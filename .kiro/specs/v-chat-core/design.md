@@ -19,30 +19,29 @@ graph TB
         LiveKitClient[LiveKit Client SDK]
     end
     
-    subgraph "Authentication"
+    subgraph "Firebase Ecosystem"
         FirebaseAuth[Firebase Authentication]
-    end
-    
-    subgraph "Backend Services"
-        VercelAPI[Vercel Edge Functions]
-        NeonDB[(Neon PostgreSQL)]
-        UpstashRedis[(Upstash Redis)]
+        Firestore[Cloud Firestore]
+        FirebaseStorage[Firebase Storage]
+        CloudFunctions[Cloud Functions]
+        FirebaseHosting[Firebase Hosting]
     end
     
     subgraph "External Services"
         LiveKitCloud[LiveKit Cloud SFU]
-        CloudflareR2[Cloudflare R2 Storage]
+        UpstashRedis[Upstash Redis]
         VroidAPI[Vroid Web API]
     end
     
     UI --> FirebaseAuth
-    UI --> VercelAPI
+    UI --> Firestore
+    UI --> FirebaseStorage
     ThreeJS --> MediaPipe
     LiveKitClient --> LiveKitCloud
-    VercelAPI --> NeonDB
-    VercelAPI --> UpstashRedis
-    VercelAPI --> CloudflareR2
-    VercelAPI --> VroidAPI
+    CloudFunctions --> Firestore
+    CloudFunctions --> UpstashRedis
+    CloudFunctions --> VroidAPI
+    CloudFunctions --> LiveKitCloud
 ```
 
 ### 技術スタック
@@ -60,15 +59,16 @@ graph TB
 
 **バックエンド**
 
-- Vercel Edge Functions (API)
-- Neon PostgreSQL (データ永続化)
-- Upstash Redis (マッチングキュー)
+- Firebase Ecosystem (メインバックエンド)
+  - Cloud Firestore (リアルタイムデータベース)
+  - Firebase Storage (VRMファイル保存)
+  - Cloud Functions (サーバーレス関数)
+  - Firebase Hosting (静的サイトホスティング)
 
 **外部サービス**
 
-- Firebase Authentication (認証)
-- LiveKit Cloud (SFU)
-- Cloudflare R2 (VRMファイル保存)
+- LiveKit Cloud (WebRTC SFU)
+- Upstash Redis (キャッシュ・セッション管理)
 - Vroid Web API (V体モデル提供)
 
 ## Components and Interfaces
@@ -397,71 +397,203 @@ interface MotionData {
 
 ## Database Schema
 
-### PostgreSQL Tables
-
-```sql
--- Users table
-CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email VARCHAR(255) UNIQUE NOT NULL,
-  username VARCHAR(50) UNIQUE NOT NULL,
-  display_name VARCHAR(100) NOT NULL,
-  gender VARCHAR(10),
-  vrm_id UUID,
-  vrm_url TEXT,
-  created_at TIMESTAMP DEFAULT NOW(),
-  updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- Rooms table
-CREATE TABLE rooms (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  type VARCHAR(20) NOT NULL,
-  max_participants INTEGER DEFAULT 2,
-  created_by UUID REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT NOW(),
-  expires_at TIMESTAMP,
-  status VARCHAR(20) DEFAULT 'waiting'
-);
-
--- Room participants table
-CREATE TABLE room_participants (
-  room_id UUID REFERENCES rooms(id),
-  user_id UUID REFERENCES users(id),
-  joined_at TIMESTAMP DEFAULT NOW(),
-  PRIMARY KEY (room_id, user_id)
-);
-
--- VRM models table
-CREATE TABLE vrm_models (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name VARCHAR(100) NOT NULL,
-  description TEXT,
-  thumbnail_url TEXT,
-  vrm_url TEXT NOT NULL,
-  author VARCHAR(100),
-  license VARCHAR(50),
-  tags TEXT[],
-  is_public BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW()
-);
-```
-
-### Redis Data Structures
+### Firestore Collections
 
 ```typescript
-// Matching queue (List)
-// Key: "matching:random"
-// Value: JSON.stringify({userId, preferences, timestamp})
+// Users collection
+/users/{userId}
+{
+  email: string;
+  username: string; // unique, validated by Cloud Function
+  displayName: string;
+  gender?: 'male' | 'female' | 'other';
+  status: 'online' | 'offline' | 'in_call' | 'matching';
+  currentRoomId?: string;
+  selectedVrmId?: string;
+  preferences: {
+    matchingGender?: 'male' | 'female' | 'any';
+    notifications: boolean;
+    language: string;
+  };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  lastActiveAt: Timestamp;
+}
 
-// Active rooms (Hash)
-// Key: "rooms:active"
-// Field: roomId
-// Value: JSON.stringify({participants, createdAt, expiresAt})
+// VRM Models collection (cached from VroidHub)
+/vrmModels/{vrmId}
+{
+  vroidModelId: string; // from VroidHub API
+  name: string;
+  description: string;
+  authorName: string;
+  authorVroidId: string;
+  thumbnailUrl: string;
+  vrmFileUrl?: string; // Firebase Storage URL after download
+  license: {
+    type: string;
+    allowModification: boolean;
+    allowRedistribution: boolean;
+    requireCredit: boolean;
+    commercialUse: boolean;
+  };
+  tags: string[];
+  ageLimit: {
+    isR18: boolean;
+    isR15: boolean;
+    isAdult: boolean;
+  };
+  isDownloadable: boolean;
+  isPublic: boolean;
+  stats: {
+    triangleCount: number;
+    fileSizeBytes: number;
+    heartCount: number;
+    downloadCount: number;
+  };
+  syncedAt: Timestamp;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
 
-// User sessions (Hash)
-// Key: "sessions:user:{userId}"
-// Fields: {roomId, status, lastActivity}
+// Rooms collection
+/rooms/{roomId}
+{
+  type: 'random' | 'select';
+  roomCode?: string; // for select matching (6-digit code)
+  createdBy: string; // userId
+  participants: string[]; // array of userIds
+  maxParticipants: number; // default: 2
+  livekitRoomName: string; // unique room name for LiveKit
+  status: 'waiting' | 'active' | 'closed';
+  settings: {
+    allowSpectators: boolean;
+    recordSession: boolean;
+    maxDuration: number; // minutes
+  };
+  createdAt: Timestamp;
+  expiresAt?: Timestamp;
+  closedAt?: Timestamp;
+}
+
+// Room participants subcollection
+/rooms/{roomId}/participants/{userId}
+{
+  userId: string;
+  displayName: string;
+  vrmModelId?: string;
+  livekitParticipantId?: string;
+  joinedAt: Timestamp;
+  leftAt?: Timestamp;
+  isActive: boolean;
+  connectionQuality: {
+    lastUpdate: Timestamp;
+    bandwidth: number;
+    latency: number;
+    packetLoss: number;
+  };
+}
+
+// Matching queue collection
+/matchingQueue/{userId}
+{
+  userId: string;
+  preferences: {
+    gender?: 'male' | 'female' | 'any';
+    ageRange?: [number, number];
+    language?: string;
+  };
+  priority: number; // for premium users
+  deviceInfo: {
+    platform: string;
+    browser: string;
+    hasWebGL: boolean;
+    hasMicrophone: boolean;
+  };
+  createdAt: Timestamp;
+  expiresAt: Timestamp; // auto-delete after 5 minutes
+}
+
+// Call history collection
+/callSessions/{sessionId}
+{
+  roomId: string;
+  participants: string[]; // userIds
+  startedAt: Timestamp;
+  endedAt?: Timestamp;
+  durationSeconds?: number;
+  qualityMetrics: {
+    averageBandwidth: number;
+    averageLatency: number;
+    packetLossRate: number;
+    reconnectionCount: number;
+    averageFps: number;
+  };
+  endReason: 'normal' | 'timeout' | 'error' | 'kicked';
+  feedback?: {
+    ratings: Record<string, number>; // userId -> rating
+    comments: Record<string, string>;
+  };
+}
+
+// User VRM settings subcollection
+/users/{userId}/vrmSettings/{settingId}
+{
+  vrmModelId: string;
+  isPrimary: boolean;
+  customSettings: {
+    position: [number, number, number];
+    scale: number;
+    animations: Record<string, any>;
+  };
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// User sessions subcollection (for presence)
+/users/{userId}/sessions/{sessionId}
+{
+  deviceId: string;
+  platform: string;
+  browser: string;
+  ipAddress?: string; // hashed for privacy
+  userAgent: string;
+  firebaseToken: string;
+  livekitToken?: string; // encrypted
+  currentRoomId?: string;
+  createdAt: Timestamp;
+  expiresAt: Timestamp; // 24 hours
+  lastActivityAt: Timestamp;
+}
+```
+
+### Redis Data Structures (補完用)
+
+```typescript
+// Real-time presence (String with TTL)
+// Key: "presence:user:{userId}"
+// Value: JSON.stringify({status, roomId, lastSeen})
+// TTL: 30 seconds
+
+// Matching queue optimization (Sorted Set)
+// Key: "matching:queue"
+// Score: timestamp + priority, Member: userId
+// For faster matching algorithm
+
+// Room connection cache (Hash with TTL)
+// Key: "room:{roomId}:tokens"
+// Field: userId, Value: encrypted_livekit_token
+// TTL: 1 hour
+
+// Rate limiting (String with TTL)
+// Key: "rate:{endpoint}:{userId}"
+// Value: request_count
+// TTL: based on rate limit window (1 minute, 1 hour, etc.)
+
+// Motion data buffer (Stream)
+// Key: "motion:{roomId}:{userId}"
+// Fields: {timestamp, face, pose, hands}
+// TTL: 30 seconds (for real-time sync)
 ```
 
 ## Error Handling

@@ -80,8 +80,17 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
+      const clientId = process.env.NEXT_PUBLIC_VROID_CLIENT_ID;
+      if (!clientId) {
+        setState(prev => ({
+          ...prev,
+          error: '環境変数 NEXT_PUBLIC_VROID_CLIENT_ID が設定されていません',
+          loading: false,
+        }));
+        return;
+      }
       const response = await vroidClient.getLikedCharacterModels({
-        application_id: process.env.NEXT_PUBLIC_VROID_CLIENT_ID || 'default',
+        application_id: clientId,
         count: 50,
         is_downloadable: true,
       });

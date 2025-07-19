@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
+import { useSession, signOut as nextAuthSignOut, signIn } from 'next-auth/react';
 import { 
   User, 
   onAuthStateChanged, 
@@ -18,6 +19,7 @@ import { auth } from '@/lib/firebaseConfig';
 
 interface AuthContextType {
   user: User | null;
+  nextAuthSession: any; // NextAuthセッション
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
@@ -26,10 +28,15 @@ interface AuthContextType {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   sendVerificationEmail: () => Promise<void>;
+  // アカウントリンク機能
+  linkVRoidAccount: () => Promise<void>;
+  unlinkVRoidAccount: () => Promise<void>;
+  isVRoidLinked: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  nextAuthSession: null,
   loading: true,
   login: async () => {},
   register: async () => {},
@@ -38,6 +45,9 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   resetPassword: async () => {},
   sendVerificationEmail: async () => {},
+  linkVRoidAccount: async () => {},
+  unlinkVRoidAccount: async () => {},
+  isVRoidLinked: false,
 });
 
 export const useAuth = () => {
@@ -47,20 +57,37 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [linkedAccounts, setLinkedAccounts] = useState<string[]>([]);
+  const { data: nextAuthSession, status: nextAuthStatus } = useSession();
+
+  // VRoidアカウントがリンクされているかチェック
+  const isVRoidLinked = nextAuthSession?.provider === 'vroid' || linkedAccounts.includes('vroid');
+
+  // デバッグログ
+  console.log('AuthProvider state:', {
+    user: user ? 'Firebase user found' : 'No Firebase user',
+    nextAuthSession: nextAuthSession ? 'NextAuth session found' : 'No NextAuth session',
+    nextAuthStatus,
+    loading,
+    isVRoidLinked,
+    linkedAccounts
+  });
 
   useEffect(() => {
     if (!auth) {
-      setLoading(false);
+      // NextAuthのみでロード状態を管理
+      setLoading(nextAuthStatus === 'loading');
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+      // Firebase認証とNextAuth認証の両方のロード状態を考慮
+      setLoading(nextAuthStatus === 'loading');
     });
 
     return unsubscribe;
-  }, []);
+  }, [nextAuthStatus]);
 
   const login = async (email: string, password: string) => {
     if (!auth) {
@@ -115,12 +142,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
-    if (!auth) {
-      throw new Error('Firebase Auth is not initialized');
-    }
-    
     try {
-      await signOut(auth);
+      // Firebase認証からログアウト
+      if (auth && user) {
+        await signOut(auth);
+      }
+      
+      // NextAuth認証からログアウト
+      if (nextAuthSession) {
+        await nextAuthSignOut({ redirect: false });
+      }
     } catch (error: any) {
       throw new Error(error.message);
     }
@@ -150,8 +181,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
+  // VRoidアカウントをリンク
+  const linkVRoidAccount = async () => {
+    if (!user) {
+      throw new Error('Firebase認証が必要です。先にログインしてください。');
+    }
+
+    try {
+      // VRoidアカウントと連携（ポップアップウィンドウで開く）
+      const result = await signIn('vroid', {
+        redirect: false,
+        callbackUrl: '/dashboard'
+      });
+
+      if (result?.error) {
+        throw new Error('VRoidアカウントの連携に失敗しました');
+      }
+
+      // 成功時にリンク済みアカウントリストを更新
+      setLinkedAccounts(prev => [...prev.filter(acc => acc !== 'vroid'), 'vroid']);
+      
+      console.log('VRoidアカウント連携完了');
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
+
+  // VRoidアカウントのリンクを解除
+  const unlinkVRoidAccount = async () => {
+    try {
+      // NextAuthセッションを終了（VRoidセッションのみ）
+      if (nextAuthSession?.provider === 'vroid') {
+        await nextAuthSignOut({ redirect: false });
+      }
+
+      // リンク済みアカウントリストから削除
+      setLinkedAccounts(prev => prev.filter(acc => acc !== 'vroid'));
+      
+      console.log('VRoidアカウント連携解除完了');
+    } catch (error: any) {
+      throw new Error(error.message);
+    }
+  };
+
   const value = {
     user,
+    nextAuthSession,
     loading,
     login,
     register,
@@ -160,6 +235,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     logout,
     resetPassword,
     sendVerificationEmail,
+    linkVRoidAccount,
+    unlinkVRoidAccount,
+    isVRoidLinked,
   };
 
   return (

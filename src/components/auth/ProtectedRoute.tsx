@@ -15,18 +15,31 @@ export default function ProtectedRoute({
   requireAuth = true, 
   redirectTo = '/login' 
 }: ProtectedRouteProps) {
-  const { user, loading } = useAuth();
+  const { user, nextAuthSession, loading } = useAuth();
   const router = useRouter();
+
+  // Firebase または NextAuth のいずれかで認証されているかチェック
+  const isAuthenticated = user || nextAuthSession;
+
+  console.log('ProtectedRoute check:', {
+    requireAuth,
+    isAuthenticated,
+    user: user ? 'Firebase user' : 'No Firebase user',
+    nextAuthSession: nextAuthSession ? 'NextAuth session' : 'No NextAuth session',
+    loading
+  });
 
   useEffect(() => {
     if (!loading) {
-      if (requireAuth && !user) {
+      if (requireAuth && !isAuthenticated) {
+        console.log('Authentication required but not found, redirecting to:', redirectTo);
         router.push(redirectTo);
-      } else if (!requireAuth && user) {
+      } else if (!requireAuth && isAuthenticated) {
+        console.log('User authenticated but page does not require auth, redirecting to dashboard');
         router.push('/dashboard');
       }
     }
-  }, [user, loading, requireAuth, redirectTo, router]);
+  }, [isAuthenticated, loading, requireAuth, redirectTo, router]);
 
   if (loading) {
     return (
@@ -39,11 +52,11 @@ export default function ProtectedRoute({
     );
   }
 
-  if (requireAuth && !user) {
+  if (requireAuth && !isAuthenticated) {
     return null;
   }
 
-  if (!requireAuth && user) {
+  if (!requireAuth && isAuthenticated) {
     return null;
   }
 

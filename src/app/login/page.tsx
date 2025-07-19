@@ -1,11 +1,11 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import Login from '@/components/auth/Login';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +18,7 @@ export default function LoginPage() {
   }, [searchParams]);
 
   return (
-    <ProtectedRoute requireAuth={false}>
+    <>
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
           <p className="text-red-600 text-sm">
@@ -32,6 +32,16 @@ export default function LoginPage() {
         </div>
       )}
       <Login />
+    </>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <ProtectedRoute requireAuth={false}>
+      <Suspense fallback={<div>Loading...</div>}>
+        <LoginContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

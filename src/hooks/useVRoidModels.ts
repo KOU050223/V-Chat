@@ -30,7 +30,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
 
   const vroidClient = useMemo(() => {
     return createVRoidClient(session);
-  }, [session?.accessToken]);
+  }, [session]);
 
   // マイモデル一覧を取得
   const fetchMyModels = useCallback(async () => {

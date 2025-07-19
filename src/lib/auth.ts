@@ -115,7 +115,7 @@ export const authOptions: NextAuthOptions = {
       if (new URL(url).origin === baseUrl) return url;
       return `${baseUrl}/dashboard`;
     },
-    async signIn({ user, account, profile, email, credentials }) {
+    async signIn({ user, account, profile, email, credentials }: Parameters<SignInCallback>[0]) {
       console.log('SignIn callback called:', { user, account, profile, email, credentials });
       
       // VRoid認証の場合の特別な処理

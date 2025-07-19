@@ -8,13 +8,34 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import Image from 'next/image';
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user, nextAuthSession, logout, linkVRoidAccount, unlinkVRoidAccount, isVRoidLinked } = useAuth();
+  
+  // 現在のユーザー情報を取得（Firebase または NextAuth）
+  const currentUser = user || nextAuthSession?.user;
 
   const handleLogout = async () => {
     try {
       await logout();
     } catch (error) {
       console.error('ログアウトエラー:', error);
+    }
+  };
+
+  const handleLinkVRoid = async () => {
+    try {
+      await linkVRoidAccount();
+    } catch (error: any) {
+      console.error('VRoid連携エラー:', error);
+      alert(error.message);
+    }
+  };
+
+  const handleUnlinkVRoid = async () => {
+    try {
+      await unlinkVRoidAccount();
+    } catch (error: any) {
+      console.error('VRoid連携解除エラー:', error);
+      alert(error.message);
     }
   };
 
@@ -37,12 +58,17 @@ export default function Dashboard() {
                 <div className="flex items-center space-x-2">
                   <Avatar>
                     <AvatarFallback>
-                      {user?.displayName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                      {currentUser?.name?.charAt(0) || currentUser?.email?.charAt(0) || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium text-gray-700">
-                    {user?.displayName || user?.email}
+                    {currentUser?.name || currentUser?.email}
                   </span>
+                  {nextAuthSession && (
+                    <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded">
+                      VRoid
+                    </span>
+                  )}
                 </div>
                 <Button variant="outline" onClick={handleLogout}>
                   ログアウト
@@ -77,9 +103,53 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline">
+                  <Button className="w-full" variant="outline" disabled={!isVRoidLinked}>
                     V体を選択
                   </Button>
+                  {!isVRoidLinked && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      VRoidアカウント連携が必要です
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>VRoidアカウント連携</CardTitle>
+                  <CardDescription>
+                    VRoidモデルを使用するためにアカウントを連携します
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isVRoidLinked ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-sm text-green-600">VRoidアカウント連携済み</span>
+                      </div>
+                      <Button 
+                        onClick={handleUnlinkVRoid}
+                        variant="outline" 
+                        className="w-full"
+                      >
+                        連携を解除
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+                        <span className="text-sm text-gray-600">VRoidアカウント未連携</span>
+                      </div>
+                      <Button 
+                        onClick={handleLinkVRoid}
+                        className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"
+                      >
+                        VRoidアカウントを連携
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

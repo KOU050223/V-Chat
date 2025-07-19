@@ -172,7 +172,7 @@ export class MatchingService {
     await this.leaveQueue(user1.userId);
     await this.leaveQueue(user2.userId);
 
-    console.log(`Match created: ${matchId} between ${user1.userId} and ${user2.userId}`);
+    console.log(`Match created: ${matchId} between ${user1.userInfo?.name || user1.userId} and ${user2.userInfo?.name || user2.userId}`);
     
     return match;
   }
@@ -376,5 +376,3 @@ export class MatchingService {
 }
 
 export const matchingService = new MatchingService();
-
-

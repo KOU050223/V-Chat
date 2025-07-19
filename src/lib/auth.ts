@@ -6,14 +6,16 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebaseConfig';
 
 // デバッグ用ログ
-console.log('NextAuth config loaded');
-console.log('VROID_CLIENT_ID:', process.env.VROID_CLIENT_ID ? '✓ 設定済み' : '✗ 未設定');
-console.log('VROID_CLIENT_SECRET:', process.env.VROID_CLIENT_SECRET ? '✓ 設定済み' : '✗ 未設定');
-console.log('NEXTAUTH_SECRET:', process.env.NEXTAUTH_SECRET ? '✓ 設定済み' : '✗ 未設定');
-console.log('NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
+if (process.env.NODE_ENV !== 'production') {
+  console.log('NextAuth config loaded');
+  console.log('VROID_CLIENT_ID:', process.env.VROID_CLIENT_ID ? '✓ 設定済み' : '✗ 未設定');
+  console.log('VROID_CLIENT_SECRET:', process.env.VROID_CLIENT_SECRET ? '✓ 設定済み' : '✗ 未設定');
+  console.log('NEXTAUTH_SECRET:', process.env.NEXTAUTH_SECRET ? '✓ 設定済み' : '✗ 未設定');
+  console.log('NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
 
-// AccessDeniedエラーの詳細をログ出力
-console.log('Expected redirect URI:', `${process.env.NEXTAUTH_URL}/api/auth/callback/vroid`);
+  // AccessDeniedエラーの詳細をログ出力
+  console.log('Expected redirect URI:', `${process.env.NEXTAUTH_URL}/api/auth/callback/vroid`);
+}
 
 export const authOptions: NextAuthOptions = {
   debug: true, // デバッグログを有効化

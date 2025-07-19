@@ -150,9 +150,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // NextAuth認証からログアウト
       if (nextAuthSession) {
-        await nextAuthSignOut({ redirect: false });
+        await nextAuthSignOut({ callbackUrl: '/login' });
+      } else if (user) {
+        // Firebase認証のみの場合は手動リダイレクト
+        window.location.href = '/login';
       }
     } catch (error: any) {
+      console.error('Logout error:', error);
       throw new Error(error.message);
     }
   };

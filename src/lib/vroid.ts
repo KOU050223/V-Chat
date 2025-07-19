@@ -1,11 +1,5 @@
 // VRoid Hub API クライアント（公式APIドキュメントv11準拠）
 
-interface VRoidTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
-}
 
 interface VRoidUser {
   id: string;
@@ -97,7 +91,7 @@ interface VRoidDownloadLicense {
 }
 
 export class VRoidAPI {
-  private baseURL = 'https://api.vroid.com/v1';
+  private baseURL = '/api/vroid/proxy';
   private accessToken?: string;
   private refreshToken?: string;
 
@@ -106,37 +100,6 @@ export class VRoidAPI {
     this.refreshToken = refreshToken;
   }
 
-  /**
-   * アクセストークンをリフレッシュ
-   */
-  async refreshAccessToken(): Promise<VRoidTokenResponse> {
-    if (!this.refreshToken) {
-      throw new Error('Refresh token is not available');
-    }
-
-    const response = await fetch('https://oauth2.vroid.com/oauth/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: this.refreshToken,
-        client_id: process.env.VROID_CLIENT_ID!,
-        client_secret: process.env.VROID_CLIENT_SECRET!,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to refresh token: ${response.status}`);
-    }
-
-    const tokenData: VRoidTokenResponse = await response.json();
-    this.accessToken = tokenData.access_token;
-    this.refreshToken = tokenData.refresh_token;
-
-    return tokenData;
-  }
 
   /**
    * 認証済みAPIリクエストを送信
@@ -145,37 +108,51 @@ export class VRoidAPI {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    if (!this.accessToken) {
-      throw new Error('Access token is not available');
+    const method = options.method || 'GET';
+    
+    let url = `${this.baseURL}?endpoint=${encodeURIComponent(endpoint)}`;
+    if (method !== 'GET') {
+      url += `&method=${method}`;
     }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      ...options,
+    const fetchOptions: RequestInit = {
+      method: method === 'GET' ? 'GET' : method === 'DELETE' ? 'DELETE' : 'POST',
       headers: {
-        Authorization: `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
         ...options.headers,
       },
-    });
+    };
 
-    // トークンが期限切れの場合、リフレッシュして再試行
-    if (response.status === 401 && this.refreshToken) {
-      await this.refreshAccessToken();
-      return this.authenticatedRequest(endpoint, options);
+    // POST/PUT/PATCHリクエストの場合、bodyをJSONとして送信
+    if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
+      fetchOptions.body = JSON.stringify({
+        endpoint,
+        data: options.body ? JSON.parse(options.body as string) : undefined,
+      });
     }
+
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(errorData.error || `API request failed: ${response.status}`);
     }
 
-    return response.json();
+    const result = await response.json();
+    
+    // VRoid APIのエラーレスポンスをチェック
+    if (result.error && result.error.message && result.error.code) {
+      throw new Error(`VRoid API エラー: ${result.error.code} - ${result.error.message}`);
+    }
+
+    return result;
   }
 
   /**
    * ユーザー情報を取得
    */
   async getMe(): Promise<VRoidUser> {
-    return this.authenticatedRequest<VRoidUser>('/me');
+    return this.authenticatedRequest<VRoidUser>('/account');
   }
 
   /**
@@ -193,7 +170,7 @@ export class VRoidAPI {
     if (options.publication) params.append('publication', options.publication);
 
     return this.authenticatedRequest(
-      `/account/character_models?${params.toString()}`
+      `/character_models?${params.toString()}`
     );
   }
 
@@ -324,11 +301,11 @@ export class VRoidAPI {
  * NextAuthセッションからVRoidAPIクライアントを作成
  */
 export function createVRoidClient(session: any): VRoidAPI | null {
-  if (!session?.accessToken || session.provider !== 'vroid') {
+  if (!session?.accessToken) {
     return null;
   }
 
-  return new VRoidAPI(session.accessToken, session.refreshToken);
+  return new VRoidAPI();
 }
 
-export type { VRoidUser, VRoidCharacterModel, VRoidTokenResponse };
+export type { VRoidUser, VRoidCharacterModel };

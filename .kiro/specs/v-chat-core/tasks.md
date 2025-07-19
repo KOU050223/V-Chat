@@ -13,7 +13,7 @@
   - AuthContextとuseAuthフックを実装する
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.2 NextAuth設定とVroid OAuth認証
+- [x] 2.2 NextAuth設定とVroid OAuth認証
   - NextAuthの設定とVroid OAuth 2.0プロバイダーを実装する
   - Vroid開発者登録とClientID、ClientSecretの設定を行う
   - Vroidアクセストークンとリフレッシュトークンの管理を実装する

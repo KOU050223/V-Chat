@@ -1,4 +1,5 @@
 import { NextAuthOptions } from 'next-auth';
+import type { Account, User, Profile } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 import GitHubProvider from 'next-auth/providers/github';
 import CredentialsProvider from 'next-auth/providers/credentials';
@@ -117,7 +118,13 @@ export const authOptions: NextAuthOptions = {
       if (new URL(url).origin === baseUrl) return url;
       return `${baseUrl}/dashboard`;
     },
-    async signIn({ user, account, profile, email, credentials }: Parameters<SignInCallback>[0]) {
+    async signIn({ user, account, profile, email, credentials }: { 
+      user: User; 
+      account: Account | null; 
+      profile?: Profile; 
+      email?: { verificationRequest?: boolean } | string; 
+      credentials?: Record<string, any>; 
+    }) {
       console.log('SignIn callback called:', { user, account, profile, email, credentials });
       
       // VRoid認証の場合の特別な処理

@@ -14,7 +14,7 @@ export interface MatchingUser {
         ageRange?: [number, number];
         interests?: string[];
         gender?: 'male' | 'female' | 'any';
-        maxWaittime?: number; 
+        maxWaitTime?: number; 
     };
     userInfo?: {
         name: string;

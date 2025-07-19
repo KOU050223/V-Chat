@@ -1,9 +1,10 @@
 // src/lib/socket-client.ts
 import * as io from 'socket.io-client';
+import { Socket } from 'socket.io-client';
 import { MatchingUser, MatchingResult } from '@/types/matching_type';
 
 export class SocketClient {
-  private socket: any = null;
+  private socket: Socket | null = null;
   private isConnected = false;
 
   connect(): Promise<void> {

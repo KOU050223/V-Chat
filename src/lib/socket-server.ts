@@ -59,9 +59,9 @@ export function setupSocketIO(httpServer: NetServer) {
                             }
                         });
                     }
-                } else {
-                  socket.emit('matching-error', { message: 'Failed to join queue' });
-                }
+            } else {
+                socket.emit('matching-error', { message: 'Failed to join queue' });
+            }
             } catch (error) {
               console.error('Matching error:', error);
               socket.emit('matching-error', { message: 'Internal server error' });

@@ -153,8 +153,8 @@ export class MatchingService {
    * マッチングを作成
    */
   static async createMatch(user1: MatchingUser, user2: MatchingUser): Promise<Match> {
-    const matchId = `match_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const roomId = `room_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const matchId = `match_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     
     const match: Match = {
       id: matchId,
@@ -292,7 +292,7 @@ export class MatchingService {
 
       for (const [matchId, matchData] of Object.entries(matches)) {
         const match = JSON.parse(matchData) as Match;
-        if (match.createdAt.getTime() < oneHourAgo) {
+        if (new Date(match.createdAt).getTime() < oneHourAgo) {
           await redis.hdel(this.MATCHES_KEY, matchId);
           console.log(`Cleaned up old match: ${matchId}`);
         }

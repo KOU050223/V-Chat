@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
+import VModelSelector from '@/components/vmodel/VModelSelector';
+import SelectedVModelCard from '@/components/vmodel/SelectedVModelCard';
+import VModelSettings from '@/components/vmodel/VModelSettings';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Image from 'next/image';
 
 export default function Dashboard() {
@@ -16,8 +20,14 @@ export default function Dashboard() {
   const handleLogout = async () => {
     try {
       await logout();
+      // ログアウト後にリダイレクトを確実にする
+      setTimeout(() => {
+        window.location.href = '/login';
+      }, 100);
     } catch (error) {
       console.error('ログアウトエラー:', error);
+      // エラーでもログイン画面に戻す
+      window.location.href = '/login';
     }
   };
 
@@ -103,13 +113,19 @@ export default function Dashboard() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Button className="w-full" variant="outline" disabled={!isVRoidLinked}>
-                    V体を選択
-                  </Button>
-                  {!isVRoidLinked && (
-                    <p className="text-xs text-gray-500 mt-2">
-                      VRoidアカウント連携が必要です
-                    </p>
+                  {isVRoidLinked ? (
+                    <VModelSelector onModelSelect={(model) => {
+                      console.log('選択されたモデル:', model);
+                    }} />
+                  ) : (
+                    <>
+                      <Button className="w-full" variant="outline" disabled={true}>
+                        V体を選択
+                      </Button>
+                      <p className="text-xs text-gray-500 mt-2">
+                        VRoidアカウント連携が必要です
+                      </p>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -171,51 +187,136 @@ export default function Dashboard() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* V体設定カード */}
+              {isVRoidLinked && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>V体設定</CardTitle>
+                    <CardDescription>
+                      V体の表示や動作設定を管理します
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button className="w-full" variant="outline">
+                          設定を開く
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>V体設定</DialogTitle>
+                          <DialogDescription>
+                            V体の表示や動作に関する設定を管理します
+                          </DialogDescription>
+                        </DialogHeader>
+                        <VModelSettings />
+                      </DialogContent>
+                    </Dialog>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
+            {/* V体情報セクション */}
+            {isVRoidLinked && (
+              <div className="mt-8">
+                <SelectedVModelCard />
+              </div>
+            )}
+
+            {/* アカウント情報セクション */}
             <div className="mt-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle>アカウント情報</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">
-                        メールアドレス
-                      </label>
-                      <p className="text-sm text-gray-900">{user?.email}</p>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>アカウント情報</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">
+                          メールアドレス
+                        </label>
+                        <p className="text-sm text-gray-900">{user?.email}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">
+                          表示名
+                        </label>
+                        <p className="text-sm text-gray-900">
+                          {user?.displayName || '未設定'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">
+                          メール確認状態
+                        </label>
+                        <p className="text-sm text-gray-900">
+                          {user?.emailVerified ? '確認済み' : '未確認'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">
+                          登録日
+                        </label>
+                        <p className="text-sm text-gray-900">
+                          {user?.metadata?.creationTime 
+                            ? new Date(user.metadata.creationTime).toLocaleDateString('ja-JP')
+                            : '不明'
+                          }
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">
-                        表示名
-                      </label>
-                      <p className="text-sm text-gray-900">
-                        {user?.displayName || '未設定'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">
-                        メール確認状態
-                      </label>
-                      <p className="text-sm text-gray-900">
-                        {user?.emailVerified ? '確認済み' : '未確認'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">
-                        登録日
-                      </label>
-                      <p className="text-sm text-gray-900">
-                        {user?.metadata?.creationTime 
-                          ? new Date(user.metadata.creationTime).toLocaleDateString('ja-JP')
-                          : '不明'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                {/* VRoidアカウント情報 */}
+                {isVRoidLinked && nextAuthSession && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>VRoidアカウント情報</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">
+                            VRoidユーザー名
+                          </label>
+                          <p className="text-sm text-gray-900">
+                            {nextAuthSession.user?.name || '未設定'}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">
+                            連携状態
+                          </label>
+                          <p className="text-sm text-green-600">連携済み</p>
+                        </div>
+                        {nextAuthSession.vroidProfile && (
+                          <div>
+                            <label className="text-sm font-medium text-gray-700">
+                              VRoidプロフィール
+                            </label>
+                            <div className="mt-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  window.open(`https://hub.vroid.com/users/${nextAuthSession.vroidProfile.id}`, '_blank');
+                                }}
+                              >
+                                VRoid Hubで見る
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           </div>
         </main>

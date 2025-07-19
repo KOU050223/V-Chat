@@ -338,7 +338,43 @@ export class MatchingService {
       return null;
     }
   }
+
+  // ... 既存のコードの最後に追加 ...
+
+  /**
+   * ユーザーセッション情報を取得
+   */
+  static async getUserSessions(): Promise<Record<string, string>> {
+    try {
+      return await redis.hgetall(this.USER_SESSIONS_KEY);
+    } catch (error) {
+      console.error('Failed to get user sessions:', error);
+      return {};
+    }
+  }
+
+  /**
+   * 特定のSocket IDを持つユーザーを検索
+   */
+  static async findUserBySocketId(socketId: string): Promise<MatchingUser | null> {
+    try {
+      const sessions = await this.getUserSessions();
+      
+      for (const [userId, sessionData] of Object.entries(sessions)) {
+        const session = JSON.parse(sessionData);
+        if (session.socketId === socketId) {
+          return await this.getQueueUser(userId);
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Failed to find user by socket ID:', error);
+      return null;
+    }
+  }
 }
 
-// シングルトンインスタンス
 export const matchingService = new MatchingService();
+
+

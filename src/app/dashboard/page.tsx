@@ -10,6 +10,7 @@ import SelectedVModelCard from '@/components/vmodel/SelectedVModelCard';
 import VModelSettings from '@/components/vmodel/VModelSettings';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export default function Dashboard() {
   const { user, nextAuthSession, logout, linkVRoidAccount, unlinkVRoidAccount, isVRoidLinked } = useAuth();
@@ -178,9 +179,11 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    <Button className="w-full">
+                    <Link href="/matching">
+                     <Button className="w-full">
                       ランダムマッチング
-                    </Button>
+                     </Button>
+                    </Link>
                     <Button className="w-full" variant="outline">
                       ルームを作成
                     </Button>

@@ -178,6 +178,24 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 
 詳細は `docs/Firebase設定.md` を参照してください。
 
+### VRoid Hub API設定
+VRoid Hub OAuth認証とAPI統合用の環境変数を `.env.local` に設定：
+```
+# VRoid Hub OAuth
+VROID_CLIENT_ID=
+VROID_CLIENT_SECRET=
+
+# NextAuth設定
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=
+```
+
+VRoid Hub開発者登録と設定手順：
+1. VRoid Hub開発者アカウント登録
+2. OAuth アプリケーション作成
+3. スコープ設定：`default`（基本的な情報とモデル一覧取得）
+4. リダイレクトURI設定：`http://localhost:3000/api/auth/callback/vroid`
+
 ## プロジェクト管理
 
 ### 要件文書
@@ -198,6 +216,14 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
 - React Three Fiberによる3D描画
 - MediaPipeによる表情・姿勢キャプチャ
 - リアルタイムモーション同期
+
+### VRoid Hub API統合
+- OAuth 2.0認証フロー
+- ユーザーが投稿したモデル取得（`/api/account/character_models`）
+- ユーザーがいいねしたモデル取得（`/api/hearts`）
+- キャラクターモデル検索（`/api/search/character_models`）
+- VRMファイルダウンロードとライセンス管理
+- @pixiv/three-vrmによる3D表示
 
 ### リアルタイム通信
 - LiveKit CloudによるSFU

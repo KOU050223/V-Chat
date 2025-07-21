@@ -184,9 +184,11 @@ export default function Dashboard() {
                       ランダムマッチング
                      </Button>
                     </Link>
-                    <Button className="w-full" variant="outline">
+                    <Link href="/room/create">
+                     <Button className="w-full" variant="outline">
                       ルームを作成
-                    </Button>
+                     </Button>
+                   </Link>
                   </div>
                 </CardContent>
               </Card>

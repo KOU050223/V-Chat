@@ -1,21 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Users, Lock, Unlock, Search, ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Users, Lock, Unlock, Search, ArrowLeft, Key } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
-interface Room {
-  id: string;
-  name: string;
-  description: string;
-  isPrivate: boolean;
-  members: number;
-  createdAt: Date;
-  createdBy: string;
-}
+import { Room } from '@/lib/roomStore';
 
 export default function RoomSearchPage() {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,18 +52,8 @@ export default function RoomSearchPage() {
 
   const handleJoinRoom = async (roomId: string) => {
     try {
-      // ルーム参加のAPIを呼び出し
-      const response = await fetch(`/api/rooms/${roomId}/join`, {
-        method: 'POST',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // ルームに参加後、チャットルーム画面に遷移
-        window.location.href = `/room/${roomId}`;
-      } else {
-        setError('ルームへの参加に失敗しました');
-      }
+      // 直接ルームページに遷移（参加処理はルームページ内で行う）
+      window.location.href = `/room/${roomId}`;
     } catch (error) {
       console.error('Failed to join room:', error);
       setError('ルームへの参加に失敗しました');
@@ -92,6 +76,18 @@ export default function RoomSearchPage() {
         ルームを探す
       </h1>
       <p className="mb-8 text-gray-600">公開ルーム一覧から参加したいルームを選んでください</p>
+
+      {/* ルームID入力ボタン */}
+      <div className="w-full max-w-2xl mb-6">
+        <Button
+          onClick={() => router.push('/room/join')}
+          variant="outline"
+          className="w-full bg-white border-purple-300 text-purple-600 hover:bg-purple-50 py-3 flex items-center justify-center"
+        >
+          <Key className="w-4 h-4 mr-2" />
+          ルームIDを入力して参加
+        </Button>
+      </div>
 
       {/* 検索バー */}
       <div className="w-full max-w-2xl mb-8 flex items-center bg-white rounded-full shadow px-4 py-2">

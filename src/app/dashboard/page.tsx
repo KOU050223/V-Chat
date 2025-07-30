@@ -184,6 +184,11 @@ export default function Dashboard() {
                       ランダムマッチング
                      </Button>
                     </Link>
+                    <Link href="/room/search">
+                     <Button className="w-full" variant = "outline">
+                      ルームを探す
+                     </Button>
+                    </Link>
                     <Link href="/room/create">
                      <Button className="w-full" variant="outline">
                       ルームを作成

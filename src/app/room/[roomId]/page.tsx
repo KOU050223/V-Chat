@@ -34,7 +34,11 @@ export default function ChatRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [voiceCallState, setVoiceCallState] = useState({
+    isConnected: false,
+    isMuted: false,
+    participants: []
+  });
 
   useEffect(() => {
     fetchRoomInfo();
@@ -48,7 +52,7 @@ export default function ChatRoom() {
         name: '雑談部屋',
         description: '気軽に雑談できるルームです',
         isPrivate: false,
-        members: 3
+        members: 1 // 初期値は1（自分だけ）
       });
     } catch (error) {
       console.error('Failed to fetch room info:', error);
@@ -60,17 +64,10 @@ export default function ChatRoom() {
       const dummyMessages: Message[] = [
         {
           id: '1',
-          userId: 'user1',
-          userName: 'ユーザー1',
-          content: 'こんにちは！',
+          userId: 'system',
+          userName: 'システム',
+          content: 'ルームに参加しました。音声通話を開始できます。',
           timestamp: new Date(Date.now() - 60000)
-        },
-        {
-          id: '2',
-          userId: 'user2',
-          userName: 'ユーザー2',
-          content: 'よろしくお願いします！',
-          timestamp: new Date(Date.now() - 30000)
         }
       ];
       setMessages(dummyMessages);
@@ -102,6 +99,19 @@ export default function ChatRoom() {
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  const handleVoiceCallStateChange = (state: any) => {
+    console.log('Voice call state changed:', state);
+    setVoiceCallState(state);
+    
+    // 参加者数も更新
+    if (roomInfo) {
+      setRoomInfo(prev => prev ? {
+        ...prev,
+        members: state.participants ? state.participants.length + 1 : 1
+      } : null);
+    }
   };
 
   if (isLoading) {
@@ -170,58 +180,32 @@ export default function ChatRoom() {
         <div className={`flex-1 flex flex-col ${showChat ? 'mr-80' : ''}`}>
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
-              <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Mic className="w-16 h-16 text-white" />
+              <div className={`w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6 ${
+                voiceCallState.isConnected 
+                  ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
+                  : 'bg-gray-700'
+              }`}>
+                <Mic className={`w-16 h-16 ${voiceCallState.isConnected ? 'text-white' : 'text-gray-400'}`} />
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">音声通話中</h2>
-              <p className="text-gray-400 mb-6">マイクをクリックしてミュート/ミュート解除</p>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {voiceCallState.isConnected ? '音声通話中' : '接続中...'}
+              </h2>
+              <p className="text-gray-400 mb-6">
+                {voiceCallState.isConnected 
+                  ? 'マイクをクリックしてミュート/ミュート解除' 
+                  : 'LiveKitサーバーに接続しています...'
+                }
+              </p>
               
-              {/* 参加者表示エリア */}
-              <div className="grid grid-cols-3 gap-4 max-w-md mx-auto">
-                <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-bold">あ</span>
+              {/* 接続状態表示 */}
+              {!voiceCallState.isConnected && (
+                <div className="mt-8">
+                  <div className="inline-flex items-center px-4 py-2 rounded-full bg-yellow-900 text-yellow-200">
+                    <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
+                    接続中...
                   </div>
-                  <p className="text-sm text-white">あなた</p>
-                  <p className="text-xs text-gray-400">音声オン</p>
                 </div>
-                <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-bold">ユ</span>
-                  </div>
-                  <p className="text-sm text-white">ユーザー1</p>
-                  <p className="text-xs text-gray-400">音声オン</p>
-                </div>
-                <div className="bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-bold">ユ</span>
-                  </div>
-                  <p className="text-sm text-white">ユーザー2</p>
-                  <p className="text-xs text-gray-400">音声オン</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* コントロールバー */}
-          <div className="bg-gray-800 border-t border-gray-700 p-4">
-            <div className="flex justify-center items-center space-x-4">
-              <Button
-                onClick={() => setIsMuted(!isMuted)}
-                variant={isMuted ? "destructive" : "outline"}
-                size="lg"
-                className="w-16 h-16 rounded-full bg-gray-700 border-gray-600 hover:bg-gray-600"
-              >
-                {isMuted ? <MicOff className="w-8 h-8" /> : <Mic className="w-8 h-8" />}
-              </Button>
-              
-              <Button
-                variant="destructive"
-                size="lg"
-                className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700"
-              >
-                <PhoneOff className="w-8 h-8" />
-              </Button>
+              )}
             </div>
           </div>
         </div>
@@ -259,7 +243,7 @@ export default function ChatRoom() {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="メッセージを入力..."
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
                 <Button 
                   type="submit" 
@@ -274,6 +258,14 @@ export default function ChatRoom() {
           </div>
         )}
       </div>
+
+      {/* 音声通話コンポーネント（実際に動作） */}
+      <VoiceCall
+        roomId={roomId}
+        participantName="あなた"
+        onLeave={() => router.push('/dashboard')}
+        onStateChange={handleVoiceCallStateChange}
+      />
     </div>
   );
 }

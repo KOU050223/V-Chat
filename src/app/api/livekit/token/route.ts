@@ -5,8 +5,13 @@ export async function POST(req: NextRequest) {
   try {
     const { roomName, participantName } = await req.json();
 
+    console.log('Token request:', { roomName, participantName });
+
     const apiKey = process.env.LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
+
+    console.log('API Key exists:', !!apiKey);
+    console.log('API Secret exists:', !!apiSecret);
 
     if (!apiKey || !apiSecret) {
       return NextResponse.json(
@@ -21,7 +26,9 @@ export async function POST(req: NextRequest) {
 
     at.addGrant({ roomJoin: true, room: roomName });
 
-    const token = at.toJwt();
+    const token = await at.toJwt();
+
+    console.log('Generated token length:', token.length);
 
     return NextResponse.json({ token });
   } catch (error) {

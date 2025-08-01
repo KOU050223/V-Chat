@@ -14,6 +14,7 @@ export default function RoomSearchPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   useEffect(() => {
     fetchRooms();
@@ -60,6 +61,85 @@ export default function RoomSearchPage() {
     }
   };
 
+  const handleCleanupRooms = async () => {
+    try {
+      setIsCleaningUp(true);
+      setError(null);
+      
+      const response = await fetch('/api/rooms/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cleanupType: 'empty' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Cleanup result:', data);
+        
+        // ルーム一覧を再取得
+        await fetchRooms();
+        
+        if (data.cleanedCount > 0) {
+          alert(`${data.cleanedCount}個の空ルームを削除しました`);
+        } else {
+          alert('削除対象の空ルームはありませんでした');
+        }
+      } else {
+        setError('ルームクリーンアップに失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to cleanup rooms:', error);
+      setError('ルームクリーンアップに失敗しました');
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+
+  const handleForceResetAll = async () => {
+    if (!confirm('全てのルームの参加者数を0にリセットします。この操作は取り消せません。続行しますか？')) {
+      return;
+    }
+
+    try {
+      setIsCleaningUp(true);
+      setError(null);
+      
+      // セッションストレージをクリア
+      const keysToRemove = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('room-')) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+      
+      // 全ルームの参加者数をリセット
+      const response = await fetch('/api/rooms/force-reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset_all_participants' })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Force reset result:', data);
+        
+        // ルーム一覧を再取得
+        await fetchRooms();
+        
+        alert(`全ルームの参加者数をリセットしました。リセット対象: ${data.resetCount}ルーム`);
+      } else {
+        setError('強制リセットに失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to force reset rooms:', error);
+      setError('強制リセットに失敗しました');
+    } finally {
+      setIsCleaningUp(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 pt-12 md:pt-20">
       {/* ダッシュボードに戻るボタン */}
@@ -90,7 +170,7 @@ export default function RoomSearchPage() {
       </div>
 
       {/* 検索バー */}
-      <div className="w-full max-w-2xl mb-8 flex items-center bg-white rounded-full shadow px-4 py-2">
+      <div className="w-full max-w-2xl mb-4 flex items-center bg-white rounded-full shadow px-4 py-2">
         <Search className="w-5 h-5 text-gray-400 mr-2" />
         <input
           type="text"
@@ -99,6 +179,28 @@ export default function RoomSearchPage() {
           placeholder="ルーム名・説明で検索"
           className="w-full bg-transparent outline-none text-base"
         />
+      </div>
+
+      {/* クリーンアップボタン */}
+      <div className="w-full max-w-2xl mb-8 flex justify-center gap-3">
+        <Button
+          onClick={handleCleanupRooms}
+          disabled={isCleaningUp}
+          variant="outline"
+          size="sm"
+          className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
+        >
+          {isCleaningUp ? '削除中...' : '🧹 空ルームを削除'}
+        </Button>
+        <Button
+          onClick={handleForceResetAll}
+          disabled={isCleaningUp}
+          variant="outline"
+          size="sm"
+          className="bg-orange-50 border-orange-200 text-orange-600 hover:bg-orange-100"
+        >
+          {isCleaningUp ? 'リセット中...' : '🔄 全ルーム強制リセット'}
+        </Button>
       </div>
 
       {/* エラーメッセージ */}

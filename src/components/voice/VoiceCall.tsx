@@ -31,11 +31,18 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       console.log('Connecting to room:', roomId);
       console.log('LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
 
+      // より確実にユニークな参加者名を生成（タイムスタンプ + ランダム + セッション）
+      const timestamp = Date.now();
+      const random = Math.random().toString(36).substr(2, 9);
+      const sessionId = Math.random().toString(36).substr(2, 6);
+      const uniqueParticipantName = `${participantName}-${timestamp}-${random}-${sessionId}`;
+      console.log('Unique participant name:', uniqueParticipantName);
+
       // Get access token from API
       const tokenResponse = await fetch('/api/livekit/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName: roomId, participantName: participantName }),
+        body: JSON.stringify({ roomName: roomId, participantName: uniqueParticipantName }),
       });
       console.log('Token API Response Status:', tokenResponse.status);
       const tokenData = await tokenResponse.json();
@@ -51,10 +58,25 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         throw new Error('LiveKit access token is not a string. Check API response.');
       }
 
-      // 既存のルームがあれば切断
+      // 既存のルームがあれば完全にクリーンアップ
       if (room) {
         try {
+          console.log('Cleaning up existing room connection...');
+          
+          // 既存の参加者をクリア
+          setParticipants([]);
+          setIsConnected(false);
+          
+          // ルームのイベントリスナーを削除
+          room.removeAllListeners();
+          
+          // ルームを切断
           await room.disconnect();
+          
+          // 少し待ってからクリーンアップ完了
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          console.log('Previous room cleaned up successfully');
         } catch (e) {
           console.warn('Failed to disconnect existing room:', e);
         }
@@ -67,7 +89,9 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           simulcast: false,
           videoSimulcastLayers: [],
           dtx: false
-        }
+        },
+        // DataChannelエラーを防ぐための設定
+        disconnectOnPageLeave: true
       });
 
       // イベントリスナーを設定
@@ -81,9 +105,16 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         .on(RoomEvent.Reconnected, handleReconnected);
 
       console.log('Connecting to LiveKit with token...');
+      console.log('LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
       
       try {
-        await newRoom.connect(process.env.NEXT_PUBLIC_LIVEKIT_URL!, token, {
+        const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+        
+        if (!livekitUrl) {
+          throw new Error('LiveKit URL is not configured. Please set NEXT_PUBLIC_LIVEKIT_URL in your .env.local file');
+        }
+        
+        await newRoom.connect(livekitUrl, token, {
           autoSubscribe: true
         });
         
@@ -93,16 +124,45 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         connectionRef.current = true;
         
         try {
+          // まずマイクアクセス許可を要求
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          console.log('Microphone permission granted');
+          
+          // ストリームを停止（LiveKitが管理するため）
+          stream.getTracks().forEach(track => track.stop());
+          
+          // LiveKitでマイクを有効化
           await newRoom.localParticipant.setMicrophoneEnabled(true);
-          console.log('Microphone enabled successfully');
+          console.log('Microphone enabled successfully in LiveKit');
         } catch (micError) {
           console.warn('マイクの有効化に失敗:', micError);
+          
+          let errorMessage = 'マイクの有効化に失敗しました。';
+          if (micError instanceof Error) {
+            if (micError.name === 'NotAllowedError') {
+              errorMessage = 'マイクのアクセスが拒否されました。ブラウザの設定でマイクアクセスを許可してください。';
+            } else if (micError.name === 'NotFoundError') {
+              errorMessage = 'マイクが見つかりません。マイクが接続されていることを確認してください。';
+            } else {
+              errorMessage = `マイクエラー: ${micError.message}`;
+            }
+          }
+          
+          setError(errorMessage);
+          // マイクエラーでも接続は続行（音声なしでも参加可能）
         }
 
         setRoom(newRoom);
         setIsConnected(true);
         setIsConnecting(false);
-        onStateChange?.({ isConnected: true, isMuted: false, participants: [] });
+        
+        // 既存の参加者を取得して初期化（自分自身は除外）
+        const existingParticipants = Array.from(newRoom.remoteParticipants.values())
+          .filter(p => p.sid !== newRoom.localParticipant?.sid);
+        console.log('Existing participants on connect (excluding self):', existingParticipants.length);
+        setParticipants(existingParticipants);
+        
+        onStateChange?.({ isConnected: true, isMuted: false, participants: existingParticipants });
       } catch (connectError) {
         console.error('Connection failed:', connectError);
         throw connectError;
@@ -110,9 +170,30 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
 
     } catch (err) {
       console.error('Failed to connect to room:', err);
-      setError(`接続に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      
+      // 開発環境での接続エラーをより分かりやすく表示
+      let errorMessage = 'LiveKit接続に失敗しました';
+      
+      if (err instanceof Error) {
+        if (err.message.includes('could not establish pc connection')) {
+          errorMessage = 'LiveKitサーバーに接続できません。環境変数を確認してください。';
+        } else if (err.message.includes('LiveKit URL is not configured')) {
+          errorMessage = 'LiveKit URLが設定されていません。.env.localファイルでNEXT_PUBLIC_LIVEKIT_URLを設定してください。';
+        } else {
+          errorMessage = `接続エラー: ${err.message}`;
+        }
+      }
+      
+      setError(errorMessage);
       setIsConnecting(false);
       connectionRef.current = false;
+      
+      // 開発環境では接続失敗でも画面表示を続行
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('開発環境: LiveKit接続失敗ですが、画面表示を続行します');
+        setIsConnected(false); // 実際には接続されていない状態
+        onStateChange?.({ isConnected: false, isMuted: false, participants: [] });
+      }
     }
   };
 
@@ -171,23 +252,51 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     }
   };
 
-                const handleParticipantConnected = (participant: RemoteParticipant) => {
-                console.log('Participant connected:', participant.identity);
-                setParticipants(prev => {
-                  const newParticipants = [...prev, participant];
-                  onStateChange?.({ isConnected, isMuted, participants: newParticipants });
-                  return newParticipants;
-                });
-              };
+  const handleParticipantConnected = (participant: RemoteParticipant) => {
+    console.log('Participant connected:', participant.identity, 'SID:', participant.sid);
+    console.log('Current room local participant SID:', room?.localParticipant?.sid);
+    
+    // 自分自身は参加者リストに含めない
+    if (room && participant.sid === room.localParticipant?.sid) {
+      console.log('Skipping local participant (yourself)');
+      return;
+    }
+    
+    setParticipants(prev => {
+      // 既に存在する参加者は追加しない（重複防止）
+      const existingParticipant = prev.find(p => p.sid === participant.sid);
+      if (existingParticipant) {
+        console.log('Participant already exists, skipping:', participant.identity);
+        return prev;
+      }
+      
+      const newParticipants = [...prev, participant];
+      console.log('New participants count (excluding self):', newParticipants.length);
+      
+      // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
+      setTimeout(() => {
+        onStateChange?.({ isConnected, isMuted, participants: newParticipants });
+      }, 0);
+      
+      return newParticipants;
+    });
+  };
 
-                const handleParticipantDisconnected = (participant: RemoteParticipant) => {
-                console.log('Participant disconnected:', participant.identity);
-                setParticipants(prev => {
-                  const newParticipants = prev.filter(p => p.sid !== participant.sid);
-                  onStateChange?.({ isConnected, isMuted, participants: newParticipants });
-                  return newParticipants;
-                });
-              };
+  const handleParticipantDisconnected = (participant: RemoteParticipant) => {
+    console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
+    
+    setParticipants(prev => {
+      const newParticipants = prev.filter(p => p.sid !== participant.sid);
+      console.log('Remaining participants count:', newParticipants.length);
+      
+      // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
+      setTimeout(() => {
+        onStateChange?.({ isConnected, isMuted, participants: newParticipants });
+      }, 0);
+      
+      return newParticipants;
+    });
+  };
 
   const handleAudioPlaybackStatusChanged = (playing: boolean) => {
     console.log('Audio playback status changed:', playing);
@@ -204,9 +313,23 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   useEffect(() => {
     connectToRoom();
     return () => {
+      // コンポーネントのアンマウント時にクリーンアップ
       if (room) {
         try {
+          console.log('Cleaning up room on unmount...');
+          
+          // 状態をリセット
+          setParticipants([]);
+          setIsConnected(false);
+          setIsConnecting(false);
+          
+          // イベントリスナーを全て削除
+          room.removeAllListeners();
+          
+          // ルームを切断
           room.disconnect();
+          
+          console.log('Room cleanup completed on unmount');
         } catch (error) {
           console.warn('Error during cleanup:', error);
         }
@@ -301,7 +424,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
 
                 {/* 他の参加者 */}
                 {participants.map((participant, index) => (
-                  <div key={participant.sid} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
+                  <div key={`participant-${participant.sid}-${index}-${participant.identity || 'unknown'}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
                       <span className="text-white font-bold text-sm">
                         {participant.identity ? participant.identity.charAt(0) : 'ユ'}

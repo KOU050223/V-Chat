@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Send, Users, MessageCircle, Phone, PhoneOff, Mic, MicOff, Settings, MoreVertical, Volume2, VolumeX, Monitor, MonitorOff } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export default function ChatRoom() {
   const params = useParams();
   const router = useRouter();
   const roomId = params.roomId as string;
+  const { user, nextAuthSession } = useAuth();
   
   const [roomInfo, setRoomInfo] = useState<RoomInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -55,7 +57,7 @@ export default function ChatRoom() {
     }
   }, [roomInfo, isLoading]);
 
-  // ページを離れる時に参加者数を減らす
+  // ページを離れる時に参加者数を減らす（通常のクリーンアップ）
   useEffect(() => {
     return () => {
       if (roomInfo) {
@@ -63,6 +65,61 @@ export default function ChatRoom() {
       }
     };
   }, [roomInfo]);
+
+  // ブラウザ閉じる・タブ閉じる・リロード時の退出処理
+  useEffect(() => {
+    const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
+      console.log('Page unloading, attempting to leave room...');
+      
+      // 退出処理を実行
+      const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
+      if (hasJoined) {
+        const userIdentifier = Object.keys(sessionStorage)
+          .find(key => key.startsWith(`room-${roomId}-user-`))
+          ?.replace(`room-${roomId}-user-`, '');
+        
+        if (userIdentifier) {
+          // 非同期処理をsendBeaconで実行（ページ離脱でも確実に送信）
+          const data = JSON.stringify({ userIdentifier, action: 'leave' });
+          if (navigator.sendBeacon) {
+            // sendBeaconはPOSTリクエストで送信される
+            navigator.sendBeacon(`/api/rooms/${roomId}/join`, data);
+          } else {
+            // sendBeaconが利用できない場合はfetchでtry
+            fetch(`/api/rooms/${roomId}/join`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userIdentifier }),
+              keepalive: true
+            }).catch(err => console.warn('Failed to leave room on unload:', err));
+          }
+          
+          // セッションストレージもクリア
+          sessionStorage.removeItem(`room-${roomId}-joined`);
+          sessionStorage.removeItem(`room-${roomId}-user-${userIdentifier}`);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        console.log('Page hidden, attempting to leave room...');
+        handleBeforeUnload(new Event('beforeunload') as BeforeUnloadEvent);
+      }
+    };
+
+    // イベントリスナーを追加
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      // クリーンアップ時にもイベントリスナーを削除
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [roomId]);
 
   // 定期的にルーム情報を更新（参加者数の同期）
   useEffect(() => {
@@ -107,25 +164,42 @@ export default function ChatRoom() {
   const joinRoom = async () => {
     try {
       // 既に参加済みかチェック（重複参加を防ぐ）
-      const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
+      const generalJoinKey = `room-${roomId}-joined`;
+      const hasJoined = sessionStorage.getItem(generalJoinKey);
+      
       if (hasJoined) {
         console.log('Already joined this room');
         return;
       }
 
-      // 現在の参加者数を取得してから+1
-      const currentMembers = roomInfo?.members || 0;
-      const newMembers = currentMembers + 1;
+      // 既存のユーザーIDがあるかチェック
+      const existingUserKeys = Object.keys(sessionStorage).filter(key => 
+        key.startsWith(`room-${roomId}-user-`)
+      );
       
-      console.log('Joining room:', { roomId, currentMembers, newMembers });
+      let userIdentifier: string;
+      
+      if (existingUserKeys.length > 0) {
+        // 既存のユーザーIDを再利用
+        userIdentifier = existingUserKeys[0].replace(`room-${roomId}-user-`, '');
+        console.log('Reusing existing user identifier:', userIdentifier);
+      } else {
+        // 新しいユーザーIDを生成
+        userIdentifier = `${user?.uid || nextAuthSession?.user?.id || 'anonymous'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        console.log('Generated new user identifier:', userIdentifier);
+      }
 
-      const response = await fetch(`/api/rooms/${roomId}`, {
-        method: 'PUT',
+      console.log('Joining room with user identifier:', userIdentifier);
+
+      // サーバー側で安全に参加者数を増やす
+      const response = await fetch(`/api/rooms/${roomId}/join`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          members: newMembers
+          userIdentifier: userIdentifier,
+          userName: user?.displayName || nextAuthSession?.user?.name || 'ゲスト'
         }),
       });
 
@@ -133,10 +207,16 @@ export default function ChatRoom() {
         const data = await response.json();
         console.log('Join response:', data);
         setRoomInfo(data.room);
-        sessionStorage.setItem(`room-${roomId}-joined`, 'true');
+        
+        // セッション情報を保存
+        const sessionKey = `room-${roomId}-user-${userIdentifier}`;
+        sessionStorage.setItem(sessionKey, userIdentifier);
+        sessionStorage.setItem(generalJoinKey, 'true');
+        
         console.log('Successfully joined room:', data.room);
       } else {
-        console.error('Failed to join room');
+        const errorData = await response.json();
+        console.error('Failed to join room:', errorData);
       }
     } catch (error) {
       console.error('Error joining room:', error);
@@ -217,6 +297,39 @@ export default function ChatRoom() {
     alert('ルームIDをコピーしました');
   };
 
+  const handleResetRoom = async () => {
+    // if (process.env.NODE_ENV !== 'development') return; // 開発用に一時的にコメントアウト
+    
+    try {
+      const response = await fetch(`/api/rooms/${roomId}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Room reset successfully:', data);
+        setRoomInfo(data.room);
+        
+        // セッションストレージもクリア
+        Object.keys(sessionStorage).forEach(key => {
+          if (key.startsWith(`room-${roomId}-`)) {
+            sessionStorage.removeItem(key);
+          }
+        });
+        
+        alert('ルームがリセットされました');
+        window.location.reload(); // ページをリロードして状態をクリア
+      } else {
+        console.error('Failed to reset room');
+        alert('ルームのリセットに失敗しました');
+      }
+    } catch (error) {
+      console.error('Error resetting room:', error);
+      alert('ルームのリセットに失敗しました');
+    }
+  };
+
   const handleExitClick = () => {
     setShowExitConfirm(true);
   };
@@ -230,42 +343,77 @@ export default function ChatRoom() {
         return;
       }
 
-      if (roomInfo) {
-        const currentMembers = roomInfo.members || 1;
-        const newMembers = Math.max(0, currentMembers - 1);
-        
-        console.log('Leaving room:', { roomId, currentMembers, newMembers });
+      // 保存されたユーザーIDを取得
+      const userIdentifier = Object.keys(sessionStorage)
+        .find(key => key.startsWith(`room-${roomId}-user-`))
+        ?.replace(`room-${roomId}-user-`, '');
 
-        const response = await fetch(`/api/rooms/${roomId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            members: newMembers
-          }),
-        });
+      if (!userIdentifier) {
+        console.log('No user identifier found for this room');
+        // フォールバック: 従来の方法で退出
+        return;
+      }
 
-        if (response.ok) {
-          console.log('Successfully left room');
-          sessionStorage.removeItem(`room-${roomId}-joined`);
-        } else {
-          console.error('Failed to leave room');
-        }
+      console.log('Leaving room with user identifier:', userIdentifier);
+
+      const response = await fetch(`/api/rooms/${roomId}/join`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userIdentifier: userIdentifier
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Successfully left room:', data);
+        sessionStorage.removeItem(`room-${roomId}-joined`);
+        sessionStorage.removeItem(`room-${roomId}-user-${userIdentifier}`);
+      } else {
+        console.error('Failed to leave room');
       }
     } catch (error) {
       console.error('Error leaving room:', error);
     }
   };
 
-  const handleExitConfirm = () => {
+  const handleExitConfirm = async () => {
     setShowExitConfirm(false);
-    leaveRoom();
-    router.push('/dashboard');
+    
+    try {
+      // 退出処理が完了するまで待つ
+      await leaveRoom();
+      console.log('Exit process completed, navigating to dashboard');
+      
+      // 退出処理完了後にダッシュボードに移動
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error during exit process:', error);
+      // エラーが発生してもダッシュボードに移動
+      router.push('/dashboard');
+    }
   };
 
   const handleExitCancel = () => {
     setShowExitConfirm(false);
+  };
+
+  const handleVoiceCallLeave = async () => {
+    console.log('Voice call leave requested');
+    try {
+      // 退出処理が完了するまで待つ
+      await leaveRoom();
+      console.log('Voice call leave process completed, navigating to dashboard');
+      
+      // 退出処理完了後にダッシュボードに移動
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error during voice call leave process:', error);
+      // エラーが発生してもダッシュボードに移動
+      router.push('/dashboard');
+    }
   };
 
   if (isLoading) {
@@ -361,7 +509,7 @@ export default function ChatRoom() {
               </Button>
               {showMoreMenu && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
-                  <div className="p-2">
+                  <div className="p-2 space-y-1">
                     <Button
                       onClick={handleCopyRoomId}
                       variant="outline"
@@ -370,6 +518,17 @@ export default function ChatRoom() {
                     >
                       ルームIDをコピー
                     </Button>
+                    {/* 開発環境でのテスト用に常に表示 */}
+                    {true && (
+                      <Button
+                        onClick={handleResetRoom}
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-start bg-red-700 border-red-600 text-red-200 hover:bg-red-600"
+                      >
+                        🔧 ルームをリセット（開発用）
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
@@ -466,8 +625,8 @@ export default function ChatRoom() {
       {/* 音声通話コンポーネント（実際に動作） */}
       <VoiceCall
         roomId={roomId}
-        participantName="あなた"
-        onLeave={() => router.push('/dashboard')}
+        participantName={`${user?.displayName || nextAuthSession?.user?.name || 'ゲスト'}-${Date.now()}`}
+        onLeave={handleVoiceCallLeave}
         onStateChange={handleVoiceCallStateChange}
       />
 

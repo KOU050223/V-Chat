@@ -10,9 +10,10 @@ interface VoiceCallProps {
   participantName: string;
   onLeave?: () => void;
   onStateChange?: (state: any) => void;
+  serverMemberCount?: number; // サーバー側の参加者数
 }
 
-export default function VoiceCall({ roomId, participantName, onLeave, onStateChange }: VoiceCallProps) {
+export default function VoiceCall({ roomId, participantName, onLeave, onStateChange, serverMemberCount }: VoiceCallProps) {
   const [room, setRoom] = useState<Room | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -21,15 +22,48 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const [error, setError] = useState<string | null>(null);
   const [showPanel, setShowPanel] = useState(true);
   const connectionRef = useRef<boolean>(false);
+  
+  // 強制リセット関数
+  const forceResetParticipants = () => {
+    console.log('🔄 FORCE RESET: Clearing all participants');
+    setParticipants([]);
+  };
+
+  // コンポーネントマウント時とroomId変更時に参加者リストをリセット
+  useEffect(() => {
+    console.log('🔄 Component mount/roomId change - resetting participants');
+    forceResetParticipants();
+  }, [roomId]);
+
+  // 重複接続を防ぐためのref
+  const isConnectingRef = useRef<boolean>(false);
+  const hasConnectedRef = useRef<boolean>(false);
 
   const connectToRoom = async () => {
+    // 既に接続処理中の場合は何もしない
+    if (isConnectingRef.current) {
+      console.log('⚠️ CONNECTION ALREADY IN PROGRESS - skipping');
+      return;
+    }
+    
+    // 開発環境でのHMR対応：既に接続済みの場合はスキップ
+    if (process.env.NODE_ENV === 'development' && hasConnectedRef.current && room && isConnected) {
+      console.log('🔧 DEV MODE: HMR DETECTED - Skipping reconnection (already connected)');
+      return;
+    }
     try {
+      isConnectingRef.current = true;
       setIsConnecting(true);
       setError(null);
       connectionRef.current = false;
       
-      console.log('Connecting to room:', roomId);
-      console.log('LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
+      // 接続開始時に参加者リストを強制リセット
+      console.log('🔄 CONNECTION START: Force clearing participants');
+      setParticipants([]);
+      
+      console.log('🔗 CONNECTING TO ROOM:', roomId);
+      console.log('🌐 LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
+      console.log('🔧 Environment:', process.env.NODE_ENV);
 
       // より確実にユニークな参加者名を生成（タイムスタンプ + ランダム + セッション）
       const timestamp = Date.now();
@@ -61,11 +95,12 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       // 既存のルームがあれば完全にクリーンアップ
       if (room) {
         try {
-          console.log('Cleaning up existing room connection...');
+          console.log('🧹 CLEANING UP existing room connection...');
           
-          // 既存の参加者をクリア
+          // 既存の参加者をクリア（複数回実行して確実に）
           setParticipants([]);
           setIsConnected(false);
+          setRoom(null);
           
           // ルームのイベントリスナーを削除
           room.removeAllListeners();
@@ -74,11 +109,18 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           await room.disconnect();
           
           // 少し待ってからクリーンアップ完了
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 200));
           
-          console.log('Previous room cleaned up successfully');
+          // 再度参加者リストをクリア（念のため）
+          setParticipants([]);
+          
+          console.log('✅ Previous room cleaned up successfully');
         } catch (e) {
-          console.warn('Failed to disconnect existing room:', e);
+          console.warn('❌ Failed to disconnect existing room:', e);
+          // エラーが発生してもリセット
+          setParticipants([]);
+          setIsConnected(false);
+          setRoom(null);
         }
       }
 
@@ -155,14 +197,50 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         setRoom(newRoom);
         setIsConnected(true);
         setIsConnecting(false);
+        isConnectingRef.current = false; // 接続完了
+        hasConnectedRef.current = true; // 接続成功フラグ
         
-        // 既存の参加者を取得して初期化（自分自身は除外）
-        const existingParticipants = Array.from(newRoom.remoteParticipants.values())
-          .filter(p => p.sid !== newRoom.localParticipant?.sid);
-        console.log('Existing participants on connect (excluding self):', existingParticipants.length);
+        // 既存の参加者を取得して初期化（自分自身のみを正確に除外）
+        const allRemoteParticipants = Array.from(newRoom.remoteParticipants.values());
+        
+        console.log('=== INITIAL PARTICIPANT FILTER DEBUG ===');
+        console.log('Local participant SID:', newRoom.localParticipant?.sid);
+        console.log('Local participant identity:', newRoom.localParticipant?.identity);
+        console.log('My participantName:', participantName);
+        console.log('All remote participants count:', allRemoteParticipants.length);
+        console.log('All remote participants:', allRemoteParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
+        
+        // 自分の名前（タイムスタンプ部分を除く）を取得
+        const myBaseName = participantName.split('-')[0];
+        
+        // 適切にフィルタリング（自分自身のみを除外）
+        const existingParticipants = allRemoteParticipants.filter(p => {
+          const participantBaseName = p.identity ? p.identity.split('-')[0] : '';
+          
+          const isMyself = (
+            p.sid === newRoom.localParticipant?.sid ||  // SIDで比較
+            p.identity === newRoom.localParticipant?.identity || // identityで比較  
+            p.identity === participantName || // 直接パラメータと比較
+            participantBaseName === myBaseName // ベース名で比較
+          );
+          
+          console.log(`Checking participant ${p.identity}: isMyself=${isMyself}`);
+          return !isMyself;
+        });
+        
+        console.log('Filtered participants (excluding self):', existingParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
+        console.log('Server member count:', serverMemberCount);
         setParticipants(existingParticipants);
         
-        onStateChange?.({ isConnected: true, isMuted: false, participants: existingParticipants });
+        const actualCount = Math.max(existingParticipants.length + 1, 1);
+        const initialState = { 
+          isConnected: true, 
+          isMuted: false, 
+          participants: existingParticipants,
+          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
+        };
+        console.log('🔄 STATE CHANGE NOTIFICATION (initial connection):', initialState);
+        onStateChange?.(initialState);
       } catch (connectError) {
         console.error('Connection failed:', connectError);
         throw connectError;
@@ -187,6 +265,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       setError(errorMessage);
       setIsConnecting(false);
       connectionRef.current = false;
+      isConnectingRef.current = false; // 接続失敗時もリセット
       
       // 開発環境では接続失敗でも画面表示を続行
       if (process.env.NODE_ENV === 'development') {
@@ -224,6 +303,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     if (room) {
       try {
         connectionRef.current = false;
+        hasConnectedRef.current = false; // 接続フラグリセット
         await room.disconnect();
         setRoom(null);
         setIsConnected(false);
@@ -232,6 +312,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       } catch (error) {
         console.error('Error disconnecting from room:', error);
         // エラーが発生しても状態をリセット
+        hasConnectedRef.current = false;
         setRoom(null);
         setIsConnected(false);
         setParticipants([]);
@@ -245,7 +326,13 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       try {
         await room.localParticipant.setMicrophoneEnabled(!isMuted);
         setIsMuted(!isMuted);
-        onStateChange?.({ isConnected, isMuted: !isMuted, participants });
+        const actualCount = Math.max(participants.length + 1, 1);
+        onStateChange?.({ 
+          isConnected, 
+          isMuted: !isMuted, 
+          participants,
+          actualParticipantCount: actualCount
+        });
       } catch (error) {
         console.error('Failed to toggle mute:', error);
       }
@@ -253,29 +340,75 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   };
 
   const handleParticipantConnected = (participant: RemoteParticipant) => {
-    console.log('Participant connected:', participant.identity, 'SID:', participant.sid);
-    console.log('Current room local participant SID:', room?.localParticipant?.sid);
+    console.log('=== PARTICIPANT CONNECTED DEBUG ===');
+    console.log('Connected participant SID:', participant.sid);
+    console.log('Connected participant identity:', participant.identity);
+    console.log('Local participant SID:', room?.localParticipant?.sid);
+    console.log('Local participant identity:', room?.localParticipant?.identity);
+    console.log('My participantName:', participantName);
     
-    // 自分自身は参加者リストに含めない
-    if (room && participant.sid === room.localParticipant?.sid) {
-      console.log('Skipping local participant (yourself)');
+    // 自分の名前（タイムスタンプ部分を除く）を取得
+    const myBaseName = participantName.split('-')[0];
+    const participantBaseName = participant.identity ? participant.identity.split('-')[0] : '';
+    
+    console.log('My base name:', myBaseName);
+    console.log('Participant base name:', participantBaseName);
+    
+    // 複数の条件で自分自身を除外（より厳密に）
+    const isMyself = room && (
+      participant.sid === room.localParticipant?.sid ||  // SIDで比較
+      participant.identity === room.localParticipant?.identity || // identityで比較
+      participant.identity === participantName || // 直接パラメータと比較
+      participantBaseName === myBaseName // ベース名で比較（最も重要）
+    );
+    
+    console.log('Is myself check result:', isMyself);
+    
+    if (isMyself) {
+      console.log('🚫 BLOCKING self participant:', participant.identity);
       return;
     }
     
+    console.log('✅ ALLOWING remote participant:', participant.identity);
+    
     setParticipants(prev => {
-      // 既に存在する参加者は追加しない（重複防止）
-      const existingParticipant = prev.find(p => p.sid === participant.sid);
+      // より厳密な重複チェック
+      const existingParticipant = prev.find(p => {
+        const sameId = p.sid === participant.sid;
+        const sameIdentity = p.identity === participant.identity;
+        const sameBaseName = p.identity && participant.identity && 
+                            p.identity.split('-')[0] === participant.identity.split('-')[0];
+        
+        console.log(`Duplicate check for ${participant.identity}:`);
+        console.log(`  - Same SID: ${sameId}`);
+        console.log(`  - Same Identity: ${sameIdentity}`);
+        console.log(`  - Same Base Name: ${sameBaseName}`);
+        
+        return sameId || sameIdentity;
+      });
+      
       if (existingParticipant) {
-        console.log('Participant already exists, skipping:', participant.identity);
+        console.log('🚫 DUPLICATE BLOCKED: Participant already exists, skipping:', participant.identity);
+        console.log('Existing:', existingParticipant.identity, 'New:', participant.identity);
         return prev;
       }
       
       const newParticipants = [...prev, participant];
+      console.log('✅ PARTICIPANT ADDED:', participant.identity);
       console.log('New participants count (excluding self):', newParticipants.length);
+      console.log('All participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
       
       // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
       setTimeout(() => {
-        onStateChange?.({ isConnected, isMuted, participants: newParticipants });
+        const actualCount = Math.max(newParticipants.length + 1, 1);
+        const newState = { 
+          isConnected, 
+          isMuted, 
+          participants: newParticipants,
+          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
+        };
+        console.log('🔄 STATE CHANGE NOTIFICATION (participant added):', newState);
+        onStateChange?.(newState);
       }, 0);
       
       return newParticipants;
@@ -287,11 +420,21 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     
     setParticipants(prev => {
       const newParticipants = prev.filter(p => p.sid !== participant.sid);
+      console.log('❌ PARTICIPANT REMOVED:', participant.identity);
       console.log('Remaining participants count:', newParticipants.length);
+      console.log('Remaining participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
       
       // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
       setTimeout(() => {
-        onStateChange?.({ isConnected, isMuted, participants: newParticipants });
+        const actualCount = Math.max(newParticipants.length + 1, 1);
+        const newState = { 
+          isConnected, 
+          isMuted, 
+          participants: newParticipants,
+          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
+        };
+        console.log('🔄 STATE CHANGE NOTIFICATION (participant removed):', newState);
+        onStateChange?.(newState);
       }, 0);
       
       return newParticipants;
@@ -305,14 +448,30 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const handleDisconnected = () => {
     console.log('Disconnected from room');
     connectionRef.current = false;
+    hasConnectedRef.current = false; // 接続フラグリセット
     setIsConnected(false);
     setParticipants([]);
-    onStateChange?.({ isConnected: false, isMuted: false, participants: [] });
+    onStateChange?.({ 
+      isConnected: false, 
+      isMuted: false, 
+      participants: [],
+      actualParticipantCount: 0 // 切断時は0
+    });
   };
 
   useEffect(() => {
-    connectToRoom();
+    let isMounted = true;
+    
+    const initConnection = async () => {
+      if (isMounted) {
+        await connectToRoom();
+      }
+    };
+    
+    initConnection();
+    
     return () => {
+      isMounted = false;
       // コンポーネントのアンマウント時にクリーンアップ
       if (room) {
         try {
@@ -322,6 +481,8 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           setParticipants([]);
           setIsConnected(false);
           setIsConnecting(false);
+          isConnectingRef.current = false;
+          hasConnectedRef.current = false;
           
           // イベントリスナーを全て削除
           room.removeAllListeners();
@@ -335,7 +496,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         }
       }
     };
-  }, [roomId]);
+  }, [roomId]); // roomIdのみに依存
 
   if (error) {
     return (
@@ -403,7 +564,10 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
             <div className="mb-6">
               <h3 className="text-gray-300 font-semibold mb-3 flex items-center">
                 <Signal className="w-4 h-4 mr-2 text-blue-400" />
-                参加者 ({participants.length + 1})
+                参加者 ({Math.max(participants.length + 1, 1)})
+                {serverMemberCount && serverMemberCount > 0 && serverMemberCount !== (participants.length + 1) && (
+                  <span className="ml-2 text-xs text-yellow-400">(サーバー: {serverMemberCount})</span>
+                )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {/* 自分 */}
@@ -423,24 +587,36 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
                 </div>
 
                 {/* 他の参加者 */}
-                {participants.map((participant, index) => (
-                  <div key={`participant-${participant.sid}-${index}-${participant.identity || 'unknown'}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">
-                        {participant.identity ? participant.identity.charAt(0) : 'ユ'}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium text-sm truncate">
-                        {participant.identity || `ユーザー${index + 1}`}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        <span className="text-xs text-gray-300">音声オン</span>
+                {participants.map((participant, index) => {
+                  const displayName = participant.identity ? participant.identity.split('-')[0] : `ユーザー${index + 1}`;
+                  const uniqueId = participant.sid?.slice(-6) || 'unknown';
+                  
+                  return (
+                    <div key={`participant-${participant.sid}-${index}-${participant.identity || 'unknown'}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
+                          {displayName.charAt(0)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">
+                          {displayName}
+                          {/* 同じ名前の場合は識別番号を追加 */}
+                          {participants.filter(p => p.identity?.split('-')[0] === displayName).length > 1 && (
+                            <span className="ml-1 text-xs text-gray-400">#{uniqueId}</span>
+                          )}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <span className="text-xs text-gray-300">音声オン</span>
+                          {/* デバッグ情報を一時的に表示 */}
+                          <span className="text-xs text-red-400">[SID: {uniqueId}]</span>
+                          <span className="text-xs text-blue-400">[ID: {participant.identity}]</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

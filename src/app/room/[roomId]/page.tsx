@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ArrowLeft, Send, Users, MessageCircle, Phone, PhoneOff, Mic, MicOff, Settings, MoreVertical, Volume2, VolumeX, Monitor, MonitorOff } from 'lucide-react';
@@ -50,9 +50,18 @@ export default function ChatRoom() {
     fetchMessages();
   }, [roomId]);
 
-  // ルーム情報が取得できたら参加処理を実行
+  // ルーム情報が取得できたら参加処理を実行（HMR対応）
   useEffect(() => {
     if (roomInfo && !isLoading) {
+      const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
+      
+      // 開発環境でのHMR対応：既に参加済みの場合は再参加をスキップ
+      if (process.env.NODE_ENV === 'development' && hasJoined) {
+        console.log('🔧 DEV MODE: HMR DETECTED - Skipping joinRoom() - already joined');
+        return;
+      }
+      
+      console.log('🚀 EXECUTING: joinRoom()');
       joinRoom();
     }
   }, [roomInfo, isLoading]);
@@ -60,16 +69,28 @@ export default function ChatRoom() {
   // ページを離れる時に参加者数を減らす（通常のクリーンアップ）
   useEffect(() => {
     return () => {
+      // 開発環境でのHMR時はleaveRoomをスキップ
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔧 DEV MODE: HMR DETECTED - Skipping leaveRoom() on cleanup');
+        return;
+      }
+      
       if (roomInfo) {
         leaveRoom();
       }
     };
-  }, [roomInfo]);
+  }, []); // 依存配列を空にしてHMRによる再実行を防ぐ
 
   // ブラウザ閉じる・タブ閉じる・リロード時の退出処理
   useEffect(() => {
     const handleBeforeUnload = async (e: BeforeUnloadEvent) => {
       console.log('Page unloading, attempting to leave room...');
+      
+      // 開発環境でのHMR時は退出処理をスキップ
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔧 DEV MODE: HMR DETECTED - Skipping beforeunload leave process');
+        return;
+      }
       
       // 退出処理を実行
       const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
@@ -104,6 +125,13 @@ export default function ChatRoom() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         console.log('Page hidden, attempting to leave room...');
+        
+        // 開発環境でのHMR時は退出処理をスキップ
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🔧 DEV MODE: HMR DETECTED - Skipping visibilitychange leave process');
+          return;
+        }
+        
         handleBeforeUnload(new Event('beforeunload') as BeforeUnloadEvent);
       }
     };
@@ -160,15 +188,41 @@ export default function ChatRoom() {
     }
   };
 
+  // 参加処理のデバウンス用
+  const joinAttemptRef = useRef<boolean>(false);
+  const lastJoinTimeRef = useRef<number>(0);
+
   // ルームに参加する処理
   const joinRoom = async () => {
     try {
+      // デバウンス：短時間での重複実行を防ぐ
+      const now = Date.now();
+      if (joinAttemptRef.current || now - lastJoinTimeRef.current < 2000) {
+        console.log('🔧 DEV MODE: JOIN DEBOUNCED - Skipping duplicate join attempt');
+        return;
+      }
+      
+      joinAttemptRef.current = true;
+      lastJoinTimeRef.current = now;
+      
       // 既に参加済みかチェック（重複参加を防ぐ）
       const generalJoinKey = `room-${roomId}-joined`;
       const hasJoined = sessionStorage.getItem(generalJoinKey);
       
       if (hasJoined) {
         console.log('Already joined this room');
+        // 開発環境でのHMR対応：既に参加済みの状態を復元
+        if (process.env.NODE_ENV === 'development') {
+          const existingUserKeys = Object.keys(sessionStorage).filter(key => 
+            key.startsWith(`room-${roomId}-user-`)
+          );
+          if (existingUserKeys.length > 0) {
+            const userIdentifier = existingUserKeys[0].replace(`room-${roomId}-user-`, '');
+            console.log('🔧 DEV MODE: HMR DETECTED - Restoring joined state with user identifier:', userIdentifier);
+            // 必要に応じて状態を復元
+          }
+        }
+        joinAttemptRef.current = false;
         return;
       }
 
@@ -220,6 +274,9 @@ export default function ChatRoom() {
       }
     } catch (error) {
       console.error('Error joining room:', error);
+    } finally {
+      // デバウンスフラグをリセット
+      joinAttemptRef.current = false;
     }
   };
 
@@ -266,14 +323,23 @@ export default function ChatRoom() {
   };
 
   const handleVoiceCallStateChange = (state: any) => {
-    console.log('Voice call state changed:', state);
+    console.log('=== VOICE CALL STATE CHANGE DEBUG ===');
+    console.log('State:', state);
+    console.log('State participants:', state.participants);
+    console.log('State participants count:', state.participants ? state.participants.length : 0);
+    console.log('Current roomInfo:', roomInfo);
+    
     setVoiceCallState(state);
     
-    // 参加者数も更新
+    // 参加者数も更新（より正確に、最低1人として）
     if (roomInfo) {
+      const rawMemberCount = state.actualParticipantCount || (state.participants ? state.participants.length + 1 : 1);
+      const newMemberCount = Math.max(rawMemberCount, 1); // 最低1人
+      console.log('Updating room members to:', newMemberCount, '(raw:', rawMemberCount, ')');
+      
       setRoomInfo(prev => prev ? {
         ...prev,
-        members: state.participants ? state.participants.length + 1 : 1
+        members: newMemberCount
       } : null);
     }
   };
@@ -625,9 +691,10 @@ export default function ChatRoom() {
       {/* 音声通話コンポーネント（実際に動作） */}
       <VoiceCall
         roomId={roomId}
-        participantName={`${user?.displayName || nextAuthSession?.user?.name || 'ゲスト'}-${Date.now()}`}
+        participantName={`${user?.displayName || nextAuthSession?.user?.name || 'ゲスト'}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`}
         onLeave={handleVoiceCallLeave}
         onStateChange={handleVoiceCallStateChange}
+        serverMemberCount={roomInfo?.members}
       />
 
       {/* 退出確認ダイアログ */}

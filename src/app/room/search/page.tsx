@@ -66,30 +66,41 @@ export default function RoomSearchPage() {
       setIsCleaningUp(true);
       setError(null);
       
+      // 包括的なクリーンアップを実行
       const response = await fetch('/api/rooms/cleanup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cleanupType: 'empty' })
+        body: JSON.stringify({ 
+          cleanupType: 'comprehensive',
+          includeOldRooms: true,
+          includeOrphanedData: true 
+        })
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Cleanup result:', data);
+        console.log('Comprehensive cleanup result:', data);
         
         // ルーム一覧を再取得
         await fetchRooms();
         
-        if (data.cleanedCount > 0) {
-          alert(`${data.cleanedCount}個の空ルームを削除しました`);
+        const totalCleaned = (data.emptyRooms || 0) + (data.oldRooms || 0) + (data.orphanedParticipants || 0);
+        if (totalCleaned > 0) {
+          let message = `クリーンアップ完了！\n`;
+          if (data.emptyRooms > 0) message += `- 空ルーム: ${data.emptyRooms}個\n`;
+          if (data.oldRooms > 0) message += `- 古いルーム: ${data.oldRooms}個\n`;
+          if (data.orphanedParticipants > 0) message += `- 孤立データ: ${data.orphanedParticipants}個\n`;
+          if (data.sessionStorageKeys > 0) message += `- セッション: ${data.sessionStorageKeys}個\n`;
+          alert(message);
         } else {
-          alert('削除対象の空ルームはありませんでした');
+          alert('クリーンアップ対象のデータはありませんでした');
         }
       } else {
-        setError('ルームクリーンアップに失敗しました');
+        setError('包括的クリーンアップに失敗しました');
       }
     } catch (error) {
-      console.error('Failed to cleanup rooms:', error);
-      setError('ルームクリーンアップに失敗しました');
+      console.error('Failed to perform comprehensive cleanup:', error);
+      setError('包括的クリーンアップに失敗しました');
     } finally {
       setIsCleaningUp(false);
     }
@@ -190,7 +201,7 @@ export default function RoomSearchPage() {
           size="sm"
           className="bg-red-50 border-red-200 text-red-600 hover:bg-red-100"
         >
-          {isCleaningUp ? '削除中...' : '🧹 空ルームを削除'}
+          {isCleaningUp ? 'クリーンアップ中...' : '🧹 包括的クリーンアップ'}
         </Button>
         <Button
           onClick={handleForceResetAll}

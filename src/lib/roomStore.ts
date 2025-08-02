@@ -17,7 +17,7 @@ declare global {
 // メモリ内でルームを管理（本格的な実装ではデータベースを使用）
 let rooms: Room[] = globalThis.__roomStore ?? [
   {
-    id: 'room-1753883576886',
+    id: '1753883576886',
     name: '雑談部屋',
     description: '気軽に雑談できるルームです',
     isPrivate: false,
@@ -26,7 +26,7 @@ let rooms: Room[] = globalThis.__roomStore ?? [
     createdBy: 'user-1'
   },
   {
-    id: 'room-1753883600000',
+    id: '1753883600000',
     name: '勉強会',
     description: 'プログラミングの勉強会です',
     isPrivate: false,
@@ -53,7 +53,7 @@ export class RoomStore {
   static createRoom(roomData: Omit<Room, 'id' | 'createdAt'>): Room {
     const newRoom: Room = {
       ...roomData,
-      id: `room-${Date.now()}`,
+      id: `${Date.now()}`,
       createdAt: new Date()
     };
     rooms.push(newRoom);

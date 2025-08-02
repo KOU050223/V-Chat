@@ -41,8 +41,9 @@ export async function POST(
       );
     }
     
-    const { userIdentifier, userName, action } = requestData as { 
+    const { userIdentifier, userId, userName, action } = requestData as { 
       userIdentifier?: string; 
+      userId?: string;
       userName?: string; 
       action?: string; 
     };
@@ -50,6 +51,7 @@ export async function POST(
     console.log('=== ROOM REQUEST ===');
     console.log('Room ID:', roomId);
     console.log('User Identifier:', userIdentifier);
+    console.log('User ID:', userId);
     console.log('User Name:', userName);
     console.log('Action:', action);
 
@@ -66,22 +68,41 @@ export async function POST(
       logCurrentState(roomId, 'BEFORE_LEAVE_POST');
       
       const participants = roomParticipants.get(roomId) || new Set();
-      const wasInRoom = participants.has(userIdentifier);
+      let removedCount = 0;
       
-      if (wasInRoom) {
+      // userIdentifierで削除
+      if (participants.has(userIdentifier)) {
         participants.delete(userIdentifier);
+        removedCount++;
+        console.log('🗑️ Removed specific identifier:', userIdentifier);
+      }
+      
+      // userIdベースで関連する古いidentifierも一括削除（HMR対策）
+      if (userId) {
+        const relatedIdentifiers = Array.from(participants).filter(identifier => 
+          identifier.startsWith(userId + '-') && identifier !== userIdentifier
+        );
+        
+        relatedIdentifiers.forEach(oldIdentifier => {
+          participants.delete(oldIdentifier);
+          removedCount++;
+          console.log('🗑️ Removed related identifier:', oldIdentifier);
+        });
+      }
+      
+      if (removedCount > 0) {
         roomParticipants.set(roomId, participants);
         
         const newMemberCount = participants.size;
         const updatedRoom = RoomStore.updateRoom(roomId, { members: newMemberCount });
         
-        console.log('User removed from room (POST):', userIdentifier);
+        console.log(`User(s) removed from room (POST): ${removedCount} identifiers`);
         console.log('New member count:', newMemberCount);
         logCurrentState(roomId, 'AFTER_LEAVE_POST');
         
         return NextResponse.json({
           room: updatedRoom,
-          message: 'Left room successfully via POST',
+          message: `Left room successfully via POST (${removedCount} identifiers removed)`,
           participants: Array.from(participants)
         });
       } else {
@@ -115,15 +136,31 @@ export async function POST(
 
     const participants = roomParticipants.get(roomId)!;
     
-    // 既に参加済みかチェック
+    // 既に参加済みかチェック（userIdentifierベース）
     if (participants.has(userIdentifier)) {
-      console.log('User already in room:', userIdentifier);
+      console.log('⚠️ User already in room with same identifier:', userIdentifier);
       logCurrentState(roomId, 'USER_ALREADY_IN_ROOM');
       return NextResponse.json({
         room: room,
         message: 'Already joined',
         participants: Array.from(participants)
       });
+    }
+
+    // userIdベースの重複チェック（HMR対策）
+    if (userId) {
+      const existingUserIdentifiers = Array.from(participants).filter(identifier => 
+        identifier.startsWith(userId + '-')
+      );
+      
+      if (existingUserIdentifiers.length > 0) {
+        console.log('🔄 Found existing identifiers for userId:', userId, existingUserIdentifiers);
+        // 古いuserIdentifierを削除
+        existingUserIdentifiers.forEach(oldIdentifier => {
+          participants.delete(oldIdentifier);
+          console.log('🗑️ Removed old identifier:', oldIdentifier);
+        });
+      }
     }
 
     // 参加者を追加
@@ -185,11 +222,12 @@ export async function DELETE(
       );
     }
     
-    const { userIdentifier } = requestData as { userIdentifier?: string };
+    const { userIdentifier, userId } = requestData as { userIdentifier?: string; userId?: string };
 
     console.log('=== ROOM LEAVE REQUEST ===');
     console.log('Room ID:', roomId);
     console.log('User Identifier:', userIdentifier);
+    console.log('User ID:', userId);
 
     if (!userIdentifier) {
       return NextResponse.json(

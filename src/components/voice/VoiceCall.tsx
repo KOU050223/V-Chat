@@ -281,22 +281,47 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     if (state === 'connected') {
       connectionRef.current = true;
       setIsConnected(true);
+      setIsConnecting(false); // 接続完了時は接続中状態を解除
     } else if (state === 'disconnected') {
       connectionRef.current = false;
       setIsConnected(false);
+      setIsConnecting(false); // 切断時も接続中状態を解除
     } else if (state === 'connecting') {
+      // 既に接続済みの場合は接続中状態に戻さない（新規参加者による一時的な状態変更を無視）
+      if (!isConnected) {
+        console.log('Setting connecting state (not yet connected)');
       setIsConnecting(true);
+      } else {
+        console.log('⚠️ IGNORING connecting state - already connected (new participant joined)');
+      }
     } else if (state === 'reconnecting') {
+      // 既に接続済みの場合は、軽微な再接続では接続中状態に戻さない
+      if (!isConnected) {
+        console.log('Setting reconnecting state (connection lost)');
       setIsConnecting(true);
+      } else {
+        console.log('⚠️ IGNORING reconnecting state - connection stable (participant event)');
+      }
     }
   };
 
   const handleReconnecting = () => {
     console.log('Reconnecting to LiveKit...');
+    // 既に接続済みの場合は、軽微な再接続でUI状態を変更しない
+    if (!isConnected) {
+      console.log('Setting reconnecting state');
+      setIsConnecting(true);
+    } else {
+      console.log('⚠️ IGNORING reconnecting event - already connected');
+    }
   };
 
   const handleReconnected = () => {
     console.log('Reconnected to LiveKit');
+    // 再接続完了時は接続状態を確実に更新
+    setIsConnected(true);
+    setIsConnecting(false);
+    connectionRef.current = true;
   };
 
   const disconnectFromRoom = async () => {
@@ -339,7 +364,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     }
   };
 
-  const handleParticipantConnected = (participant: RemoteParticipant) => {
+                const handleParticipantConnected = (participant: RemoteParticipant) => {
     console.log('=== PARTICIPANT CONNECTED DEBUG ===');
     console.log('Connected participant SID:', participant.sid);
     console.log('Connected participant identity:', participant.identity);
@@ -371,7 +396,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     
     console.log('✅ ALLOWING remote participant:', participant.identity);
     
-    setParticipants(prev => {
+                setParticipants(prev => {
       // より厳密な重複チェック
       const existingParticipant = prev.find(p => {
         const sameId = p.sid === participant.sid;
@@ -393,7 +418,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         return prev;
       }
       
-      const newParticipants = [...prev, participant];
+                  const newParticipants = [...prev, participant];
       console.log('✅ PARTICIPANT ADDED:', participant.identity);
       console.log('New participants count (excluding self):', newParticipants.length);
       console.log('All participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
@@ -411,11 +436,11 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         onStateChange?.(newState);
       }, 0);
       
-      return newParticipants;
-    });
-  };
+                  return newParticipants;
+                });
+              };
 
-  const handleParticipantDisconnected = (participant: RemoteParticipant) => {
+                const handleParticipantDisconnected = (participant: RemoteParticipant) => {
     console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
     
     setParticipants(prev => {
@@ -426,12 +451,12 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       
       // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
       setTimeout(() => {
-        const actualCount = Math.max(newParticipants.length + 1, 1);
+        const actualCount = newParticipants.length + 1; // 自分を含めた正確な参加者数
         const newState = { 
           isConnected, 
           isMuted, 
           participants: newParticipants,
-          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
+          actualParticipantCount: actualCount // 自分も含めた正確な参加者数
         };
         console.log('🔄 STATE CHANGE NOTIFICATION (participant removed):', newState);
         onStateChange?.(newState);
@@ -593,28 +618,28 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
                   
                   return (
                     <div key={`participant-${participant.sid}-${index}-${participant.identity || 'unknown'}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">
+                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">
                           {displayName.charAt(0)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm truncate">
                           {displayName}
                           {/* 同じ名前の場合は識別番号を追加 */}
                           {participants.filter(p => p.identity?.split('-')[0] === displayName).length > 1 && (
                             <span className="ml-1 text-xs text-gray-400">#{uniqueId}</span>
                           )}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                          <span className="text-xs text-gray-300">音声オン</span>
+                      </p>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                        <span className="text-xs text-gray-300">音声オン</span>
                           {/* デバッグ情報を一時的に表示 */}
                           <span className="text-xs text-red-400">[SID: {uniqueId}]</span>
                           <span className="text-xs text-blue-400">[ID: {participant.identity}]</span>
-                        </div>
                       </div>
                     </div>
+                  </div>
                   );
                 })}
               </div>

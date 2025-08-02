@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { RoomStore } from '@/lib/roomStore';
+import { CleanupService } from '@/lib/cleanupService';
 
 // 開発環境用: ルームクリーンアップAPI
 export async function POST(req: NextRequest) {
@@ -31,9 +32,36 @@ export async function POST(req: NextRequest) {
         message = `${emptyCount}個の空ルームと${oldCount}個の古いルームを削除しました`;
         break;
       
+      case 'comprehensive':
+        // 包括的なクリーンアップ
+        const emptyRooms = RoomStore.cleanupEmptyRooms();
+        const oldRooms = RoomStore.cleanupOldRooms(6); // 6時間以上
+        const orphanedParticipants = await cleanupOrphanedParticipants();
+        
+        cleanedCount = emptyRooms + oldRooms + orphanedParticipants;
+        message = `包括的クリーンアップ完了: 空ルーム${emptyRooms}個、古いルーム${oldRooms}個、孤立データ${orphanedParticipants}個`;
+        
+        return NextResponse.json({
+          success: true,
+          message: message,
+          totalCleaned: cleanedCount,
+          emptyRooms: emptyRooms,
+          oldRooms: oldRooms,
+          orphanedParticipants: orphanedParticipants,
+          remainingRooms: RoomStore.getAllRooms().length,
+          rooms: RoomStore.getAllRooms()
+        });
+        
+      case 'force':
+        // 強制クリーンアップ（サービス経由）
+        CleanupService.forceCleanup();
+        message = '強制クリーンアップを実行しました';
+        cleanedCount = 0; // サービス経由なので詳細な数は取得しない
+        break;
+      
       default:
         return NextResponse.json(
-          { error: 'Invalid cleanup type. Use "empty", "old", or "all"' },
+          { error: 'Invalid cleanup type. Use "empty", "old", "all", "comprehensive", or "force"' },
           { status: 400 }
         );
     }
@@ -56,4 +84,30 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * 存在しないルームの参加者データを削除（サーバー側）
+ */
+async function cleanupOrphanedParticipants(): Promise<number> {
+  if (!globalThis.__roomParticipants) {
+    return 0;
+  }
+
+  const participantMap = globalThis.__roomParticipants;
+  const allRooms = RoomStore.getAllRooms();
+  const validRoomIds = new Set(allRooms.map(room => room.id));
+  
+  let cleanedCount = 0;
+  
+  // 存在しないルームの参加者データを削除
+  for (const roomId of participantMap.keys()) {
+    if (!validRoomIds.has(roomId)) {
+      participantMap.delete(roomId);
+      cleanedCount++;
+      console.log(`🗑️ API: Removed orphaned participants for room: ${roomId}`);
+    }
+  }
+
+  return cleanedCount;
 }

@@ -12,6 +12,9 @@ export default function MicTestPage() {
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedInput, setSelectedInput] = useState<string>('');
+  const [selectedOutput, setSelectedOutput] = useState<string>('');
   
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -19,24 +22,56 @@ export default function MicTestPage() {
   const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
+    async function fetchDevices() {
+      try {
+        const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+        setDevices(deviceInfos);
+        
+        // デフォルトのデバイスを設定
+        const audioInputs = deviceInfos.filter(device => device.kind === 'audioinput');
+        const audioOutputs = deviceInfos.filter(device => device.kind === 'audiooutput');
+        
+        if (audioInputs.length > 0 && !selectedInput) {
+          setSelectedInput(audioInputs[0].deviceId);
+        }
+        if (audioOutputs.length > 0 && !selectedOutput) {
+          setSelectedOutput(audioOutputs[0].deviceId);
+        }
+      } catch (error) {
+        console.error('デバイス取得エラー:', error);
+      }
+    }
+    fetchDevices();
+    
     return () => {
       stopTest();
     };
-  }, []);
+  }, [selectedInput, selectedOutput]);
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedInput(event.target.value);
+  };
+
+  const handleOutputChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedOutput(event.target.value);
+  };
 
   const startTest = async () => {
     try {
       setTestResult(null);
       setErrorMessage('');
       
-      // マイクへのアクセスを要求
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // 選択されたデバイスを使用してマイクへのアクセスを要求
+      const constraints = {
         audio: {
+          deviceId: selectedInput ? { exact: selectedInput } : undefined,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
         } 
-      });
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       streamRef.current = stream;
       
@@ -50,7 +85,8 @@ export default function MicTestPage() {
       const analyser = audioContext.createAnalyser();
       
       analyserRef.current = analyser;
-      analyser.fftSize = 256;
+      analyser.fftSize = 2048; // より高精度な分析のため増加
+      analyser.smoothingTimeConstant = 0.8; // スムージングを追加
       
       // ノードを接続
       source.connect(gainNode);
@@ -66,8 +102,29 @@ export default function MicTestPage() {
       const updateAudioLevel = () => {
         if (analyserRef.current && isTesting) {
           analyserRef.current.getByteFrequencyData(dataArray);
-          const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-          setAudioLevel(average);
+          
+          // より正確な音声レベル計算
+          let sum = 0;
+          let count = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            if (dataArray[i] > 0) {
+              sum += dataArray[i];
+              count++;
+            }
+          }
+          const average = count > 0 ? sum / count : 0;
+          
+          // 音声レベルを正規化（0-100の範囲）
+          const normalizedLevel = Math.min(100, (average / 255) * 100);
+          setAudioLevel(normalizedLevel);
+
+          // インジケーターの更新
+          const indicatorElement = document.getElementById('audio-indicator');
+          if (indicatorElement) {
+            indicatorElement.style.width = `${normalizedLevel}%`;
+            indicatorElement.style.backgroundColor = normalizedLevel > 30 ? 'green' : 'red';
+          }
+
           animationRef.current = requestAnimationFrame(updateAudioLevel);
         }
       };
@@ -125,10 +182,25 @@ export default function MicTestPage() {
     const newVolume = parseInt(e.target.value);
     setVolume(newVolume);
     
+    // 音量調整を即座に反映
     if (audioContextRef.current && streamRef.current) {
-      // 新しいAudioContextで音量を調整
+      // 既存のgainNodeを更新するのではなく、新しいgainNodeを作成
+      const source = audioContextRef.current.createMediaStreamSource(streamRef.current);
       const gainNode = audioContextRef.current.createGain();
+      const analyser = audioContextRef.current.createAnalyser();
+      
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      source.connect(gainNode);
+      gainNode.connect(analyser);
+      gainNode.connect(audioContextRef.current.destination);
+      
+      // 新しい音量を設定
       gainNode.gain.value = newVolume / 100;
+      
+      // 既存のanalyserRefを更新
+      analyserRef.current = analyser;
     }
   };
 
@@ -170,8 +242,9 @@ export default function MicTestPage() {
             {isTesting && (
               <div className="w-full bg-gray-700 rounded-full h-2 mb-4">
                 <div 
+                  id="audio-indicator"
                   className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-100"
-                  style={{ width: `${(audioLevel / 255) * 100}%` }}
+                  style={{ width: `${audioLevel}%` }}
                 ></div>
               </div>
             )}
@@ -206,6 +279,47 @@ export default function MicTestPage() {
 
           {/* コントロール */}
           <div className="space-y-4">
+            {/* デバイス選択 */}
+            <div className="space-y-3">
+              <h3 className="text-white font-semibold">デバイス選択</h3>
+              
+              {/* 入力デバイス選択 */}
+              <div className="space-y-1">
+                <label className="text-sm text-gray-300">入力デバイス:</label>
+                <select 
+                  onChange={handleInputChange} 
+                  value={selectedInput}
+                  className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                >
+                  {devices
+                    .filter(device => device.kind === 'audioinput')
+                    .map(device => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `マイク ${device.deviceId.slice(0, 8)}...`}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              
+              {/* 出力デバイス選択 */}
+              <div className="space-y-1">
+                <label className="text-sm text-gray-300">出力デバイス:</label>
+                <select 
+                  onChange={handleOutputChange} 
+                  value={selectedOutput}
+                  className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
+                >
+                  {devices
+                    .filter(device => device.kind === 'audiooutput')
+                    .map(device => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `スピーカー ${device.deviceId.slice(0, 8)}...`}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
             {/* テスト開始/停止ボタン */}
             <Button
               onClick={isTesting ? stopTest : startTest}

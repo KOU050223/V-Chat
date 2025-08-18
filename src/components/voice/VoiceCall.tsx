@@ -26,6 +26,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const [selectedInput, setSelectedInput] = useState<string>('');
   const [selectedOutput, setSelectedOutput] = useState<string>('');
   const [showDeviceSettings, setShowDeviceSettings] = useState(false);
+  const [isAudioMonitoringActive, setIsAudioMonitoringActive] = useState(false);
   const connectionRef = useRef<boolean>(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -137,9 +138,21 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const startContinuousAudioMonitoring = async () => {
     try {
       console.log('🎤 Starting continuous audio level monitoring...');
+      console.log('Current state:', {
+        isConnected,
+        isMuted,
+        isAudioMonitoringActive,
+        selectedInput,
+        hasAnalyser: !!analyserRef.current,
+        hasAudioTrack: !!localAudioTrackRef.current,
+        roomExists: !!room
+      });
       
       // 既存の音声レベル監視を停止
       stopAudioLevelMonitoring();
+      
+      // 音声監視は接続状態に関係なく開始可能
+      console.log('🎤 Proceeding with audio monitoring setup...');
       
       const constraints = {
         audio: {
@@ -150,20 +163,39 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         }
       };
       
+      console.log('🎤 Requesting audio stream with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       const audioTrack = stream.getAudioTracks()[0];
       
       if (audioTrack) {
         console.log('✅ Got audio track for continuous monitoring');
+        console.log('Audio track details:', {
+          id: audioTrack.id,
+          kind: audioTrack.kind,
+          enabled: audioTrack.enabled,
+          muted: audioTrack.muted,
+          readyState: audioTrack.readyState
+        });
+        
         localAudioTrackRef.current = audioTrack;
         startAudioLevelMonitoring(audioTrack);
         
         // ストリームを保持（継続監視のため）
         // 注意: この方法ではLiveKitのストリームと競合する可能性があります
         console.log('⚠️ Note: Using separate stream for audio monitoring');
+        
+        // 監視が開始されたことを確認
+        console.log('🎤 Continuous audio monitoring started successfully');
+        setIsAudioMonitoringActive(true);
+      } else {
+        console.error('❌ No audio track found in stream');
+        throw new Error('No audio track found in stream');
       }
     } catch (error) {
       console.error('Failed to start continuous audio monitoring:', error);
+      setIsAudioMonitoringActive(false);
+      // エラーが発生した場合でも、後で再試行できるようにする
+      throw error;
     }
   };
 
@@ -191,9 +223,11 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       // AudioContextを作成
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
+      console.log('🎤 AudioContext created:', audioContext.state);
 
       // MediaStreamを作成
       const stream = new MediaStream([audioTrack]);
+      console.log('🎤 MediaStream created with tracks:', stream.getTracks().map(t => ({ id: t.id, kind: t.kind, enabled: t.enabled })));
       
       // 音声分析用のノードを作成
       const source = audioContext.createMediaStreamSource(stream);
@@ -207,45 +241,69 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       source.connect(analyser);
       
       console.log('🎤 Audio analysis setup completed');
+      console.log('🎤 Analyser connected, starting monitoring loop...');
       
       // 音声レベルを監視
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       
       const updateAudioLevel = () => {
-        if (analyserRef.current && !isMuted && isConnected) {
-          analyserRef.current.getByteFrequencyData(dataArray);
-          
-          // より正確な音声レベル計算
-          let sum = 0;
-          let count = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            if (dataArray[i] > 0) {
-              sum += dataArray[i];
-              count++;
-            }
+        // デバッグ情報を追加
+        if (!analyserRef.current) {
+          console.warn('⚠️ No analyser available for audio monitoring');
+          setLocalAudioLevel(0);
+          return;
+        }
+        
+        // isConnectedの状態に関係なく、analyserRef.currentがあれば監視を継続
+        // 接続状態は別途チェックする
+        if (!analyserRef.current) {
+          console.warn('⚠️ No analyser available for audio monitoring');
+          setLocalAudioLevel(0);
+          return;
+        }
+        
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // より正確な音声レベル計算
+        let sum = 0;
+        let count = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          if (dataArray[i] > 0) {
+            sum += dataArray[i];
+            count++;
           }
-          const average = count > 0 ? sum / count : 0;
-          
-          // 音声レベルを正規化（0-100の範囲）
-          const normalizedLevel = Math.min(100, (average / 255) * 100);
-          
+        }
+        const average = count > 0 ? sum / count : 0;
+        
+        // 音声レベルを正規化（0-100の範囲）
+        const normalizedLevel = Math.min(100, (average / 255) * 100);
+        
+        // デバッグ情報（定期的に出力）
+        if (Math.random() < 0.01) { // 1%の確率でログ出力
+          console.log('🎤 Audio monitoring status:', {
+            isMuted,
+            isConnected,
+            isAudioMonitoringActive,
+            normalizedLevel: normalizedLevel.toFixed(1),
+            average: average.toFixed(1),
+            hasAnalyser: !!analyserRef.current,
+            hasAudioTrack: !!localAudioTrackRef.current
+          });
+        }
+        
+        // ミュート状態に応じて音声レベルを設定
+        if (isMuted) {
+          setLocalAudioLevel(0);
+        } else {
           // デバッグログ（音声レベルが高い場合のみ）
           if (normalizedLevel > 5) {
             console.log('🎤 Audio level detected:', normalizedLevel.toFixed(1));
           }
-          
           setLocalAudioLevel(normalizedLevel);
-
-          animationRef.current = requestAnimationFrame(updateAudioLevel);
-        } else {
-          // ミュート中または接続されていない場合は音声レベルを0に設定
-          setLocalAudioLevel(0);
-          
-          // ミュート中でも監視を継続（ミュート解除時にすぐに反応するため）
-          if (isConnected) {
-            animationRef.current = requestAnimationFrame(updateAudioLevel);
-          }
         }
+
+        // 常に監視を継続（ミュート状態に関係なく）
+        animationRef.current = requestAnimationFrame(updateAudioLevel);
       };
       
       updateAudioLevel();
@@ -266,7 +324,14 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       audioContextRef.current = null;
     }
     
+    if (localAudioTrackRef.current) {
+      localAudioTrackRef.current.stop();
+      localAudioTrackRef.current = null;
+    }
+    
     setLocalAudioLevel(0);
+    setIsAudioMonitoringActive(false);
+    console.log('🔇 Audio level monitoring stopped');
   };
 
   const connectToRoom = async () => {
@@ -295,18 +360,15 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       console.log('🌐 LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
       console.log('🔧 Environment:', process.env.NODE_ENV);
 
-      // より確実にユニークな参加者名を生成（タイムスタンプ + ランダム + セッション）
-      const timestamp = Date.now();
-      const random = Math.random().toString(36).substr(2, 9);
-      const sessionId = Math.random().toString(36).substr(2, 6);
-      const uniqueParticipantName = `${participantName}-${timestamp}-${random}-${sessionId}`;
-      console.log('Unique participant name:', uniqueParticipantName);
+      // 参加者名をそのまま使用（タイムスタンプは追加しない）
+      // これにより、ルーム作成者と参加者で同じ表示名が使用される
+      console.log('Using participant name:', participantName);
 
       // Get access token from API
       const tokenResponse = await fetch('/api/livekit/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName: roomId, participantName: uniqueParticipantName }),
+        body: JSON.stringify({ roomName: roomId, participantName: participantName }),
       });
       console.log('Token API Response Status:', tokenResponse.status);
       const tokenData = await tokenResponse.json();
@@ -418,9 +480,21 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           
           // 継続的な音声レベル監視を開始（LiveKitのトラック取得をバイパス）
           console.log('🎤 Starting continuous audio monitoring after microphone enablement...');
-          setTimeout(() => {
-            startContinuousAudioMonitoring();
-          }, 1000);
+          console.log('Connection state before starting monitoring:', {
+            isConnected: false, // まだ接続中
+            isMuted: false,
+            isAudioMonitoringActive,
+            hasAnalyser: !!analyserRef.current,
+            hasAudioTrack: !!localAudioTrackRef.current
+          });
+          
+          try {
+            await startContinuousAudioMonitoring();
+            console.log('✅ Continuous audio monitoring started successfully on connection');
+          } catch (error) {
+            console.error('Failed to start audio monitoring on connection:', error);
+            // 接続時のエラーは致命的ではないので、接続は続行
+          }
         } catch (micError) {
           console.warn('マイクの有効化に失敗:', micError);
           
@@ -452,6 +526,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         console.log('Local participant SID:', newRoom.localParticipant?.sid);
         console.log('Local participant identity:', newRoom.localParticipant?.identity);
         console.log('My participantName:', participantName);
+        console.log('Room ID:', roomId);
         console.log('All remote participants count:', allRemoteParticipants.length);
         console.log('All remote participants:', allRemoteParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
         
@@ -605,9 +680,19 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const toggleMute = async () => {
     if (room && connectionRef.current) {
       try {
+        console.log('🎤 Toggle mute called. Current state:', {
+          isMuted,
+          isConnected,
+          isAudioMonitoringActive,
+          hasAnalyser: !!analyserRef.current,
+          hasAudioTrack: !!localAudioTrackRef.current
+        });
+        
         await room.localParticipant.setMicrophoneEnabled(!isMuted);
         const newMuteState = !isMuted;
         setIsMuted(newMuteState);
+        
+        console.log('🎤 Mute state changed to:', newMuteState);
         
         // マイクの状態に応じて音声レベル監視を開始/停止
         if (newMuteState) {
@@ -617,7 +702,14 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         } else {
           // ミュートが解除された場合、継続的な音声レベル監視を開始
           console.log('🎤 Microphone unmuted - starting continuous audio monitoring');
-          await startContinuousAudioMonitoring();
+          try {
+            // 接続状態に関係なく音声監視を開始
+            await startContinuousAudioMonitoring();
+            console.log('✅ Continuous audio monitoring started after unmute');
+          } catch (error) {
+            console.error('Failed to start audio monitoring after unmute:', error);
+            // エラーが発生しても、後で再試行できるようにする
+          }
         }
         
         const actualCount = Math.max(participants.length + 1, 1);
@@ -630,6 +722,8 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       } catch (error) {
         console.error('Failed to toggle mute:', error);
       }
+    } else {
+      console.warn('⚠️ Cannot toggle mute: room or connection not available');
     }
   };
 
@@ -640,6 +734,9 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     console.log('Local participant SID:', room?.localParticipant?.sid);
     console.log('Local participant identity:', room?.localParticipant?.identity);
     console.log('My participantName:', participantName);
+    console.log('Room ID:', roomId);
+    console.log('Current participants count:', participants.length);
+    console.log('Current participants:', participants.map(p => ({ sid: p.sid, identity: p.identity })));
     
     // 自分の名前（タイムスタンプ部分を除く）を取得
     const myBaseName = participantName.split('-')[0];
@@ -920,19 +1017,26 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
                   </div>
                 </div>
                 
-                {/* 音声レベルテスト */}
-                <div className="mt-4 p-3 bg-gray-700/30 rounded">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-300">音声レベルテスト</span>
-                    <span className="text-xs text-gray-400">レベル: {localAudioLevel.toFixed(1)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-600 rounded-full h-2">
-                    <div 
-                      className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-100"
-                      style={{ width: `${localAudioLevel}%` }}
-                    ></div>
-                  </div>
-                </div>
+                                    {/* 音声レベルテスト */}
+                    <div className="mt-4 p-3 bg-gray-700/30 rounded">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-300">音声レベルテスト</span>
+                        <span className="text-xs text-gray-400">レベル: {localAudioLevel.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-600 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-100"
+                          style={{ width: `${localAudioLevel}%` }}
+                        ></div>
+                      </div>
+                      {/* 音声監視状態の表示 */}
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs text-gray-400">監視状態:</span>
+                        <span className={`text-xs font-medium ${isAudioMonitoringActive ? 'text-green-400' : 'text-red-400'}`}>
+                          {isAudioMonitoringActive ? 'アクティブ' : '停止中'}
+                        </span>
+                      </div>
+                    </div>
                 
                 {/* デバイス更新ボタン */}
                 <div className="mt-3 flex justify-end space-x-2">
@@ -991,12 +1095,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
                 )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {/* デバッグ情報 */}
-                <div className="col-span-full mb-2 p-2 bg-gray-800/50 rounded text-xs text-gray-400">
-                  <div>参加者数: {participants.length}</div>
-                  <div>参加者リスト: {participants.map(p => p.identity).join(', ')}</div>
-                  <div>自分の名前: {participantName}</div>
-                </div>
 
                 {/* 自分 */}
                 <div className={`bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm border rounded-xl p-4 flex items-center space-x-3 transition-all duration-200 ${
@@ -1039,33 +1137,33 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
 
                 {/* 他の参加者 */}
                 {participants.map((participant, index) => {
+                  // 参加者の表示名を取得（-で分割して最初の部分）
+                  // デバッグ情報を追加
+                  console.log(`Rendering participant ${index}:`, {
+                    sid: participant.sid,
+                    identity: participant.identity,
+                    displayName: participant.identity ? participant.identity.split('-')[0] : `ユーザー${index + 1}`
+                  });
+                  
                   const displayName = participant.identity ? participant.identity.split('-')[0] : `ユーザー${index + 1}`;
-                  const uniqueId = participant.sid?.slice(-6) || 'unknown';
                   
                   return (
-                    <div key={`participant-${participant.sid}-${index}-${participant.identity || 'unknown'}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">
+                    <div key={`participant-${participant.sid}-${index}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold text-sm">
                           {displayName.charAt(0)}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium text-sm truncate">
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white font-medium text-sm truncate">
                           {displayName}
-                          {/* 同じ名前の場合は識別番号を追加 */}
-                          {participants.filter(p => p.identity?.split('-')[0] === displayName).length > 1 && (
-                            <span className="ml-1 text-xs text-gray-400">#{uniqueId}</span>
-                          )}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                        <span className="text-xs text-gray-300">音声オン</span>
-                          {/* デバッグ情報を一時的に表示 */}
-                          <span className="text-xs text-red-400">[SID: {uniqueId}]</span>
-                          <span className="text-xs text-blue-400">[ID: {participant.identity}]</span>
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                          <span className="text-xs text-gray-300">音声オン</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
                   );
                 })}
               </div>

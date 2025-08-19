@@ -24,6 +24,9 @@ Closes #
 
 ---
 
+<details>
+<summary>AI レビューガイドライン（クリックして展開）</summary>
+
 <!-- for GitHub Copilot review rule -->
 
 ## Copilotレビューガイドライン
@@ -111,8 +114,10 @@ Closes #
 
 <!-- for GitHub Copilot review rule -->
 
+</details>
+
 ## チェックリスト
-- [ ] ブランチは最新のmainから作成されている
+- [ ] ブランチは最新のmain/developから作成されている
 - [ ] コンフリクトが解決されている
 - [ ] CIが通っている
 - [ ] 必要なドキュメントが更新されている

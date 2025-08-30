@@ -10,25 +10,31 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RotateCcw, Download, Eye, EyeOff } from 'lucide-react';
 
+import VRMDisplayManager from '@/lib/vrmDisplayManager';
+
 interface VRMViewerProps {
-  vrmUrl?: string;
-  vrmBlob?: Blob;
+  modelId?: string; // VRoidモデルID（推奨）
+  vrmUrl?: string; // 直接URL（レガシー対応）
+  vrmBlob?: Blob; // 直接Blob（レガシー対応）
   modelName?: string;
   className?: string;
   width?: number;
   height?: number;
+  useCache?: boolean; // キャッシュ使用有無
   onLoadStart?: () => void;
   onLoadComplete?: (vrm: VRM) => void;
   onLoadError?: (error: Error) => void;
 }
 
 export default function VRMViewer({
+  modelId,
   vrmUrl,
   vrmBlob,
   modelName = 'VRMモデル',
   className = '',
   width = 400,
   height = 400,
+  useCache = true,
   onLoadStart,
   onLoadComplete,
   onLoadError
@@ -199,7 +205,60 @@ export default function VRMViewer({
 
   // VRMファイル読み込み
   useEffect(() => {
-    if (vrmUrl) {
+    if (modelId) {
+      // モデルIDから読み込み
+      setLoading(true);
+      setError(null);
+      onLoadStart?.();
+
+      const loadFromModelId = async () => {
+        try {
+          console.log('VRMDisplayManager import test - loading model:', modelId);
+          // VRoid API経由でダウンロードライセンスを取得
+          const licenseResponse = await fetch(`/api/vroid/download-license`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_id: modelId })
+          });
+
+          if (!licenseResponse.ok) {
+            throw new Error('Failed to get download license');
+          }
+
+          const licenseData = await licenseResponse.json();
+          console.log('License data received:', licenseData);
+          
+          if (licenseData.success && licenseData.url) {
+            if (licenseData.proxy) {
+              // プロキシ経由の場合は直接Blobとしてfetchしてから読み込み
+              console.log('Loading VRM via proxy:', licenseData.url);
+              const vrmResponse = await fetch(licenseData.url);
+              if (!vrmResponse.ok) {
+                throw new Error(`Failed to fetch VRM file: ${vrmResponse.statusText}`);
+              }
+              const vrmBlob = await vrmResponse.blob();
+              const objectUrl = URL.createObjectURL(vrmBlob);
+              await loadVRM(objectUrl);
+              URL.revokeObjectURL(objectUrl);
+            } else {
+              // 直接URLの場合
+              console.log('Loading VRM directly:', licenseData.url);
+              await loadVRM(licenseData.url);
+            }
+          } else {
+            throw new Error('No download URL available');
+          }
+        } catch (error) {
+          console.error('VRM modelId読み込みエラー:', error);
+          const errorMessage = error instanceof Error ? error.message : 'モデルIDからのVRM読み込みに失敗しました';
+          setError(errorMessage);
+          onLoadError?.(error instanceof Error ? error : new Error(errorMessage));
+          setLoading(false);
+        }
+      };
+
+      loadFromModelId();
+    } else if (vrmUrl) {
       loadVRM(vrmUrl);
     } else if (vrmBlob) {
       const objectUrl = URL.createObjectURL(vrmBlob);
@@ -207,7 +266,7 @@ export default function VRMViewer({
         URL.revokeObjectURL(objectUrl);
       });
     }
-  }, [vrmUrl, vrmBlob]);
+  }, [modelId, vrmUrl, vrmBlob]);
 
   // 表示切り替え
   const toggleVisibility = () => {

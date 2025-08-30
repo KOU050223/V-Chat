@@ -21,12 +21,12 @@ if (process.env.NODE_ENV !== 'production') {
 export const authOptions: NextAuthOptions = {
   debug: true, // デバッグログを有効化
   providers: [
-    // VRoid Hub OAuth（NextAuthで管理）のみ
-    // Vroid OAuth Provider（カスタムプロバイダー）
+    // VRoid Hub OAuth Provider（公式ドキュメント準拠）
     {
       id: 'vroid',
       name: 'VRoid Hub',
       type: 'oauth',
+      version: '2.0',
       authorization: {
         url: 'https://hub.vroid.com/oauth/authorize',
         params: {
@@ -34,7 +34,12 @@ export const authOptions: NextAuthOptions = {
           response_type: 'code',
         },
       },
-      token: 'https://hub.vroid.com/oauth/token',
+      token: {
+        url: 'https://hub.vroid.com/oauth/token',
+        params: {
+          grant_type: 'authorization_code',
+        },
+      },
       userinfo: {
         url: 'https://hub.vroid.com/api/account',
         async request({ tokens, provider }) {
@@ -56,21 +61,184 @@ export const authOptions: NextAuthOptions = {
           }
           
           const profile = await response.json();
-          console.log('VRoid userinfo profile:', profile);
+          console.log('=== VRoid API Raw Response ===');
+          console.log('Raw profile data:', JSON.stringify(profile, null, 2));
+          console.log('================================');
           return profile;
         }
       },
       clientId: process.env.VROID_CLIENT_ID,
       clientSecret: process.env.VROID_CLIENT_SECRET,
       profile(profile: any) {
-        console.log('VRoid profile received:', profile);
-        return {
-          id: profile.id?.toString() || profile.user_id?.toString() || 'unknown',
-          name: profile.name || profile.display_name || 'Unknown User',
-          email: profile.email || null,
-          image: profile.icon?.sq170?.url || profile.avatar_url || null,
-          vroidProfile: profile,
+        console.log('=== VRoid Profile Debug ===');
+        console.log('Full profile:', JSON.stringify(profile, null, 2));
+        
+        // VRoid APIのレスポンス構造: { data: { user_detail: { ... } } }
+        const userData = profile.data || profile;
+        const userDetail = userData.user_detail || {};
+        
+        console.log('userData:', JSON.stringify(userData, null, 2));
+        console.log('userDetail:', JSON.stringify(userDetail, null, 2));
+        
+        // VRoidの実際のデータ構造に基づく抽出
+        // user_detail.user がメインのユーザー情報を含んでいる
+        const actualUser = userDetail.user || {};
+        
+        const possibleNames = [
+          // 実際のユーザー情報パス（user_detail.user.name）
+          actualUser.name,
+          actualUser.display_name,
+          actualUser.username,
+          actualUser.user_name,
+          actualUser.nickname,
+          // user_detail 直下
+          userDetail.name,
+          userDetail.display_name,
+          userDetail.username,
+          userDetail.user_name,
+          userDetail.nickname,
+          // userData 内
+          userData.name,
+          userData.display_name,
+          userData.username,
+          userData.user_name,
+          userData.nickname,
+          // root 内
+          profile.name,
+          profile.display_name,
+          profile.username,
+          profile.given_name,
+          profile.family_name,
+        ].filter(Boolean);
+        
+        const possibleIds = [
+          // 実際のユーザー情報パス
+          actualUser.id,
+          actualUser.user_id,
+          actualUser.pixiv_user_id,
+          // user_detail 直下
+          userDetail.id,
+          userDetail.user_id,
+          // userData 内
+          userData.id,
+          userData.user_id,
+          // root 内
+          profile.id,
+          profile.sub,
+          profile.user_id
+        ].filter(Boolean);
+        
+        const possibleImages = [
+          // 実際のユーザー情報パス（user_detail.user.icon）
+          actualUser.icon?.sq170?.url,
+          actualUser.icon?.sq50?.url,
+          actualUser.icon?.url,
+          actualUser.avatar?.url,
+          // user_detail 直下
+          userDetail.icon?.sq170?.url,
+          userDetail.icon?.sq50?.url,
+          userDetail.icon?.url,
+          userDetail.avatar?.url,
+          userDetail.profile_image?.url,
+          userDetail.image?.url,
+          // userData 内
+          userData.icon?.sq170?.url,
+          userData.icon?.sq50?.url,
+          userData.icon?.url,
+          userData.avatar?.url,
+          // root 内
+          profile.icon?.sq170?.url,
+          profile.icon?.sq50?.url,
+          profile.icon?.url,
+          profile.avatar?.url,
+          profile.picture
+        ].filter(Boolean);
+        
+        const possibleEmails = [
+          // 実際のユーザー情報パス
+          actualUser.email,
+          actualUser.email_address,
+          // user_detail 直下
+          userDetail.email,
+          userDetail.email_address,
+          // userData 内
+          userData.email,
+          userData.email_address,
+          // root 内
+          profile.email,
+          profile.email_address
+        ].filter(Boolean);
+        
+        // より良い名前とIDを選択
+        let selectedName = 'VRoid User';
+        let selectedId = 'unknown';
+        
+        if (possibleIds.length > 0 && possibleIds[0] !== 'unknown') {
+          selectedId = possibleIds[0].toString();
+        }
+        
+        // 実際の名前があれば、それを優先
+        const realNames = possibleNames.filter(name => 
+          name && 
+          !name.includes('VRoid User') && 
+          name.trim().length > 0 &&
+          name !== 'unknown'
+        );
+        
+        if (realNames.length > 0) {
+          selectedName = realNames[0];
+        } else if (selectedId !== 'unknown') {
+          // 実際の名前がない場合は、IDを使って表示
+          selectedName = `VRoid User #${selectedId}`;
+        }
+        
+        const result = {
+          id: selectedId,
+          name: selectedName,
+          email: possibleEmails[0] || null,
+          image: possibleImages[0] || null,
+          vroidProfile: {
+            ...profile,
+            // 詳細情報を展開
+            userData,
+            userDetail,
+            actualUser, // 実際のユーザー情報も追加
+            extractedInfo: {
+              availableNames: possibleNames,
+              availableIds: possibleIds,
+              availableImages: possibleImages,
+              availableEmails: possibleEmails,
+              // デバッグ用の詳細情報
+              dataStructure: {
+                hasUserData: !!userData,
+                hasUserDetail: !!userDetail,
+                hasActualUser: !!actualUser,
+                actualUserKeys: actualUser ? Object.keys(actualUser) : [],
+                userDetailKeys: userDetail ? Object.keys(userDetail) : [],
+                userDataKeys: userData ? Object.keys(userData) : [],
+              }
+            }
+          },
         };
+        
+        console.log('Data structure analysis:');
+        console.log('- userData exists:', !!userData);
+        console.log('- userDetail exists:', !!userDetail);
+        console.log('- actualUser exists:', !!actualUser);
+        console.log('- actualUser keys:', actualUser ? Object.keys(actualUser) : []);
+        console.log('- actualUser.name:', actualUser?.name);
+        console.log('- actualUser.id:', actualUser?.id);
+        console.log('- actualUser.icon:', actualUser?.icon);
+        console.log('Possible names found:', possibleNames);
+        console.log('Possible IDs found:', possibleIds);
+        console.log('Possible images found:', possibleImages);
+        console.log('Possible emails found:', possibleEmails);
+        console.log('Selected name:', selectedName);
+        console.log('Selected ID:', selectedId);
+        console.log('Extracted profile result:', result);
+        console.log('========================');
+        
+        return result;
       },
     },
   ],
@@ -91,9 +259,22 @@ export const authOptions: NextAuthOptions = {
         // Vroid認証の場合、追加情報を保存
         if (account.provider === 'vroid') {
           token.vroidProfile = (user as any).vroidProfile;
+          // ユーザー情報もトークンに保存
+          token.name = user.name || 'VRoid User';
+          token.picture = user.image;
+          token.sub = user.id || 'unknown';
           console.log('VRoid profile stored in token:', token.vroidProfile);
+          console.log('VRoid user info stored:', { name: token.name, picture: token.picture, sub: token.sub });
         }
       }
+      
+      // アクセストークンが期限切れかチェック（リフレッシュトークンがある場合）
+      if (token.accessToken && token.refreshToken && token.provider === 'vroid') {
+        // トークンの有効期限をチェック（必要に応じて実装）
+        // 現在は既存のトークンをそのまま使用
+        console.log('Existing VRoid token reused');
+      }
+      
       return token;
     },
     async session({ session, token }) {
@@ -103,8 +284,52 @@ export const authOptions: NextAuthOptions = {
       session.refreshToken = token.refreshToken as string;
       session.provider = token.provider as string;
       
+      // トークンから詳細なユーザー情報を復元
+      if (token.name && token.name !== 'VRoid User' && session.user) {
+        session.user.name = token.name;
+      }
+      if (token.picture && session.user) {
+        session.user.image = token.picture;
+      }
+      
+      // VRoidプロファイルから情報を追加抽出
+      if (token.vroidProfile && session.user) {
+        const vroidData = token.vroidProfile as any;
+        
+        // 実際のユーザー情報から名前と画像を再抽出
+        if (vroidData.actualUser) {
+          const actualUser = vroidData.actualUser;
+          
+          // 名前の再設定（より正確な値を使用）
+          if (actualUser.name && session.user.name === 'VRoid User') {
+            session.user.name = actualUser.name;
+          }
+          
+          // 画像の再設定
+          if (actualUser.icon?.sq170?.url && !session.user.image) {
+            session.user.image = actualUser.icon.sq170.url;
+          }
+        }
+      }
+      
       if (token.vroidProfile) {
         session.vroidProfile = token.vroidProfile;
+        
+        // vroidProfileから追加情報を抽出してセッションに含める
+        const vroidData = token.vroidProfile as any;
+        session.vroidData = {
+          userData: vroidData.userData,
+          userDetail: vroidData.userDetail,
+          extractedInfo: vroidData.extractedInfo,
+          // 元のプロファイル情報も保持
+          rawProfile: {
+            data: vroidData.data,
+            error: vroidData.error,
+            _links: vroidData._links,
+          }
+        };
+        
+        console.log('VRoid detailed data added to session:', session.vroidData);
       }
       
       console.log('Final session:', session);

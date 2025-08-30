@@ -108,6 +108,10 @@ export class VRoidAPI {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+    // アクセストークンの存在確認
+    if (!this.accessToken) {
+      throw new Error('VRoidアクセストークンが設定されていません');
+    }
     const method = options.method || 'GET';
     
     let url = `${this.baseURL}?endpoint=${encodeURIComponent(endpoint)}`;
@@ -142,7 +146,20 @@ export class VRoidAPI {
     
     // VRoid APIのエラーレスポンスをチェック
     if (result.error && result.error.message && result.error.code) {
-      throw new Error(`VRoid API エラー: ${result.error.code} - ${result.error.message}`);
+      // 特定のエラーコードに応じた詳細なメッセージを提供
+      const errorCode = result.error.code;
+      const errorMessage = result.error.message;
+      
+      switch (errorCode) {
+        case 'OAUTH_FORBIDDEN':
+          throw new Error(`OAuth認証エラー: ${errorMessage}. VRoid Hubのアプリケーション設定（リダイレクトURI、スコープ）を確認してください。`);
+        case 'INVALID_TOKEN':
+          throw new Error(`無効なアクセストークン: ${errorMessage}. 再認証が必要です。`);
+        case 'INSUFFICIENT_SCOPE':
+          throw new Error(`権限不足: ${errorMessage}. 必要なスコープが不足しています。`);
+        default:
+          throw new Error(`VRoid API エラー: ${errorCode} - ${errorMessage}`);
+      }
     }
 
     return result;
@@ -305,7 +322,7 @@ export function createVRoidClient(session: any): VRoidAPI | null {
     return null;
   }
 
-  return new VRoidAPI();
+  return new VRoidAPI(session.accessToken, session.refreshToken);
 }
 
 export type { VRoidUser, VRoidCharacterModel };

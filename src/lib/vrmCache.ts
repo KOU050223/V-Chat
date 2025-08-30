@@ -73,7 +73,13 @@ export class VRMCacheManager {
     const now = new Date();
     const expires = expiresAt || new Date(now.getTime() + this.options.defaultTTL! * 60 * 60 * 1000);
     
-    // BlobURLを作成
+    // 既存のBlobURLがある場合は解放してメモリリークを防ぐ
+    const existingBlobUrl = this.blobUrls.get(modelId);
+    if (existingBlobUrl) {
+      URL.revokeObjectURL(existingBlobUrl);
+    }
+    
+    // 新しいBlobURLを作成
     const blobUrl = URL.createObjectURL(blob);
     this.blobUrls.set(modelId, blobUrl);
 

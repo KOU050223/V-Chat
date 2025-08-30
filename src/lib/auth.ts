@@ -284,7 +284,8 @@ export const authOptions: NextAuthOptions = {
           const tokenExpiry = (token.exp as number) || 0;
           
           // トークンが30分以内に期限切れになる場合はリフレッシュを試行
-          if (tokenExpiry > 0 && (tokenExpiry - now) < 1800) {
+          const TOKEN_REFRESH_THRESHOLD_SECONDS = 30 * 60; // 30分
+          if (tokenExpiry > 0 && (tokenExpiry - now) < TOKEN_REFRESH_THRESHOLD_SECONDS) {
             console.log('Token is expiring soon, attempting refresh');
             
             const refreshResponse = await fetch('https://hub.vroid.com/oauth/token', {

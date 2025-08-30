@@ -62,7 +62,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
       return;
     }
 
-    const fetchWithRetry = async (retries = 1) => { // リトライ回数を1回に制限
+    const fetchWithRetry = async (retries = 1) => { // 指定された回数だけリトライします
       for (let i = 0; i < retries; i++) {
         try {
           setState(prev => ({ ...prev, loading: true, error: null }));

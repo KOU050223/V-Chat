@@ -129,8 +129,8 @@ export class VRoidAPI {
     // サーバーサイド（Node.js）環境かクライアントサイド環境かを判定
     const isServerSide = typeof window === 'undefined';
     const baseUrl = isServerSide 
-      ? `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/vroid/proxy`
-      : '/api/vroid/proxy';
+      ? `${process.env.VROID_API_BASE_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/vroid/proxy`
+      : (process.env.NEXT_PUBLIC_VROID_API_BASE_URL || '/api/vroid/proxy');
     
     let url = `${baseUrl}?endpoint=${encodeURIComponent(endpoint)}`;
     if (method !== 'GET') {

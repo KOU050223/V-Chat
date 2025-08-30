@@ -239,7 +239,10 @@ export default function VRMViewer({
               const vrmBlob = await vrmResponse.blob();
               const objectUrl = URL.createObjectURL(vrmBlob);
               await loadVRM(objectUrl);
-              URL.revokeObjectURL(objectUrl);
+              // VRM読み込み完了後にURL解放（非同期処理完了を保証）
+              setTimeout(() => {
+                URL.revokeObjectURL(objectUrl);
+              }, 0);
             } else {
               // 直接URLの場合
               console.log('Loading VRM directly:', licenseData.url);

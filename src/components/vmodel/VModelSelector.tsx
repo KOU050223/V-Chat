@@ -33,7 +33,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     isConnected,
     selectModel,
     searchModels,
-    getDownloadUrl,
+    getDownloadLicense,
     toggleHeart,
     refresh,
     clearError,
@@ -47,7 +47,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
   const handleDownload = async (modelId: string) => {
     setDownloadingModels(prev => new Set(prev).add(modelId));
     try {
-      const downloadUrl = await getDownloadUrl(modelId);
+      const downloadUrl = await getDownloadLicense(modelId);
       
       // ダウンロードリンクを作成してクリック
       const link = document.createElement('a');
@@ -94,6 +94,9 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
       </Card>
     );
   }
+
+  // マイモデルが取得できない場合の判定
+  const hasMyModelsPermission = !error || !error.includes('投稿モデル一覧の取得権限がありません');
 
 
   const handleSearch = async () => {
@@ -145,10 +148,12 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
         )}
 
         <div className="overflow-y-auto">
-          <Tabs defaultValue="my-models" className="space-y-4">
+          <Tabs defaultValue={hasMyModelsPermission ? "my-models" : "liked-models"} className="space-y-4">
             <div className="flex items-center justify-between">
-              <TabsList className="grid w-full max-w-md grid-cols-3">
-                <TabsTrigger value="my-models">マイモデル</TabsTrigger>
+              <TabsList className={`grid w-full max-w-md ${hasMyModelsPermission ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                {hasMyModelsPermission && (
+                  <TabsTrigger value="my-models">マイモデル</TabsTrigger>
+                )}
                 <TabsTrigger value="liked-models">いいね</TabsTrigger>
                 <TabsTrigger value="search">検索</TabsTrigger>
               </TabsList>
@@ -164,7 +169,8 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
               </Button>
             </div>
 
-            <TabsContent value="my-models" className="space-y-4">
+            {hasMyModelsPermission && (
+              <TabsContent value="my-models" className="space-y-4">
               <div className="text-sm text-gray-600">
                 あなたが投稿したモデル ({myModels.length}件)
               </div>
@@ -184,6 +190,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                 />
               )}
             </TabsContent>
+            )}
 
             <TabsContent value="liked-models" className="space-y-4">
               <div className="text-sm text-gray-600">

@@ -14,7 +14,7 @@ interface SelectedVModelCardProps {
 }
 
 export default function SelectedVModelCard({ showChangeButton = true }: SelectedVModelCardProps) {
-  const { selectedModel, isConnected, getDownloadUrl, toggleHeart } = useVRoidModels();
+  const { selectedModel, isConnected, getDownloadLicense, toggleHeart } = useVRoidModels();
   const [isDownloading, setIsDownloading] = useState(false);
 
   if (!isConnected) {
@@ -55,7 +55,7 @@ export default function SelectedVModelCard({ showChangeButton = true }: Selected
 
     setIsDownloading(true);
     try {
-      const downloadUrl = await getDownloadUrl(selectedModel.id);
+      const downloadUrl = await getDownloadLicense(selectedModel.id);
       
       // ダウンロードリンクを作成してクリック
       const link = document.createElement('a');

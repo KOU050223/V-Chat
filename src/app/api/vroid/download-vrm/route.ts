@@ -27,15 +27,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: ダウンロードライセンスを取得
+    // Step 1: ダウンロードライセンスを取得（正しいエンドポイント）
     const licenseResponse = await fetch(
-      `${VROID_API_BASE}/character_models/${modelId}/download_license`, 
+      `${VROID_API_BASE}/download_licenses`, 
       {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.accessToken}`,
           'Content-Type': 'application/json',
           'X-Api-Version': '11',
         },
+        body: JSON.stringify({
+          character_model_id: modelId
+        }),
       }
     );
 
@@ -49,17 +53,25 @@ export async function POST(request: NextRequest) {
 
     const licenseData = await licenseResponse.json();
     
-    if (!licenseData.data?.url) {
+    if (!licenseData.data?.id) {
       return NextResponse.json(
-        { error: 'ダウンロードURLが取得できませんでした' },
+        { error: 'ダウンロードライセンスIDが取得できませんでした' },
         { status: 500 }
       );
     }
 
-    // Step 2: VRMファイルをダウンロード
-    const vrmResponse = await fetch(licenseData.data.url, {
-      method: 'GET',
-    });
+    // Step 2: ライセンスIDを使用してVRMファイルをダウンロード
+    const vrmResponse = await fetch(
+      `${VROID_API_BASE}/download_licenses/${licenseData.data.id}/download`,
+      {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.accessToken}`,
+          'X-Api-Version': '11',
+        },
+        redirect: 'follow'
+      }
+    );
 
     if (!vrmResponse.ok) {
       return NextResponse.json(

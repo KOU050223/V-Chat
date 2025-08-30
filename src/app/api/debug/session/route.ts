@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     console.log('Session exists:', !!session);
     if (session) {
       console.log('User:', {
-        id: session.user?.id,
+        id: (session.user as any)?.id,
         name: session.user?.name,
         email: session.user?.email,
         image: session.user?.image,
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const debugInfo = {
       hasSession: !!session,
       user: session?.user ? {
-        id: session.user.id,
+        id: (session.user as any)?.id,
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,

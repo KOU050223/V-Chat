@@ -37,7 +37,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     toggleHeart,
     refresh,
     clearError,
-  } = useVRoidModels();
+  } = useVRoidModels({ enableMyModels: false }); // マイモデル取得を無効化
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResults, setSearchResults] = useState<VRoidCharacterModel[]>([]);

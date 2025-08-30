@@ -149,22 +149,43 @@ export class VRoidAPI {
 
     const response = await fetch(url, fetchOptions);
 
-    console.log('VRoid API Response:', {
-      endpoint,
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers.entries()),
-    });
+    // 403エラーの場合は警告レベル、それ以外は通常ログ
+    if (response.status === 403) {
+      console.warn('VRoid API Permission Response:', {
+        endpoint,
+        status: response.status,
+        statusText: response.statusText,
+      });
+    } else {
+      console.log('VRoid API Response:', {
+        endpoint,
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('VRoid API Error Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorText,
-        endpoint,
-        url,
-      });
+      
+      // 403エラー（権限不足）の場合は警告レベルでログ出力
+      if (response.status === 403) {
+        console.warn('VRoid API Permission Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          endpoint,
+          url,
+        });
+      } else {
+        console.error('VRoid API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText,
+          endpoint,
+          url,
+        });
+      }
       
       let errorData;
       try {

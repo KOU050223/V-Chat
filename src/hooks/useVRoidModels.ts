@@ -9,6 +9,7 @@ import { useVModel } from '@/contexts/VModelContext';
 interface UseVRoidModelsOptions {
   autoFetch?: boolean;
   includePrivate?: boolean;
+  enableMyModels?: boolean; // マイモデル取得を有効にするかどうか
 }
 
 interface VRoidModelsState {
@@ -19,7 +20,7 @@ interface VRoidModelsState {
 }
 
 export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
-  const { autoFetch = true, includePrivate = true } = options;
+  const { autoFetch = true, includePrivate = true, enableMyModels = false } = options;
   const { data: session } = useSession();
   const { settings, updateSelectedModel } = useVModel();
   const [state, setState] = useState<VRoidModelsState>({
@@ -42,6 +43,16 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
 
   // マイモデル一覧を取得（リトライ機能付き）
   const fetchMyModels = useCallback(async () => {
+    if (!enableMyModels) {
+      setState(prev => ({
+        ...prev,
+        error: '⚠️ マイモデル取得は現在無効化されています。いいねしたモデルをご利用ください。',
+        myModels: [],
+        loading: false
+      }));
+      return;
+    }
+
     if (!vroidClient) {
       setState(prev => ({ 
         ...prev, 
@@ -51,7 +62,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
       return;
     }
 
-    const fetchWithRetry = async (retries = 3) => {
+    const fetchWithRetry = async (retries = 1) => { // リトライ回数を1回に制限
       for (let i = 0; i < retries; i++) {
         try {
           setState(prev => ({ ...prev, loading: true, error: null }));
@@ -68,38 +79,20 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
           }));
           return; // 成功したら終了
         } catch (error: any) {
-          console.error(`マイモデル取得エラー (試行 ${i + 1}):`, error);
+          console.warn(`マイモデル取得エラー (試行 ${i + 1}):`, error.message);
           
-          // 詳細なエラー分析
+          // 403エラーの場合はリトライしない（権限不足のため）
           if (error.message.includes('OAuth認証エラー') || 
               error.message.includes('OAUTH_FORBIDDEN') ||
               error.message.includes('403')) {
-            if (i < retries - 1) {
-              // リトライする場合は少し待つ
-              await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-              continue;
-            } else {
-              // 最終試行でも失敗
-              let errorMessage = 'マイモデル一覧の取得権限がありません。';
-              
-              if (error.message.includes('OAuth認証エラー')) {
-                errorMessage += ' VRoid Hub Developer Consoleでアプリケーション設定（リダイレクトURI、スコープ）を確認してください。';
-              } else if (error.message.includes('アクセス権限がありません')) {
-                errorMessage += ' VRoid Hub Developer Consoleでアプリケーションの審査または権限タイプの変更が必要です。';
-              } else {
-                errorMessage += ' VRoid Hub APIへのアクセス権限を確認してください。';
-              }
-              
-              errorMessage += '\n\n対処法:\n1. VRoid Hub Developer Consoleでアプリケーション設定を確認\n2. 必要に応じてアプリケーション審査を申請\n3. 現在は「いいねしたモデル」と「検索」機能をご利用ください';
-              
-              setState(prev => ({
-                ...prev,
-                error: errorMessage,
-                myModels: [],
-                loading: false,
-              }));
-              return;
-            }
+            console.warn('VRoid Hub API: マイモデル取得には追加権限が必要です。いいねしたモデルのみ利用可能です。');
+            setState(prev => ({
+              ...prev,
+              loading: false,
+              error: '⚠️ マイモデル取得には追加権限が必要です。いいねしたモデルを使用してください。',
+              myModels: []
+            }));
+            return; // 403エラーの場合はリトライしない
           } else if (error.message.includes('401')) {
             // トークンエラー
             setState(prev => ({
@@ -109,8 +102,30 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
               loading: false,
             }));
             return;
+          } else if (i === retries - 1) {
+            // 最終試行でも失敗
+            let errorMessage = 'マイモデル一覧の取得権限がありません。';
+            
+            if (error.message.includes('OAuth認証エラー')) {
+              errorMessage += ' VRoid Hub Developer Consoleでアプリケーション設定（リダイレクトURI、スコープ）を確認してください。';
+            } else if (error.message.includes('アクセス権限がありません')) {
+              errorMessage += ' VRoid Hub Developer Consoleでアプリケーションの審査または権限タイプの変更が必要です。';
+            } else {
+              errorMessage += ' VRoid Hub APIへのアクセス権限を確認してください。';
+            }
+            
+            errorMessage += '\n\n対処法:\n1. VRoid Hub Developer Consoleでアプリケーション設定を確認\n2. 必要に応じてアプリケーション審査を申請\n3. 現在は「いいねしたモデル」と「検索」機能をご利用ください';
+            
+            setState(prev => ({
+              ...prev,
+              error: errorMessage,
+              myModels: [],
+              loading: false,
+            }));
+            return;
           } else {
-            throw error; // その他のエラーは再スロー
+            // リトライする場合は少し待つ（403エラー以外の場合のみ）
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
           }
         }
       }
@@ -125,7 +140,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
         loading: false,
       }));
     }
-  }, [vroidClient, includePrivate]);
+  }, [vroidClient, includePrivate, enableMyModels]);
 
   // いいねしたモデル一覧を取得
   const fetchLikedModels = useCallback(async () => {
@@ -301,11 +316,13 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
   // VRoid連携時に自動でモデルを取得
   useEffect(() => {
     if (autoFetch && vroidClient) {
-      fetchMyModels();
+      if (enableMyModels) {
+        fetchMyModels();
+      }
       fetchLikedModels();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoFetch, vroidClient]);
+  }, [autoFetch, vroidClient, enableMyModels]);
 
   return {
     // 状態
@@ -325,7 +342,9 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     
     // ヘルパー
     refresh: () => {
-      fetchMyModels();
+      if (enableMyModels) {
+        fetchMyModels();
+      }
       fetchLikedModels();
     },
     clearError: () => setState(prev => ({ ...prev, error: null })),

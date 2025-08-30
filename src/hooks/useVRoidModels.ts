@@ -32,7 +32,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     return createVRoidClient(session);
   }, [session]);
 
-  // マイモデル一覧を取得
+  // マイモデル一覧を取得（リトライ機能付き）
   const fetchMyModels = useCallback(async () => {
     if (!vroidClient) {
       setState(prev => ({ 
@@ -43,21 +43,51 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
       return;
     }
 
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      const response = await vroidClient.getMyCharacterModels({
-        publication: includePrivate ? 'all' : 'public',
-        count: 50,
-      });
+    const fetchWithRetry = async (retries = 3) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          setState(prev => ({ ...prev, loading: true, error: null }));
+          
+          const response = await vroidClient.getMyCharacterModels({
+            publication: includePrivate ? 'all' : 'public',
+            count: 50,
+          });
 
-      setState(prev => ({
-        ...prev,
-        myModels: response.data,
-        loading: false,
-      }));
+          setState(prev => ({
+            ...prev,
+            myModels: response.data,
+            loading: false,
+          }));
+          return; // 成功したら終了
+        } catch (error: any) {
+          console.error(`マイモデル取得エラー (試行 ${i + 1}):`, error);
+          
+          // OAUTH_FORBIDDEN エラーの場合
+          if (error.message.includes('OAuth認証エラー') || error.message.includes('OAUTH_FORBIDDEN')) {
+            if (i < retries - 1) {
+              // リトライする場合は少し待つ
+              await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+              continue;
+            } else {
+              // 最終試行でも失敗
+              setState(prev => ({
+                ...prev,
+                error: 'マイモデル一覧の取得権限がありません。VRoid Hub Developer Consoleでアプリケーション審査またはタイプ変更が必要です。現在は「いいねしたモデル」と「検索」をご利用ください。',
+                myModels: [],
+                loading: false,
+              }));
+              return;
+            }
+          } else {
+            throw error; // その他のエラーは再スロー
+          }
+        }
+      }
+    };
+
+    try {
+      await fetchWithRetry();
     } catch (error: any) {
-      console.error('マイモデル取得エラー:', error);
       setState(prev => ({
         ...prev,
         error: 'マイモデルの取得に失敗しました',
@@ -151,8 +181,8 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     }
   }, [vroidClient]);
 
-  // モデルのダウンロードURLを取得
-  const getDownloadUrl = useCallback(async (modelId: string): Promise<string> => {
+  // モデルのダウンロードライセンスURLを取得
+  const getDownloadLicense = useCallback(async (modelId: string): Promise<string> => {
     if (!vroidClient) {
       throw new Error('VRoidアカウントが連携されていません');
     }
@@ -161,8 +191,8 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
       const response = await vroidClient.getCharacterModelDownloadLicense(modelId);
       return response.data.url;
     } catch (error: any) {
-      console.error('ダウンロードURL取得エラー:', error);
-      throw new Error('ダウンロードURLの取得に失敗しました');
+      console.error('ダウンロードライセンス取得エラー:', error);
+      throw new Error('ダウンロードライセンスの取得に失敗しました');
     }
   }, [vroidClient]);
 
@@ -218,7 +248,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     searchModels,
     selectModel,
     getModelDetails,
-    getDownloadUrl,
+    getDownloadLicense,
     toggleHeart,
     
     // ヘルパー

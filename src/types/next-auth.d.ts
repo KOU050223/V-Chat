@@ -12,6 +12,21 @@ declare module 'next-auth' {
         sq170?: { url: string };
         sq50?: { url: string };
       };
+      data?: any;
+      userData?: any;
+      userDetail?: any;
+      extractedInfo?: any;
+    };
+    vroidData?: {
+      userData?: any;
+      userDetail?: any;
+      extractedInfo?: any;
+      rawProfile?: any;
+    };
+    user: {
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
     };
   }
 
@@ -23,6 +38,10 @@ declare module 'next-auth' {
         sq170?: { url: string };
         sq50?: { url: string };
       };
+      data?: any;
+      userData?: any;
+      userDetail?: any;
+      extractedInfo?: any;
     };
   }
 }
@@ -39,6 +58,11 @@ declare module 'next-auth/jwt' {
         sq170?: { url: string };
         sq50?: { url: string };
       };
+      data?: any;
+      userData?: any;
+      userDetail?: any;
+      extractedInfo?: any;
     };
+    picture?: string | null;
   }
 }

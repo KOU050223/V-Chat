@@ -86,8 +86,14 @@ interface VRoidAPIResponse<T> {
 }
 
 interface VRoidDownloadLicense {
-  url: string;
+  id?: string; // ライセンスID
+  url?: string; // ダウンロードURL（古いAPI用）
+  download_url?: string; // ダウンロードURL（新しいAPI用）
   expires_at: string;
+  character_model_id?: string;
+  character_model_version_id?: string;
+  is_public_visibility?: boolean;
+  is_private_visibility?: boolean;
 }
 
 export class VRoidAPI {
@@ -100,6 +106,12 @@ export class VRoidAPI {
     this.refreshToken = refreshToken;
   }
 
+  /**
+   * アクセストークンを取得
+   */
+  getAccessToken(): string | undefined {
+    return this.accessToken;
+  }
 
   /**
    * 認証済みAPIリクエストを送信
@@ -137,9 +149,44 @@ export class VRoidAPI {
 
     const response = await fetch(url, fetchOptions);
 
+    console.log('VRoid API Response:', {
+      endpoint,
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(errorData.error || `API request failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error('VRoid API Error Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+        endpoint,
+        url,
+      });
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { error: errorText || 'Unknown error' };
+      }
+      
+      // 特定のHTTPステータスに基づく詳細エラーメッセージ
+      if (response.status === 403) {
+        if (errorText.includes('OAUTH_FORBIDDEN') || errorText.includes('OAuth')) {
+          throw new Error(`VRoid API OAuth認証エラー (403): VRoid Hub Developer Consoleでアプリケーション設定を確認してください。特に、リダイレクトURIとスコープ設定をチェックしてください。`);
+        } else {
+          throw new Error(`VRoid API アクセス権限がありません (403): このAPIエンドポイント(${endpoint})へのアクセス権限がありません。VRoid Hub Developer Consoleでアプリケーションの権限設定を確認してください。`);
+        }
+      }
+      
+      if (response.status === 401) {
+        throw new Error(`VRoid API 認証エラー (401): アクセストークンが無効または期限切れです。再ログインが必要です。`);
+      }
+      
+      throw new Error(errorData.error || `VRoid API request failed: ${response.status} ${response.statusText}`);
     }
 
     const result = await response.json();
@@ -243,9 +290,52 @@ export class VRoidAPI {
    * キャラクターモデルのダウンロードライセンスを取得
    */
   async getCharacterModelDownloadLicense(modelId: string): Promise<VRoidAPIResponse<VRoidDownloadLicense>> {
-    return this.authenticatedRequest(
-      `/character_models/${modelId}/download_license`
-    );
+    console.log('ダウンロードライセンス取得API呼び出し:', modelId);
+    
+    try {
+      // 🎉 新しいPOST /api/download_licenses エンドポイントを優先使用
+      // このエンドポイントは `default` スコープで利用可能であることが確認済み
+      const result = await this.authenticatedRequest<VRoidAPIResponse<VRoidDownloadLicense>>(
+        `/download_licenses`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            character_model_id: modelId
+          })
+        }
+      );
+      
+      console.log('ダウンロードライセンス取得API成功 (POST):', result);
+      return result;
+    } catch (postError: any) {
+      console.log('POST /api/download_licenses エラー、GET方式にフォールバック:', postError.message);
+      
+      try {
+        // フォールバック: 従来のGET方式（権限不足の可能性が高い）
+        const result = await this.authenticatedRequest<VRoidAPIResponse<VRoidDownloadLicense>>(
+          `/character_models/${modelId}/download_license`
+        );
+        
+        console.log('ダウンロードライセンス取得API成功 (GET):', result);
+        return result;
+      } catch (error: any) {
+        console.error('ダウンロードライセンス取得API失敗 (両方式):', {
+          modelId,
+          postError: postError.message,
+          getError: error.message,
+          originalError: error
+        });
+        
+        // より具体的なエラーメッセージを追加
+        if (error.message.includes('403') || postError.message.includes('403')) {
+          throw new Error(`モデル ${modelId} のダウンロード権限がありません。このモデルはダウンロード不可能に設定されているか、あなたがいいねしていない可能性があります。現在のアプリ設定では、いいねしたモデルのみダウンロード可能です。`);
+        } else if (error.message.includes('404')) {
+          throw new Error(`モデル ${modelId} が見つかりません。モデルIDを確認してください。`);
+        } else {
+          throw new Error(`ダウンロードライセンス取得に失敗しました: ${error.message}`);
+        }
+      }
+    }
   }
 
   /**

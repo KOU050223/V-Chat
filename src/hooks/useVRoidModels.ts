@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { VRoidAPI, VRoidCharacterModel, createVRoidClient } from '@/lib/vroid';
+import { VRMDownloader, VRMDownloadResult } from '@/lib/vrmDownloader';
 import { useVModel } from '@/contexts/VModelContext';
 
 interface UseVRoidModelsOptions {
@@ -27,6 +28,13 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     loading: false,
     error: null,
   });
+
+  const vrmDownloader = useMemo(() => {
+    if (session?.accessToken) {
+      return new VRMDownloader(session.accessToken, session.refreshToken);
+    }
+    return null;
+  }, [session?.accessToken, session?.refreshToken]);
 
   const vroidClient = useMemo(() => {
     return createVRoidClient(session);
@@ -62,22 +70,45 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
         } catch (error: any) {
           console.error(`マイモデル取得エラー (試行 ${i + 1}):`, error);
           
-          // OAUTH_FORBIDDEN エラーの場合
-          if (error.message.includes('OAuth認証エラー') || error.message.includes('OAUTH_FORBIDDEN')) {
+          // 詳細なエラー分析
+          if (error.message.includes('OAuth認証エラー') || 
+              error.message.includes('OAUTH_FORBIDDEN') ||
+              error.message.includes('403')) {
             if (i < retries - 1) {
               // リトライする場合は少し待つ
               await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
               continue;
             } else {
               // 最終試行でも失敗
+              let errorMessage = 'マイモデル一覧の取得権限がありません。';
+              
+              if (error.message.includes('OAuth認証エラー')) {
+                errorMessage += ' VRoid Hub Developer Consoleでアプリケーション設定（リダイレクトURI、スコープ）を確認してください。';
+              } else if (error.message.includes('アクセス権限がありません')) {
+                errorMessage += ' VRoid Hub Developer Consoleでアプリケーションの審査または権限タイプの変更が必要です。';
+              } else {
+                errorMessage += ' VRoid Hub APIへのアクセス権限を確認してください。';
+              }
+              
+              errorMessage += '\n\n対処法:\n1. VRoid Hub Developer Consoleでアプリケーション設定を確認\n2. 必要に応じてアプリケーション審査を申請\n3. 現在は「いいねしたモデル」と「検索」機能をご利用ください';
+              
               setState(prev => ({
                 ...prev,
-                error: 'マイモデル一覧の取得権限がありません。VRoid Hub Developer Consoleでアプリケーション審査またはタイプ変更が必要です。現在は「いいねしたモデル」と「検索」をご利用ください。',
+                error: errorMessage,
                 myModels: [],
                 loading: false,
               }));
               return;
             }
+          } else if (error.message.includes('401')) {
+            // トークンエラー
+            setState(prev => ({
+              ...prev,
+              error: 'VRoidアクセストークンが無効です。再ログインしてください。',
+              myModels: [],
+              loading: false,
+            }));
+            return;
           } else {
             throw error; // その他のエラーは再スロー
           }
@@ -182,19 +213,59 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
   }, [vroidClient]);
 
   // モデルのダウンロードライセンスURLを取得
-  const getDownloadLicense = useCallback(async (modelId: string): Promise<string> => {
+    const getDownloadLicense = useCallback(async (modelId: string): Promise<string> => {
     if (!vroidClient) {
-      throw new Error('VRoidアカウントが連携されていません');
+      throw new Error('VRoidクライアントが初期化されていません');
     }
 
     try {
+      setState(prev => ({ ...prev, error: null }));
+      
       const response = await vroidClient.getCharacterModelDownloadLicense(modelId);
+      
+      if (!response.data?.url) {
+        throw new Error('ダウンロードURLが取得できませんでした');
+      }
+      
       return response.data.url;
     } catch (error: any) {
       console.error('ダウンロードライセンス取得エラー:', error);
-      throw new Error('ダウンロードライセンスの取得に失敗しました');
+      setState(prev => ({ 
+        ...prev, 
+        error: `ダウンロードライセンス取得エラー: ${error.message}` 
+      }));
+      throw error;
     }
   }, [vroidClient]);
+
+  const downloadVRM = useCallback(async (modelId: string): Promise<VRMDownloadResult> => {
+    if (!vrmDownloader) {
+      throw new Error('VRMダウンローダーが初期化されていません');
+    }
+
+    try {
+      setState(prev => ({ ...prev, error: null }));
+      
+      console.log('VRMダウンロード開始:', modelId);
+      const result = await vrmDownloader.downloadVRM(modelId);
+      
+      // 自動的にダウンロードを実行
+      vrmDownloader.triggerDownload(result.blob, result.filename);
+      
+      console.log('VRMダウンロード完了:', {
+        modelId: result.modelId,
+        filename: result.filename,
+        size: result.blob.size
+      });
+      
+      return result;
+    } catch (error: any) {
+      console.error('VRMダウンロードエラー:', error);
+      const errorMessage = `VRMダウンロードエラー: ${error.message}`;
+      setState(prev => ({ ...prev, error: errorMessage }));
+      throw new Error(errorMessage);
+    }
+  }, [vrmDownloader]);
 
   // いいね/いいね解除
   const toggleHeart = useCallback(async (modelId: string, isHearted: boolean): Promise<void> => {
@@ -249,6 +320,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     selectModel,
     getModelDetails,
     getDownloadLicense,
+    downloadVRM,
     toggleHeart,
     
     // ヘルパー

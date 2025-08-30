@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import VModelSelector from './VModelSelector';
+import VRMViewer from './VRMViewer';
 import { Download, Heart, ExternalLink } from 'lucide-react';
 
 interface SelectedVModelCardProps {
@@ -14,8 +15,10 @@ interface SelectedVModelCardProps {
 }
 
 export default function SelectedVModelCard({ showChangeButton = true }: SelectedVModelCardProps) {
-  const { selectedModel, isConnected, getDownloadLicense, toggleHeart } = useVRoidModels();
+  const { selectedModel, isConnected, downloadVRM, toggleHeart } = useVRoidModels();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [vrmBlob, setVrmBlob] = useState<Blob | null>(null);
+  const [showVrmViewer, setShowVrmViewer] = useState(false);
 
   if (!isConnected) {
     return (
@@ -51,22 +54,49 @@ export default function SelectedVModelCard({ showChangeButton = true }: Selected
   }
 
   const handleDownload = async () => {
-    if (!selectedModel.is_downloadable) return;
+    if (!selectedModel.is_downloadable) {
+      alert('このモデルはダウンロードできません。');
+      return;
+    }
 
     setIsDownloading(true);
     try {
-      const downloadUrl = await getDownloadLicense(selectedModel.id);
+      console.log('VRMダウンロード開始:', {
+        modelId: selectedModel.id,
+        modelName: selectedModel.name,
+        isDownloadable: selectedModel.is_downloadable
+      });
       
-      // ダウンロードリンクを作成してクリック
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `${selectedModel.name || 'vroid-model'}.vrm`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const result = await downloadVRM(selectedModel.id);
+      console.log('VRMダウンロード成功:', { 
+        filename: result.filename, 
+        size: result.blob.size 
+      });
+      
+      // VRMViewerで表示するためにblobを保存
+      setVrmBlob(result.blob);
+      
+      // VRMDownloaderを使用してダウンロードを実行
+      // (downloadVRM内で自動的にダウンロードが実行されます)
+      
+      console.log('VRMファイルダウンロード完了');
     } catch (error: any) {
-      console.error('ダウンロードエラー:', error);
-      alert(error.message);
+      console.error('VRMダウンロードエラー詳細:', {
+        modelId: selectedModel.id,
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // ユーザーフレンドリーなエラーメッセージ
+      let userMessage = error.message;
+      
+      if (error.message.includes('権限がありません')) {
+        userMessage += '\n\n考えられる原因:\n• モデルの作者がダウンロードを許可していない\n• VRoidアカウントの権限不足\n• API制限';
+      } else if (error.message.includes('OAuth認証エラー')) {
+        userMessage += '\n\nVRoid Hub Developer Consoleでアプリケーション設定を確認してください。';
+      }
+      
+      alert(userMessage);
     } finally {
       setIsDownloading(false);
     }
@@ -200,6 +230,16 @@ export default function SelectedVModelCard({ showChangeButton = true }: Selected
                 {selectedModel.is_hearted ? 'いいね解除' : 'いいね'}
               </Button>
 
+              {vrmBlob && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowVrmViewer(!showVrmViewer)}
+                >
+                  {showVrmViewer ? '3D表示を閉じる' : '3D表示'}
+                </Button>
+              )}
+
               <Button
                 size="sm"
                 variant="ghost"
@@ -213,6 +253,16 @@ export default function SelectedVModelCard({ showChangeButton = true }: Selected
             </div>
           </div>
         </div>
+        
+        {/* VRMViewer表示エリア */}
+        {showVrmViewer && vrmBlob && (
+          <div className="mt-6 border-t pt-6">
+            <h3 className="text-lg font-semibold mb-4">3D プレビュー</h3>
+            <div className="w-full h-96 bg-gray-100 rounded-lg overflow-hidden">
+              <VRMViewer vrmBlob={vrmBlob} />
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

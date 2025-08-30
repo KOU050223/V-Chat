@@ -95,6 +95,61 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     );
   }
 
+  // エラー表示を改善
+  if (error && (
+    error.includes('OAuth認証エラー') || 
+    error.includes('アクセス権限がありません') ||
+    error.includes('OAUTH_FORBIDDEN')
+  )) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>V体選択</CardTitle>
+          <CardDescription className="text-red-600">
+            VRoid Hub API権限エラー
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="bg-red-50 border border-red-200 rounded-md p-4">
+              <h4 className="text-sm font-medium text-red-800 mb-2">権限エラーの詳細</h4>
+              <p className="text-sm text-red-700 whitespace-pre-line">{error}</p>
+            </div>
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">対処方法</h4>
+              <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                <li>VRoid Hub Developer Consoleでアプリケーション設定を確認</li>
+                <li>リダイレクトURI: <code className="bg-blue-100 px-1 rounded">http://localhost:3000/api/auth/callback/vroid</code></li>
+                <li>必要に応じてアプリケーション審査を申請</li>
+                <li>現在は「いいねしたモデル」と「検索」機能が利用可能です</li>
+              </ol>
+            </div>
+
+            <div className="flex space-x-2">
+              <Button 
+                onClick={refresh} 
+                variant="outline" 
+                size="sm"
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                再試行
+              </Button>
+              <Button 
+                onClick={() => window.open('https://hub.vroid.com/oauth/applications', '_blank')} 
+                variant="outline" 
+                size="sm"
+              >
+                Developer Console
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // マイモデルが取得できない場合の判定
   const hasMyModelsPermission = !error || !error.includes('投稿モデル一覧の取得権限がありません');
 

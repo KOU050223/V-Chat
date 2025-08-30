@@ -94,6 +94,116 @@ export async function POST(request: NextRequest) {
 }
 
 /**
+ * ライセンスIDを使用してVRMファイルをダウンロード（新しいAPI仕様）
+ */
+export async function GET(request: NextRequest) {
+  try {
+    console.log('VRM ダウンロードプロキシ API呼び出し (GET)');
+
+    // セッション確認
+    const session = await getServerSession(authOptions);
+    if (!session?.accessToken) {
+      console.error('VRM ダウンロードプロキシ: 認証エラー');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // URLパラメータ取得
+    const { searchParams } = new URL(request.url);
+    const licenseId = searchParams.get('license_id');
+    const modelId = searchParams.get('model_id');
+
+    if (!licenseId) {
+      return NextResponse.json({ error: 'license_id is required' }, { status: 400 });
+    }
+
+    console.log('VRM ダウンロードプロキシ:', { licenseId, modelId });
+
+    // VRoid Hub APIエンドポイント（正確なAPI仕様に基づく）
+    const vroidApiUrl = `${VROID_API_BASE}/download_licenses/${licenseId}/download`;
+    
+    console.log('VRoid Hub API呼び出し:', vroidApiUrl);
+
+    // VRoid Hub APIへのリクエスト
+    const response = await fetch(vroidApiUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.accessToken}`,
+        'X-Api-Version': '11',
+        'Accept': 'application/octet-stream',
+        'User-Agent': 'V-Chat/1.0.0',
+      },
+      redirect: 'follow' // 302リダイレクトを自動的に追跡
+    });
+
+    console.log('VRoid Hub API レスポンス:', {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      url: response.url
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('VRoid Hub API エラー:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText
+      });
+      
+      return NextResponse.json(
+        { error: `VRoid Hub API error: ${response.status} ${response.statusText}` },
+        { status: response.status }
+      );
+    }
+
+    // Content-Typeを確認
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    
+    console.log('VRM ファイル情報:', {
+      contentType,
+      contentLength: response.headers.get('content-length'),
+      finalUrl: response.url
+    });
+
+    // ファイルデータを取得
+    const fileData = await response.arrayBuffer();
+    
+    console.log('VRM ダウンロード成功:', {
+      fileSize: fileData.byteLength,
+      licenseId
+    });
+
+    // ファイル名を生成
+    const fileName = `vroid_model_${modelId || licenseId.split('-')[0]}.vrm`;
+
+    // レスポンスヘッダーを設定
+    const headers = new Headers();
+    headers.set('Content-Type', 'application/octet-stream');
+    headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
+    headers.set('Content-Length', fileData.byteLength.toString());
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    return new NextResponse(fileData, {
+      status: 200,
+      headers
+    });
+
+  } catch (error: any) {
+    console.error('VRM ダウンロードプロキシ エラー:', {
+      message: error.message,
+      stack: error.stack
+    });
+
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
  * CORS preflight リクエストに対応
  */
 export async function OPTIONS() {
@@ -101,7 +211,7 @@ export async function OPTIONS() {
     status: 200,
     headers: {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     },
   });

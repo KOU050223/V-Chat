@@ -126,7 +126,13 @@ export class VRoidAPI {
     }
     const method = options.method || 'GET';
     
-    let url = `${this.baseURL}?endpoint=${encodeURIComponent(endpoint)}`;
+    // サーバーサイド（Node.js）環境かクライアントサイド環境かを判定
+    const isServerSide = typeof window === 'undefined';
+    const baseUrl = isServerSide 
+      ? `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/vroid/proxy`
+      : '/api/vroid/proxy';
+    
+    let url = `${baseUrl}?endpoint=${encodeURIComponent(endpoint)}`;
     if (method !== 'GET') {
       url += `&method=${method}`;
     }

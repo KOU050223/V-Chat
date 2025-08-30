@@ -256,6 +256,13 @@ export const authOptions: NextAuthOptions = {
         token.refreshToken = account.refresh_token;
         token.provider = account.provider;
         
+        // アクセストークンの有効期限を設定
+        if (account.expires_at) {
+          token.exp = account.expires_at;
+        } else if (account.expires_in) {
+          token.exp = Math.floor(Date.now() / 1000) + (account.expires_in as number);
+        }
+        
         // Vroid認証の場合、追加情報を保存
         if (account.provider === 'vroid') {
           token.vroidProfile = (user as any).vroidProfile;
@@ -265,14 +272,56 @@ export const authOptions: NextAuthOptions = {
           token.sub = user.id || 'unknown';
           console.log('VRoid profile stored in token:', token.vroidProfile);
           console.log('VRoid user info stored:', { name: token.name, picture: token.picture, sub: token.sub });
+          console.log('Token expires at:', token.exp ? new Date((token.exp as number) * 1000).toISOString() : 'unknown');
         }
       }
       
       // アクセストークンが期限切れかチェック（リフレッシュトークンがある場合）
       if (token.accessToken && token.refreshToken && token.provider === 'vroid') {
-        // トークンの有効期限をチェック（必要に応じて実装）
-        // 現在は既存のトークンをそのまま使用
-        console.log('Existing VRoid token reused');
+        try {
+          // トークンの有効期限をチェック（expiresAtがある場合）
+          const now = Math.floor(Date.now() / 1000);
+          const tokenExpiry = (token.exp as number) || 0;
+          
+          // トークンが30分以内に期限切れになる場合はリフレッシュを試行
+          if (tokenExpiry > 0 && (tokenExpiry - now) < 1800) {
+            console.log('Token is expiring soon, attempting refresh');
+            
+            const refreshResponse = await fetch('https://hub.vroid.com/oauth/token', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                grant_type: 'refresh_token',
+                refresh_token: token.refreshToken as string,
+                client_id: process.env.VROID_CLIENT_ID!,
+                client_secret: process.env.VROID_CLIENT_SECRET!,
+              }),
+            });
+            
+            if (refreshResponse.ok) {
+              const refreshedTokens = await refreshResponse.json();
+              console.log('Token refreshed successfully');
+              
+              token.accessToken = refreshedTokens.access_token;
+              if (refreshedTokens.refresh_token) {
+                token.refreshToken = refreshedTokens.refresh_token;
+              }
+              if (refreshedTokens.expires_in) {
+                token.exp = Math.floor(Date.now() / 1000) + refreshedTokens.expires_in;
+              }
+            } else {
+              console.error('Token refresh failed:', refreshResponse.status, refreshResponse.statusText);
+              // リフレッシュに失敗した場合は既存のトークンを使用
+            }
+          } else {
+            console.log('Existing VRoid token is still valid');
+          }
+        } catch (refreshError) {
+          console.error('Token refresh error:', refreshError);
+          // エラーが発生した場合は既存のトークンを使用
+        }
       }
       
       return token;

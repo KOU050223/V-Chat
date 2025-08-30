@@ -19,7 +19,7 @@ interface VRMCacheOptions {
   defaultTTL?: number; // デフォルトTTL（時間）
 }
 
-class VRMCacheManager {
+export class VRMCacheManager {
   private dbName = 'vrm-cache';
   private dbVersion = 1;
   private storeName = 'vrm-files';

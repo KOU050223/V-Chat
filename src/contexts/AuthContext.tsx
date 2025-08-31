@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { useSession, signOut as nextAuthSignOut, signIn } from 'next-auth/react';
 import { 
   User, 
@@ -63,15 +63,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   // VRoidアカウントがリンクされているかチェック
   const isVRoidLinked = nextAuthSession?.provider === 'vroid' || linkedAccounts.includes('vroid');
 
-  // デバッグログ
-  console.log('AuthProvider state:', {
-    user: user ? 'Firebase user found' : 'No Firebase user',
-    nextAuthSession: nextAuthSession ? 'NextAuth session found' : 'No NextAuth session',
-    nextAuthStatus,
-    loading,
-    isVRoidLinked,
-    linkedAccounts
-  });
+  // 開発用ログ（最小限に制限）
+  // デバッグが必要な場合は以下のコメントアウトを解除
+  /*
+  if (process.env.NODE_ENV === 'development') {
+    console.log('AuthProvider state:', {
+      user: user ? 'Firebase user found' : 'No Firebase user',
+      nextAuthSession: nextAuthSession ? 'NextAuth session found' : 'No NextAuth session',
+      nextAuthStatus,
+      loading,
+      isVRoidLinked,
+      linkedAccounts
+    });
+  }
+  */
 
   useEffect(() => {
     if (!auth) {
@@ -89,7 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return unsubscribe;
   }, [nextAuthStatus]);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     if (!auth) {
       throw new Error('Firebase Auth is not initialized');
     }
@@ -99,9 +104,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
-  const register = async (email: string, password: string, displayName: string) => {
+  const register = useCallback(async (email: string, password: string, displayName: string) => {
     if (!auth) {
       throw new Error('Firebase Auth is not initialized');
     }
@@ -113,9 +118,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = useCallback(async () => {
     if (!auth) {
       throw new Error('Firebase Auth is not initialized');
     }
@@ -126,9 +131,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
-  const loginWithGithub = async () => {
+  const loginWithGithub = useCallback(async () => {
     if (!auth) {
       throw new Error('Firebase Auth is not initialized');
     }
@@ -139,9 +144,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       // Firebase認証からログアウト
       if (auth && user) {
@@ -159,9 +164,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       console.error('Logout error:', error);
       throw new Error(error.message);
     }
-  };
+  }, [user, nextAuthSession]);
 
-  const resetPassword = async (email: string) => {
+  const resetPassword = useCallback(async (email: string) => {
     if (!auth) {
       throw new Error('Firebase Auth is not initialized');
     }
@@ -171,9 +176,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, []);
 
-  const sendVerificationEmail = async () => {
+  const sendVerificationEmail = useCallback(async () => {
     if (!auth || !user) {
       throw new Error('Firebase Auth is not initialized or user is not logged in');
     }
@@ -183,10 +188,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, [user]);
 
   // VRoidアカウントをリンク
-  const linkVRoidAccount = async () => {
+  const linkVRoidAccount = useCallback(async () => {
     if (!user) {
       throw new Error('Firebase認証が必要です。先にログインしてください。');
     }
@@ -209,10 +214,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, [user]);
 
   // VRoidアカウントのリンクを解除
-  const unlinkVRoidAccount = async () => {
+  const unlinkVRoidAccount = useCallback(async () => {
     try {
       // NextAuthセッションを終了（VRoidセッションのみ）
       if (nextAuthSession?.provider === 'vroid') {
@@ -226,9 +231,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error: any) {
       throw new Error(error.message);
     }
-  };
+  }, [nextAuthSession]);
 
-  const value = {
+  // Context valueをuseMemoでメモ化
+  const value = useMemo(() => ({
     user,
     nextAuthSession,
     loading,
@@ -242,7 +248,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     linkVRoidAccount,
     unlinkVRoidAccount,
     isVRoidLinked,
-  };
+  }), [
+    user,
+    nextAuthSession,
+    loading,
+    login,
+    register,
+    loginWithGoogle,
+    loginWithGithub,
+    logout,
+    resetPassword,
+    sendVerificationEmail,
+    linkVRoidAccount,
+    unlinkVRoidAccount,
+    isVRoidLinked,
+  ]);
 
   return (
     <AuthContext.Provider value={value}>

@@ -27,8 +27,8 @@ export async function POST(req: NextRequest) {
       if (process.env.NODE_ENV === 'development') {
         if (globalThis.__roomParticipants) {
           // RoomStore用のparticipantsをリセット
-          for (const roomId of Object.keys(globalThis.__roomParticipants)) {
-            globalThis.__roomParticipants[roomId] = [];
+          for (const roomId of Object.keys(globalThis.__roomParticipants as any)) {
+            (globalThis.__roomParticipants as any)[roomId] = [];
           }
         }
         
@@ -40,8 +40,8 @@ export async function POST(req: NextRequest) {
               globalThis.__roomParticipants.clear();
             } else {
               // Object形式の場合
-              Object.keys(globalThis.__roomParticipants).forEach(key => {
-                delete globalThis.__roomParticipants![key];
+              Object.keys(globalThis.__roomParticipants as any).forEach(key => {
+                delete (globalThis.__roomParticipants as any)[key];
               });
             }
           } catch (error) {

@@ -301,6 +301,24 @@ export default function Dashboard() {
                         </div>
                         <div>
                           <label className="text-sm font-medium text-gray-700">
+                            VRoidユーザーID
+                          </label>
+                          <p className="text-sm text-gray-900">
+                            {(() => {
+                              const vroidProfile = nextAuthSession?.vroidProfile as any;
+                              const vroidId = 
+                                vroidProfile?.actualUser?.id ||
+                                vroidProfile?.actualUser?.pixiv_user_id ||
+                                vroidProfile?.userDetail?.user?.id ||
+                                vroidProfile?.userDetail?.user?.pixiv_user_id ||
+                                vroidProfile?.id ||
+                                '取得中...';
+                              return vroidId;
+                            })()}
+                          </p>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">
                             連携状態
                           </label>
                           <p className="text-sm text-green-600">連携済み</p>
@@ -310,15 +328,50 @@ export default function Dashboard() {
                             <label className="text-sm font-medium text-gray-700">
                               VRoidプロフィール
                             </label>
-                            <div className="mt-1">
+                            <div className="mt-1 space-x-2">
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                disabled={!nextAuthSession?.vroidProfile?.actualUser?.id}
                                 onClick={() => {
-                                  window.open(`https://hub.vroid.com/users/${nextAuthSession.vroidProfile.id}`, '_blank');
+                                  // 複数のパスからVRoidユーザーIDを取得を試行
+                                  const vroidProfile = nextAuthSession?.vroidProfile as any;
+                                  const vroidId = 
+                                    vroidProfile?.actualUser?.id ||
+                                    vroidProfile?.actualUser?.pixiv_user_id ||
+                                    vroidProfile?.userDetail?.user?.id ||
+                                    vroidProfile?.userDetail?.user?.pixiv_user_id ||
+                                    vroidProfile?.id;
+                                  
+                                  console.log('VRoid ID検索:', {
+                                    actualUserId: vroidProfile?.actualUser?.id,
+                                    actualUserPixivId: vroidProfile?.actualUser?.pixiv_user_id,
+                                    userDetailId: vroidProfile?.userDetail?.user?.id,
+                                    userDetailPixivId: vroidProfile?.userDetail?.user?.pixiv_user_id,
+                                    profileId: vroidProfile?.id,
+                                    selectedId: vroidId
+                                  });
+                                  
+                                  if (vroidId && vroidId !== 'unknown') {
+                                    const url = `https://hub.vroid.com/users/${vroidId}`;
+                                    console.log('VRoidマイページを開く:', url);
+                                    window.open(url, '_blank');
+                                  } else {
+                                    alert('VRoidユーザーIDが見つかりません。セッション情報を確認してください。');
+                                    console.error('VRoidプロフィール情報:', vroidProfile);
+                                  }
                                 }}
                               >
-                                VRoid Hubで見る
+                                マイページ
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  window.open('https://hub.vroid.com', '_blank');
+                                }}
+                              >
+                                VRoid Hub
                               </Button>
                             </div>
                           </div>

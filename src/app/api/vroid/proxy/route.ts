@@ -8,8 +8,16 @@ export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
+    // デバッグ情報をログ出力
+    console.log('VRoid API Proxy - Session check:', {
+      hasSession: !!session,
+      hasAccessToken: !!session?.accessToken,
+      provider: session?.provider,
+      accessTokenLength: session?.accessToken?.length,
+    });
     
     if (!session?.accessToken) {
+      console.log('VRoid API Proxy - No access token available');
       return NextResponse.json(
         { error: 'VRoidアカウントが連携されていません' },
         { status: 401 }
@@ -28,6 +36,12 @@ export async function GET(request: NextRequest) {
     }
 
 
+    console.log('VRoid API Proxy - Making request:', {
+      url: `${VROID_API_BASE}${endpoint}`,
+      method,
+      hasAuth: !!session.accessToken,
+    });
+
     const vroidResponse = await fetch(`${VROID_API_BASE}${endpoint}`, {
       method,
       headers: {
@@ -37,8 +51,16 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    console.log('VRoid API Proxy - Response:', {
+      status: vroidResponse.status,
+      statusText: vroidResponse.statusText,
+      headers: Object.fromEntries(vroidResponse.headers.entries()),
+    });
 
     if (!vroidResponse.ok) {
+      const errorText = await vroidResponse.text();
+      console.log('VRoid API Proxy - Error response:', errorText);
+      
       if (vroidResponse.status === 401) {
         return NextResponse.json(
           { error: 'VRoidアクセストークンが無効です' },
@@ -46,7 +68,13 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      const errorText = await vroidResponse.text();
+      if (vroidResponse.status === 403) {
+        return NextResponse.json(
+          { error: 'VRoid API アクセス権限がありません。OAuth設定を確認してください。' },
+          { status: 403 }
+        );
+      }
+      
       return NextResponse.json(
         { error: `VRoid API エラー: ${vroidResponse.status} - ${errorText}` },
         { status: vroidResponse.status }

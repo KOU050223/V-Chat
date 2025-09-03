@@ -73,20 +73,58 @@ GET /api/search/character_models
 - `sort`: ソート順（'relevance' | 'publication_time'）
 - ライセンス関連フィルタ
 
-#### 4. ダウンロードライセンス取得
+#### 4. ダウンロードライセンス取得（新API仕様）
 ```typescript
-GET /api/character_models/{model_id}/download_license
+POST /api/download_licenses
+```
+
+**ヘッダー:**
+- `X-Api-Version: 11` （必須）
+- `Authorization: Bearer {access_token}`
+- `Content-Type: application/json`
+
+**リクエストボディ:**
+```typescript
+{
+  character_model_id: string; // ダウンロードしたいモデルID
+}
 ```
 
 **レスポンス:**
 ```typescript
 {
   data: {
-    url: string;        // ダウンロードURL
-    expires_at: string; // 有効期限
-  }
+    id: string;                    // ライセンスID
+    character_model_id: string;    // モデルID
+    character_model_version_id: string;
+    is_public_visibility: boolean;
+    is_private_visibility: boolean;
+    expires_at: string;           // 有効期限
+  },
+  error: {
+    code: string;
+    message: string;
+    details: {};
+  },
+  _links: {
+    next?: {
+      href: string;
+    }
+  },
+  rand: string;
 }
 ```
+
+#### 5. VRMファイルダウンロード
+```typescript
+GET /api/download_licenses/{license_id}/download
+```
+
+**ヘッダー:**
+- `X-Api-Version: 11` （必須）
+- `Authorization: Bearer {access_token}`
+
+**レスポンス:** 302リダイレクト（AWS S3のpresigned URLへ）
 
 ## 使用フロー
 

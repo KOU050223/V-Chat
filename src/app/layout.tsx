@@ -6,6 +6,7 @@ import { VModelProvider } from "@/contexts/VModelContext";
 import SessionProvider from "@/components/providers/SessionProvider";
 import { CleanupServiceProvider } from "@/components/providers/CleanupServiceProvider";
 import GrowthBookProvider from "@/components/providers/GrowthBookProvider";
+import { LoggerProvider } from "@/components/LoggerProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,17 +45,19 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <CleanupServiceProvider>
-          <SessionProvider>
-            <AuthProvider>
-              <VModelProvider>
-                <GrowthBookProvider>
-                  {children}
-                </GrowthBookProvider>
-              </VModelProvider>
-            </AuthProvider>
-          </SessionProvider>
-        </CleanupServiceProvider>
+        <LoggerProvider>
+          <CleanupServiceProvider>
+            <SessionProvider>
+              <AuthProvider>
+                <VModelProvider>
+                  <GrowthBookProvider>
+                    {children}
+                  </GrowthBookProvider>
+                </VModelProvider>
+              </AuthProvider>
+            </SessionProvider>
+          </CleanupServiceProvider>
+        </LoggerProvider>
       </body>
     </html>
   );

@@ -72,7 +72,7 @@ export const retargetPoseToVRMWithKalidokit = (
     }
 
     // 腰（Hips）の回転
-    if (riggedPose.Hips) {
+    if (riggedPose.Hips && riggedPose.Hips.rotation) {
       const hips = humanoid.getNormalizedBoneNode('hips');
       if (hips) {
         applySmoothRotation(hips, riggedPose.Hips.rotation, 0.3);
@@ -99,29 +99,8 @@ export const retargetPoseToVRMWithKalidokit = (
       }
     }
 
-    // 胸（Chest）の回転
-    if (riggedPose.Chest) {
-      const chest = humanoid.getNormalizedBoneNode('chest');
-      if (chest) {
-        applySmoothRotation(chest, riggedPose.Chest, 0.25);
-      }
-    }
-
-    // 首（Neck）の回転
-    if (riggedPose.Neck) {
-      const neck = humanoid.getNormalizedBoneNode('neck');
-      if (neck) {
-        applySmoothRotation(neck, riggedPose.Neck, 0.3);
-      }
-    }
-
-    // 頭（Head）の回転
-    if (riggedPose.Head) {
-      const head = humanoid.getNormalizedBoneNode('head');
-      if (head) {
-        applySmoothRotation(head, riggedPose.Head, 0.4);
-      }
-    }
+    // Kalidokitが返すTPose型にはChest, Neck, Headがないため、コメントアウト
+    // 必要に応じて別の方法で実装する
 
     // 左腕
     if (riggedPose.LeftUpperArm) {

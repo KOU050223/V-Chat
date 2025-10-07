@@ -21,6 +21,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     isLoading,
     isCameraPermissionGranted,
     error: poseError,
+    videoRef,
     startCamera,
     stopCamera,
     requestCameraPermission
@@ -97,6 +98,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     isCameraPermissionGranted,
     isMotionActive,
     error,
+    videoRef,
     handleVRMLoaded,
     handleStartMotionSync,
     handleStopMotionSync,

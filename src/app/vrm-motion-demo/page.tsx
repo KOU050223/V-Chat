@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
 import { VRMViewer } from '../../components/vrm/VRMViewer';
 import { MotionSyncUI, useMotionSync } from '../../components/vrm/MotionSyncViewer';
+import { CameraPreview } from '../../components/vrm/CameraPreview';
 import { useFrame } from '@react-three/fiber';
 import { retargetPoseToVRM } from '../../lib/vrm-retargeter';
 import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
@@ -50,7 +51,9 @@ const MotionSyncRenderer: React.FC<{
       position={position}
     />
   );
-});
+};
+
+MotionSyncRenderer.displayName = 'MotionSyncRenderer';
 
 export default function VRMMotionDemoPage() {
   // モーション同期の状態を管理
@@ -150,6 +153,13 @@ export default function VRMMotionDemoPage() {
         onStopMotionSync={motionSyncState.handleStopMotionSync}
         onRequestCameraPermission={motionSyncState.requestCameraPermission}
         enablePoseDebug={true}
+      />
+
+      {/* カメラプレビュー（右下） */}
+      <CameraPreview
+        videoRef={motionSyncState.videoRef}
+        landmarks={motionSyncState.landmarks}
+        isActive={motionSyncState.isMotionActive}
       />
 
       {/* 説明パネル */}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
-interface PoseLandmark {
+export interface PoseLandmark {
   x: number;
   y: number;
   z: number;
@@ -20,6 +20,7 @@ interface UsePoseEstimationReturn {
   isLoading: boolean;
   isCameraPermissionGranted: boolean;
   error: string | null;
+  videoRef: React.RefObject<HTMLVideoElement>;
   startCamera: () => Promise<void>;
   stopCamera: () => void;
   requestCameraPermission: () => Promise<void>;
@@ -34,7 +35,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null!);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
@@ -224,6 +225,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     isLoading,
     isCameraPermissionGranted,
     error,
+    videoRef,
     startCamera,
     stopCamera,
     requestCameraPermission

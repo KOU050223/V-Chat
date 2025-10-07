@@ -32,6 +32,7 @@
     "express": "^4.21.2",
     "firebase": "^11.10.0",
     "ioredis": "^5.6.1",
+    "kalidokit": "^1.1.5",
     "livekit-client": "^2.15.4",
     "livekit-server-sdk": "^2.13.1",
     "lucide-react": "^0.525.0",

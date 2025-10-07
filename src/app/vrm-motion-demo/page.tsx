@@ -6,13 +6,16 @@ import { VRMViewer } from '../../components/vrm/VRMViewer';
 import { MotionSyncUI, useMotionSync } from '../../components/vrm/MotionSyncViewer';
 import { useFrame } from '@react-three/fiber';
 import { retargetPoseToVRM } from '../../lib/vrm-retargeter';
+import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
+import { useState } from 'react';
 
 // Canvas内でモーション同期を行うコンポーネント
 const MotionSyncRenderer: React.FC<{
   vrmUrl: string;
   position: [number, number, number];
   motionSyncState: ReturnType<typeof useMotionSync>;
-}> = ({ vrmUrl, position, motionSyncState }) => {
+  useKalidokit: boolean;
+}> = ({ vrmUrl, position, motionSyncState, useKalidokit }) => {
   // フレームごとの更新処理
   useFrame((_state, delta) => {
     const vrm = motionSyncState.vrmRef.current;
@@ -24,27 +27,16 @@ const MotionSyncRenderer: React.FC<{
     try {
       // ポーズデータが有効な場合、VRMに適用
       if (motionSyncState.landmarks && motionSyncState.landmarks.length > 0) {
-        // デバッグ: ランドマークが検出されていることを確認
-        if (Math.random() < 0.01) { // 1%の確率でログ出力
-          console.log('📍 ランドマーク検出数:', motionSyncState.landmarks.length);
-          console.log('📍 肩の位置:', {
-            left: motionSyncState.landmarks[11],
-            right: motionSyncState.landmarks[12]
-          });
+        // Kalidokit版と現状版を切り替え
+        if (useKalidokit) {
+          retargetPoseToVRMWithKalidokit(vrm, motionSyncState.landmarks);
+        } else {
+          retargetPoseToVRM(vrm, motionSyncState.landmarks);
         }
-        retargetPoseToVRM(vrm, motionSyncState.landmarks);
       }
 
       // VRMの更新
       vrm.update(delta);
-
-      // デバッグ: VRM update()が呼ばれていることを確認
-      if (Math.random() < 0.001) { // 0.1%の確率でログ出力
-        console.log('🔄 VRM update()呼び出し', {
-          delta,
-          timestamp: performance.now()
-        });
-      }
 
     } catch (err) {
       console.error('フレーム更新エラー:', err);
@@ -64,13 +56,41 @@ export default function VRMMotionDemoPage() {
   // モーション同期の状態を管理
   const motionSyncState = useMotionSync(false);
 
+  // Kalidokit使用フラグ（デフォルトはKalidokit）
+  const [useKalidokit, setUseKalidokit] = useState(true);
+
   return (
     <div className="h-screen w-full bg-gray-900">
       <div className="absolute top-4 left-4 z-10 text-white">
         <h1 className="text-2xl font-bold mb-2">VRM Motion Sync Demo</h1>
-        <p className="text-sm opacity-70">
+        <p className="text-sm opacity-70 mb-3">
           カメラアクセスを許可して、「モーション同期開始」ボタンを押してください
         </p>
+
+        {/* 実装切り替えボタン */}
+        <div className="flex items-center gap-2 bg-black bg-opacity-50 p-3 rounded-lg">
+          <label className="text-sm font-semibold">実装方式:</label>
+          <button
+            onClick={() => setUseKalidokit(false)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              !useKalidokit
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            自前実装
+          </button>
+          <button
+            onClick={() => setUseKalidokit(true)}
+            className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+              useKalidokit
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            Kalidokit
+          </button>
+        </div>
       </div>
 
       <Canvas
@@ -103,6 +123,7 @@ export default function VRMMotionDemoPage() {
           vrmUrl="/vrm/vroid_model_6689695945343414173.vrm" // VRoidモデルファイルのパス
           position={[0, 0, 0]}
           motionSyncState={motionSyncState}
+          useKalidokit={useKalidokit}
         />
 
         {/* カメラコントロール */}

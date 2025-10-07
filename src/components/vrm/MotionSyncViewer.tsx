@@ -3,7 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { VRM } from '@pixiv/three-vrm';
 import { VRMViewer } from './VRMViewer';
 import { usePoseEstimation } from '../../hooks/usePoseEstimation';
-import { retargetPoseToVRM, resetVRMPose } from '../../lib/vrm-retargeter';
+import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
+import { resetVRMPose } from '../../lib/vrm-retargeter';
 import { LogViewer } from '../ui/LogViewer';
 
 // モーション同期のロジックを管理するカスタムフック
@@ -151,9 +152,9 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
     }
 
     try {
-      // ポーズデータが有効な場合、VRMに適用
+      // ポーズデータが有効な場合、VRMに適用（Kalidokit使用）
       if (landmarks && landmarks.length > 0) {
-        retargetPoseToVRM(vrm, landmarks);
+        retargetPoseToVRMWithKalidokit(vrm, landmarks);
       }
 
       // VRMの更新

@@ -104,22 +104,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         // VRMアバターをカメラに向けて配置（180度回転でカメラ方向を向く）
         vrmInstance.scene.rotation.y = Math.PI;
 
-        // デバッグ: VRMボーンの初期状態を確認
-        if (vrmInstance.humanoid) {
-          const leftUpperArm = vrmInstance.humanoid.getRawBoneNode(VRMHumanBoneName.LeftUpperArm);
-          const rightUpperArm = vrmInstance.humanoid.getRawBoneNode(VRMHumanBoneName.RightUpperArm);
-          console.log('🦴 VRMボーンの初期状態:', {
-            leftUpperArm: leftUpperArm ? {
-              position: leftUpperArm.position.toArray(),
-              rotation: leftUpperArm.quaternion.toArray()
-            } : null,
-            rightUpperArm: rightUpperArm ? {
-              position: rightUpperArm.position.toArray(),
-              rotation: rightUpperArm.quaternion.toArray()
-            } : null
-          });
-        }
-
         if (!isMounted) return; // レスポンス受信時にアンマウント済みの場合は処理しない
 
         setVrm(vrmInstance);

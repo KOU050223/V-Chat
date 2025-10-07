@@ -4,8 +4,28 @@
  */
 
 import * as Kalidokit from 'kalidokit';
+import * as THREE from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import type { PoseLandmark } from '../hooks/usePoseEstimation';
+
+/**
+ * 回転をスムーズに適用するヘルパー関数
+ */
+const applySmoothRotation = (
+  bone: THREE.Object3D,
+  targetRotation: { x: number; y: number; z: number },
+  smoothing: number = 0.3
+): void => {
+  const targetEuler = new THREE.Euler(
+    targetRotation.x || 0,
+    targetRotation.y || 0,
+    targetRotation.z || 0
+  );
+  const targetQuaternion = new THREE.Quaternion().setFromEuler(targetEuler);
+
+  // Slerpを使って滑らかに補間
+  bone.quaternion.slerp(targetQuaternion, smoothing);
+};
 
 /**
  * Kalidokitを使用してポーズデータをVRMに適用する
@@ -55,18 +75,17 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Hips) {
       const hips = humanoid.getNormalizedBoneNode('hips');
       if (hips) {
-        hips.rotation.set(
-          riggedPose.Hips.rotation.x || 0,
-          riggedPose.Hips.rotation.y || 0,
-          riggedPose.Hips.rotation.z || 0
-        );
+        applySmoothRotation(hips, riggedPose.Hips.rotation, 0.3);
 
-        // 位置も設定（オプション）
+        // 位置も設定（オプション）- 位置はスムージング弱め
         if (riggedPose.Hips.position) {
-          hips.position.set(
-            riggedPose.Hips.position.x || 0,
-            riggedPose.Hips.position.y || 0,
-            riggedPose.Hips.position.z || 0
+          hips.position.lerp(
+            new THREE.Vector3(
+              riggedPose.Hips.position.x || 0,
+              riggedPose.Hips.position.y || 0,
+              riggedPose.Hips.position.z || 0
+            ),
+            0.1
           );
         }
       }
@@ -76,11 +95,7 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Spine) {
       const spine = humanoid.getNormalizedBoneNode('spine');
       if (spine) {
-        spine.rotation.set(
-          riggedPose.Spine.x || 0,
-          riggedPose.Spine.y || 0,
-          riggedPose.Spine.z || 0
-        );
+        applySmoothRotation(spine, riggedPose.Spine, 0.25);
       }
     }
 
@@ -88,11 +103,7 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Chest) {
       const chest = humanoid.getNormalizedBoneNode('chest');
       if (chest) {
-        chest.rotation.set(
-          riggedPose.Chest.x || 0,
-          riggedPose.Chest.y || 0,
-          riggedPose.Chest.z || 0
-        );
+        applySmoothRotation(chest, riggedPose.Chest, 0.25);
       }
     }
 
@@ -100,11 +111,7 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Neck) {
       const neck = humanoid.getNormalizedBoneNode('neck');
       if (neck) {
-        neck.rotation.set(
-          riggedPose.Neck.x || 0,
-          riggedPose.Neck.y || 0,
-          riggedPose.Neck.z || 0
-        );
+        applySmoothRotation(neck, riggedPose.Neck, 0.3);
       }
     }
 
@@ -112,11 +119,7 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Head) {
       const head = humanoid.getNormalizedBoneNode('head');
       if (head) {
-        head.rotation.set(
-          riggedPose.Head.x || 0,
-          riggedPose.Head.y || 0,
-          riggedPose.Head.z || 0
-        );
+        applySmoothRotation(head, riggedPose.Head, 0.4);
       }
     }
 
@@ -124,22 +127,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.LeftUpperArm) {
       const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
       if (leftUpperArm) {
-        leftUpperArm.rotation.set(
-          riggedPose.LeftUpperArm.x || 0,
-          riggedPose.LeftUpperArm.y || 0,
-          riggedPose.LeftUpperArm.z || 0
-        );
+        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.3);
       }
     }
 
     if (riggedPose.LeftLowerArm) {
       const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
       if (leftLowerArm) {
-        leftLowerArm.rotation.set(
-          riggedPose.LeftLowerArm.x || 0,
-          riggedPose.LeftLowerArm.y || 0,
-          riggedPose.LeftLowerArm.z || 0
-        );
+        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.3);
       }
     }
 
@@ -147,22 +142,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.RightUpperArm) {
       const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
       if (rightUpperArm) {
-        rightUpperArm.rotation.set(
-          riggedPose.RightUpperArm.x || 0,
-          riggedPose.RightUpperArm.y || 0,
-          riggedPose.RightUpperArm.z || 0
-        );
+        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.3);
       }
     }
 
     if (riggedPose.RightLowerArm) {
       const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
       if (rightLowerArm) {
-        rightLowerArm.rotation.set(
-          riggedPose.RightLowerArm.x || 0,
-          riggedPose.RightLowerArm.y || 0,
-          riggedPose.RightLowerArm.z || 0
-        );
+        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.3);
       }
     }
 
@@ -170,22 +157,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.LeftUpperLeg) {
       const leftUpperLeg = humanoid.getNormalizedBoneNode('leftUpperLeg');
       if (leftUpperLeg) {
-        leftUpperLeg.rotation.set(
-          riggedPose.LeftUpperLeg.x || 0,
-          riggedPose.LeftUpperLeg.y || 0,
-          riggedPose.LeftUpperLeg.z || 0
-        );
+        applySmoothRotation(leftUpperLeg, riggedPose.LeftUpperLeg, 0.3);
       }
     }
 
     if (riggedPose.LeftLowerLeg) {
       const leftLowerLeg = humanoid.getNormalizedBoneNode('leftLowerLeg');
       if (leftLowerLeg) {
-        leftLowerLeg.rotation.set(
-          riggedPose.LeftLowerLeg.x || 0,
-          riggedPose.LeftLowerLeg.y || 0,
-          riggedPose.LeftLowerLeg.z || 0
-        );
+        applySmoothRotation(leftLowerLeg, riggedPose.LeftLowerLeg, 0.3);
       }
     }
 
@@ -193,22 +172,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.RightUpperLeg) {
       const rightUpperLeg = humanoid.getNormalizedBoneNode('rightUpperLeg');
       if (rightUpperLeg) {
-        rightUpperLeg.rotation.set(
-          riggedPose.RightUpperLeg.x || 0,
-          riggedPose.RightUpperLeg.y || 0,
-          riggedPose.RightUpperLeg.z || 0
-        );
+        applySmoothRotation(rightUpperLeg, riggedPose.RightUpperLeg, 0.3);
       }
     }
 
     if (riggedPose.RightLowerLeg) {
       const rightLowerLeg = humanoid.getNormalizedBoneNode('rightLowerLeg');
       if (rightLowerLeg) {
-        rightLowerLeg.rotation.set(
-          riggedPose.RightLowerLeg.x || 0,
-          riggedPose.RightLowerLeg.y || 0,
-          riggedPose.RightLowerLeg.z || 0
-        );
+        applySmoothRotation(rightLowerLeg, riggedPose.RightLowerLeg, 0.3);
       }
     }
 

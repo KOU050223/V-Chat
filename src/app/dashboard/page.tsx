@@ -9,6 +9,7 @@ import VModelSelector from '@/components/vmodel/VModelSelector';
 import SelectedVModelCard from '@/components/vmodel/SelectedVModelCard';
 import VModelSettings from '@/components/vmodel/VModelSettings';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import DebugPanel from '@/components/debug/DebugPanel';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -228,6 +229,9 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* デバッグパネル（開発環境のみ） */}
+              <DebugPanel />
             </div>
 
             {/* V体情報セクション */}

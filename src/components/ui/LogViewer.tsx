@@ -1,15 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import logger from '../../lib/logger';
-
-interface LogEntry {
-  timestamp: string;
-  level: 'error' | 'warn' | 'info' | 'debug';
-  message: string;
-  data?: any;
-  source?: string;
-}
+import logger, { type LogEntry, type LogLevel } from '../../lib/logger';
 
 interface LogViewerProps {
   isVisible: boolean;

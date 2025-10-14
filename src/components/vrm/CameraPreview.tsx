@@ -7,7 +7,7 @@ import React, { useRef, useEffect } from 'react';
 import type { PoseLandmark } from '../../hooks/usePoseEstimation';
 
 interface CameraPreviewProps {
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.MutableRefObject<HTMLVideoElement | null>;
   landmarks: PoseLandmark[] | null;
   isActive: boolean;
 }

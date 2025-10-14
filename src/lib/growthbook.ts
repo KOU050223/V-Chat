@@ -25,6 +25,8 @@ export const growthbook = new GrowthBook({
 // 開発環境での初期化
 if (process.env.NODE_ENV === 'development') {
   growthbook.setFeatures({
-    'debug-panel': true
+    'debug-panel': {
+      defaultValue: true
+    }
   });
 }

@@ -1,13 +1,8 @@
-interface LogLevel {
-  ERROR: 'error';
-  WARN: 'warn';
-  INFO: 'info';
-  DEBUG: 'debug';
-}
+export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
 
-interface LogEntry {
+export interface LogEntry {
   timestamp: string;
-  level: keyof LogLevel;
+  level: LogLevel;
   message: string;
   data?: any;
   source?: string;
@@ -153,7 +148,7 @@ class Logger {
     };
   }
 
-  private log(level: keyof LogLevel, message: string, data?: any, source?: string) {
+  private log(level: LogLevel, message: string, data?: any, source?: string) {
     // 重複ログのフィルタリング
     const isDuplicate = this.logs.length > 0 &&
       this.logs[this.logs.length - 1].message === message &&
@@ -201,7 +196,7 @@ class Logger {
     return [...this.logs];
   }
 
-  public getLogsByLevel(level: keyof LogLevel): LogEntry[] {
+  public getLogsByLevel(level: LogLevel): LogEntry[] {
     return this.logs.filter(log => log.level === level);
   }
 
@@ -244,8 +239,8 @@ class Logger {
   }
 
   // 統計情報
-  public getLogStats(): { [key in keyof LogLevel]: number } {
-    const stats = { error: 0, warn: 0, info: 0, debug: 0 };
+  public getLogStats(): Record<LogLevel, number> {
+    const stats: Record<LogLevel, number> = { error: 0, warn: 0, info: 0, debug: 0 };
     this.logs.forEach(log => {
       stats[log.level]++;
     });

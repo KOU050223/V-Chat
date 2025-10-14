@@ -20,7 +20,7 @@ interface UsePoseEstimationReturn {
   isLoading: boolean;
   isCameraPermissionGranted: boolean;
   error: string | null;
-  videoRef: React.RefObject<HTMLVideoElement>;
+  videoRef: React.MutableRefObject<HTMLVideoElement | null>;
   startCamera: () => Promise<void>;
   stopCamera: () => void;
   requestCameraPermission: () => Promise<void>;
@@ -35,7 +35,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null!);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);

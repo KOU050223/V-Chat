@@ -35,13 +35,11 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   
   // 強制リセット関数
   const forceResetParticipants = () => {
-    console.log('🔄 FORCE RESET: Clearing all participants');
     setParticipants([]);
   };
 
   // コンポーネントマウント時とroomId変更時に参加者リストをリセット
   useEffect(() => {
-    console.log('🔄 Component mount/roomId change - resetting participants');
     forceResetParticipants();
   }, [roomId]);
 
@@ -89,11 +87,8 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     if (!isConnected || !room) return;
     
     try {
-      console.log('🔄 Restarting audio monitoring with new device...');
-      
       // 継続的な音声レベル監視を開始
       await startContinuousAudioMonitoring();
-      console.log('✅ Audio monitoring restarted with new device');
     } catch (error) {
       console.error('Failed to restart audio monitoring:', error);
     }
@@ -102,8 +97,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   // シンプルな音声レベルテスト（LiveKitをバイパス）
   const testAudioLevel = async () => {
     try {
-      console.log('🧪 Starting simple audio level test...');
-      
       // 既存の音声レベル監視を停止
       stopAudioLevelMonitoring();
       
@@ -120,13 +113,11 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       const audioTrack = stream.getAudioTracks()[0];
       
       if (audioTrack) {
-        console.log('✅ Got audio track for testing');
         startAudioLevelMonitoring(audioTrack);
         
         // 5秒後にストリームを停止
         setTimeout(() => {
           stream.getTracks().forEach(track => track.stop());
-          console.log('🧪 Audio level test completed');
         }, 5000);
       }
     } catch (error) {
@@ -134,26 +125,20 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     }
   };
 
-  // 継続的な音声レベル監視（LiveKitをバイパス）
+  // 継続的な音声レベル監視（独立したストリームを使用）
   const startContinuousAudioMonitoring = async () => {
     try {
-      console.log('🎤 Starting continuous audio level monitoring...');
-      console.log('Current state:', {
-        isConnected,
-        isMuted,
-        isAudioMonitoringActive,
-        selectedInput,
-        hasAnalyser: !!analyserRef.current,
-        hasAudioTrack: !!localAudioTrackRef.current,
-        roomExists: !!room
-      });
-      
-      // 既存の音声レベル監視を停止
+      // 既存の監視を停止
       stopAudioLevelMonitoring();
       
-      // 音声監視は接続状態に関係なく開始可能
-      console.log('🎤 Proceeding with audio monitoring setup...');
+      // 既存のAudioContextがある場合は再利用
+      let audioContext = audioContextRef.current;
+      if (!audioContext || audioContext.state === 'closed') {
+        audioContext = new AudioContext();
+        audioContextRef.current = audioContext;
+      }
       
+      // 独立したストリームを作成（音声レベル監視専用）
       const constraints = {
         audio: {
           deviceId: selectedInput ? { exact: selectedInput } : undefined,
@@ -163,39 +148,38 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         }
       };
       
-      console.log('🎤 Requesting audio stream with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       const audioTrack = stream.getAudioTracks()[0];
       
-      if (audioTrack) {
-        console.log('✅ Got audio track for continuous monitoring');
-        console.log('Audio track details:', {
-          id: audioTrack.id,
-          kind: audioTrack.kind,
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState
-        });
-        
-        localAudioTrackRef.current = audioTrack;
-        startAudioLevelMonitoring(audioTrack);
-        
-        // ストリームを保持（継続監視のため）
-        // 注意: この方法ではLiveKitのストリームと競合する可能性があります
-        console.log('⚠️ Note: Using separate stream for audio monitoring');
-        
-        // 監視が開始されたことを確認
-        console.log('🎤 Continuous audio monitoring started successfully');
-        setIsAudioMonitoringActive(true);
-      } else {
-        console.error('❌ No audio track found in stream');
-        throw new Error('No audio track found in stream');
+      if (!audioTrack) {
+        throw new Error('No audio track available for monitoring');
       }
+      
+      localAudioTrackRef.current = audioTrack;
+      
+      // MediaStreamを作成
+      const mediaStream = new MediaStream([audioTrack]);
+      
+      // 音声分析用のノードを作成
+      const source = audioContext.createMediaStreamSource(mediaStream);
+      const analyser = audioContext.createAnalyser();
+      
+      analyserRef.current = analyser;
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0.8;
+      
+      // ノードを接続
+      source.connect(analyser);
+      
+      // 音声レベル監視を開始
+      startAudioLevelMonitoringLoop();
+      
+      setIsAudioMonitoringActive(true);
+      
     } catch (error) {
       console.error('Failed to start continuous audio monitoring:', error);
       setIsAudioMonitoringActive(false);
-      // エラーが発生した場合でも、後で再試行できるようにする
-      throw error;
+      // エラーが発生しても通話には影響しない
     }
   };
 
@@ -203,31 +187,62 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const isConnectingRef = useRef<boolean>(false);
   const hasConnectedRef = useRef<boolean>(false);
 
-  // 音声レベル監視関数
+  // 音声レベル監視ループ（修正版）
+  const startAudioLevelMonitoringLoop = () => {
+    if (!analyserRef.current) {
+      return;
+    }
+    
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+    
+    const updateAudioLevel = () => {
+      if (!analyserRef.current) {
+        setLocalAudioLevel(0);
+        return;
+      }
+      
+      // ローカルのミュート状態のみを確認（LiveKitの状態は信頼しない）
+      if (isMuted) {
+        // ミュートされている場合は音声レベルを0に設定
+        setLocalAudioLevel(0);
+      } else {
+        // ミュートされていない場合のみ音声レベルを計算
+        analyserRef.current.getByteFrequencyData(dataArray);
+        
+        // 音声レベル計算
+        let sum = 0;
+        let count = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          if (dataArray[i] > 0) {
+            sum += dataArray[i];
+            count++;
+          }
+        }
+        const average = count > 0 ? sum / count : 0;
+        const normalizedLevel = Math.min(100, (average / 255) * 100);
+        setLocalAudioLevel(normalizedLevel);
+      }
+      
+      // 監視を継続
+      animationRef.current = requestAnimationFrame(updateAudioLevel);
+    };
+    
+    updateAudioLevel();
+  };
+
+  // 音声レベル監視関数（簡素化版）
   const startAudioLevelMonitoring = (audioTrack: MediaStreamTrack) => {
     if (!audioTrack || audioTrack.kind !== 'audio') {
-      console.warn('Invalid audio track for monitoring:', audioTrack);
       return;
     }
 
     try {
-      console.log('🎤 Starting audio level monitoring...');
-      console.log('Audio track details:', {
-        id: audioTrack.id,
-        kind: audioTrack.kind,
-        enabled: audioTrack.enabled,
-        muted: audioTrack.muted,
-        readyState: audioTrack.readyState
-      });
-      
       // AudioContextを作成
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
-      console.log('🎤 AudioContext created:', audioContext.state);
 
       // MediaStreamを作成
       const stream = new MediaStream([audioTrack]);
-      console.log('🎤 MediaStream created with tracks:', stream.getTracks().map(t => ({ id: t.id, kind: t.kind, enabled: t.enabled })));
       
       // 音声分析用のノードを作成
       const source = audioContext.createMediaStreamSource(stream);
@@ -240,73 +255,8 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       // ノードを接続
       source.connect(analyser);
       
-      console.log('🎤 Audio analysis setup completed');
-      console.log('🎤 Analyser connected, starting monitoring loop...');
-      
-      // 音声レベルを監視
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
-      const updateAudioLevel = () => {
-        // デバッグ情報を追加
-        if (!analyserRef.current) {
-          console.warn('⚠️ No analyser available for audio monitoring');
-          setLocalAudioLevel(0);
-          return;
-        }
-        
-        // isConnectedの状態に関係なく、analyserRef.currentがあれば監視を継続
-        // 接続状態は別途チェックする
-        if (!analyserRef.current) {
-          console.warn('⚠️ No analyser available for audio monitoring');
-          setLocalAudioLevel(0);
-          return;
-        }
-        
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        // より正確な音声レベル計算
-        let sum = 0;
-        let count = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          if (dataArray[i] > 0) {
-            sum += dataArray[i];
-            count++;
-          }
-        }
-        const average = count > 0 ? sum / count : 0;
-        
-        // 音声レベルを正規化（0-100の範囲）
-        const normalizedLevel = Math.min(100, (average / 255) * 100);
-        
-        // デバッグ情報（定期的に出力）
-        if (Math.random() < 0.01) { // 1%の確率でログ出力
-          console.log('🎤 Audio monitoring status:', {
-            isMuted,
-            isConnected,
-            isAudioMonitoringActive,
-            normalizedLevel: normalizedLevel.toFixed(1),
-            average: average.toFixed(1),
-            hasAnalyser: !!analyserRef.current,
-            hasAudioTrack: !!localAudioTrackRef.current
-          });
-        }
-        
-        // ミュート状態に応じて音声レベルを設定
-        if (isMuted) {
-          setLocalAudioLevel(0);
-        } else {
-          // デバッグログ（音声レベルが高い場合のみ）
-          if (normalizedLevel > 5) {
-            console.log('🎤 Audio level detected:', normalizedLevel.toFixed(1));
-          }
-          setLocalAudioLevel(normalizedLevel);
-        }
-
-        // 常に監視を継続（ミュート状態に関係なく）
-        animationRef.current = requestAnimationFrame(updateAudioLevel);
-      };
-      
-      updateAudioLevel();
+      // 新しいループ関数を使用
+      startAudioLevelMonitoringLoop();
     } catch (error) {
       console.error('音声レベル監視エラー:', error);
     }
@@ -331,19 +281,16 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     
     setLocalAudioLevel(0);
     setIsAudioMonitoringActive(false);
-    console.log('🔇 Audio level monitoring stopped');
   };
 
   const connectToRoom = async () => {
     // 既に接続処理中の場合は何もしない
     if (isConnectingRef.current) {
-      console.log('⚠️ CONNECTION ALREADY IN PROGRESS - skipping');
       return;
     }
     
     // 開発環境でのHMR対応：既に接続済みの場合はスキップ
     if (process.env.NODE_ENV === 'development' && hasConnectedRef.current && room && isConnected) {
-      console.log('🔧 DEV MODE: HMR DETECTED - Skipping reconnection (already connected)');
       return;
     }
     try {
@@ -353,16 +300,10 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       connectionRef.current = false;
       
       // 接続開始時に参加者リストを強制リセット
-      console.log('🔄 CONNECTION START: Force clearing participants');
       setParticipants([]);
-      
-      console.log('🔗 CONNECTING TO ROOM:', roomId);
-      console.log('🌐 LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
-      console.log('🔧 Environment:', process.env.NODE_ENV);
 
       // 参加者名をそのまま使用（タイムスタンプは追加しない）
       // これにより、ルーム作成者と参加者で同じ表示名が使用される
-      console.log('Using participant name:', participantName);
 
       // Get access token from API
       const tokenResponse = await fetch('/api/livekit/token', {
@@ -370,16 +311,12 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ roomName: roomId, participantName: participantName }),
       });
-      console.log('Token API Response Status:', tokenResponse.status);
       const tokenData = await tokenResponse.json();
-      console.log('Token API Response Data:', tokenData);
 
       if (!tokenResponse.ok) {
         throw new Error(`Failed to get access token: ${tokenData.error || tokenResponse.statusText}`);
       }
       const { token } = tokenData;
-      console.log('Extracted Token:', token);
-      console.log('Type of Extracted Token:', typeof token);
       if (typeof token !== 'string') {
         throw new Error('LiveKit access token is not a string. Check API response.');
       }
@@ -387,8 +324,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       // 既存のルームがあれば完全にクリーンアップ
       if (room) {
         try {
-          console.log('🧹 CLEANING UP existing room connection...');
-          
           // 既存の参加者をクリア（複数回実行して確実に）
           setParticipants([]);
           setIsConnected(false);
@@ -406,9 +341,7 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           // 再度参加者リストをクリア（念のため）
           setParticipants([]);
           
-          console.log('✅ Previous room cleaned up successfully');
         } catch (e) {
-          console.warn('❌ Failed to disconnect existing room:', e);
           // エラーが発生してもリセット
           setParticipants([]);
           setIsConnected(false);
@@ -438,9 +371,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         .on(RoomEvent.Reconnecting, handleReconnecting)
         .on(RoomEvent.Reconnected, handleReconnected);
 
-      console.log('Connecting to LiveKit with token...');
-      console.log('LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
-      
       try {
         const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
         
@@ -451,8 +381,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
         await newRoom.connect(livekitUrl, token, {
           autoSubscribe: true
         });
-        
-        console.log('Successfully connected to LiveKit');
         
         // 接続が成功したと仮定して処理を続行
         connectionRef.current = true;
@@ -476,21 +404,10 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           
           // LiveKitでマイクを有効化
           await newRoom.localParticipant.setMicrophoneEnabled(true);
-          console.log('Microphone enabled successfully in LiveKit');
           
-          // 継続的な音声レベル監視を開始（LiveKitのトラック取得をバイパス）
-          console.log('🎤 Starting continuous audio monitoring after microphone enablement...');
-          console.log('Connection state before starting monitoring:', {
-            isConnected: false, // まだ接続中
-            isMuted: false,
-            isAudioMonitoringActive,
-            hasAnalyser: !!analyserRef.current,
-            hasAudioTrack: !!localAudioTrackRef.current
-          });
-          
+          // 継続的な音声レベル監視を開始（LiveKitトラックを使用）
           try {
             await startContinuousAudioMonitoring();
-            console.log('✅ Continuous audio monitoring started successfully on connection');
           } catch (error) {
             console.error('Failed to start audio monitoring on connection:', error);
             // 接続時のエラーは致命的ではないので、接続は続行
@@ -602,7 +519,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   };
 
   const handleConnectionStateChanged = (state: any) => {
-    console.log('Connection state changed:', state);
     if (state === 'connected') {
       connectionRef.current = true;
       setIsConnected(true);
@@ -614,35 +530,24 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
     } else if (state === 'connecting') {
       // 既に接続済みの場合は接続中状態に戻さない（新規参加者による一時的な状態変更を無視）
       if (!isConnected) {
-        console.log('Setting connecting state (not yet connected)');
-      setIsConnecting(true);
-      } else {
-        console.log('⚠️ IGNORING connecting state - already connected (new participant joined)');
+        setIsConnecting(true);
       }
     } else if (state === 'reconnecting') {
       // 既に接続済みの場合は、軽微な再接続では接続中状態に戻さない
       if (!isConnected) {
-        console.log('Setting reconnecting state (connection lost)');
-      setIsConnecting(true);
-      } else {
-        console.log('⚠️ IGNORING reconnecting state - connection stable (participant event)');
+        setIsConnecting(true);
       }
     }
   };
 
   const handleReconnecting = () => {
-    console.log('Reconnecting to LiveKit...');
     // 既に接続済みの場合は、軽微な再接続でUI状態を変更しない
     if (!isConnected) {
-      console.log('Setting reconnecting state');
       setIsConnecting(true);
-    } else {
-      console.log('⚠️ IGNORING reconnecting event - already connected');
     }
   };
 
   const handleReconnected = () => {
-    console.log('Reconnected to LiveKit');
     // 再接続完了時は接続状態を確実に更新
     setIsConnected(true);
     setIsConnecting(false);
@@ -650,15 +555,12 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   };
 
   const disconnectFromRoom = async () => {
-    console.log('🔄 DISCONNECTING FROM ROOM');
-    
     // 音声レベル監視を停止
     stopAudioLevelMonitoring();
     
     if (room) {
       try {
         await room.disconnect();
-        console.log('Room disconnected successfully');
       } catch (error) {
         console.error('Error disconnecting from room:', error);
       }
@@ -680,37 +582,13 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   const toggleMute = async () => {
     if (room && connectionRef.current) {
       try {
-        console.log('🎤 Toggle mute called. Current state:', {
-          isMuted,
-          isConnected,
-          isAudioMonitoringActive,
-          hasAnalyser: !!analyserRef.current,
-          hasAudioTrack: !!localAudioTrackRef.current
-        });
-        
+        // LiveKitのミュート状態を切り替え
         await room.localParticipant.setMicrophoneEnabled(!isMuted);
         const newMuteState = !isMuted;
         setIsMuted(newMuteState);
         
-        console.log('🎤 Mute state changed to:', newMuteState);
-        
-        // マイクの状態に応じて音声レベル監視を開始/停止
-        if (newMuteState) {
-          // ミュートになった場合、音声レベル監視を停止
-          console.log('🔇 Microphone muted - stopping audio level monitoring');
-          stopAudioLevelMonitoring();
-        } else {
-          // ミュートが解除された場合、継続的な音声レベル監視を開始
-          console.log('🎤 Microphone unmuted - starting continuous audio monitoring');
-          try {
-            // 接続状態に関係なく音声監視を開始
-            await startContinuousAudioMonitoring();
-            console.log('✅ Continuous audio monitoring started after unmute');
-          } catch (error) {
-            console.error('Failed to start audio monitoring after unmute:', error);
-            // エラーが発生しても、後で再試行できるようにする
-          }
-        }
+        // 音声レベル監視は継続（ミュート状態は監視ループ内で処理）
+        // 特別な処理は不要 - 監視ループがLiveKitの状態を確認する
         
         const actualCount = Math.max(participants.length + 1, 1);
         onStateChange?.({ 
@@ -722,28 +600,13 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       } catch (error) {
         console.error('Failed to toggle mute:', error);
       }
-    } else {
-      console.warn('⚠️ Cannot toggle mute: room or connection not available');
     }
   };
 
-                const handleParticipantConnected = (participant: RemoteParticipant) => {
-    console.log('=== PARTICIPANT CONNECTED DEBUG ===');
-    console.log('Connected participant SID:', participant.sid);
-    console.log('Connected participant identity:', participant.identity);
-    console.log('Local participant SID:', room?.localParticipant?.sid);
-    console.log('Local participant identity:', room?.localParticipant?.identity);
-    console.log('My participantName:', participantName);
-    console.log('Room ID:', roomId);
-    console.log('Current participants count:', participants.length);
-    console.log('Current participants:', participants.map(p => ({ sid: p.sid, identity: p.identity })));
-    
+const handleParticipantConnected = (participant: RemoteParticipant) => {
     // 自分の名前（タイムスタンプ部分を除く）を取得
     const myBaseName = participantName.split('-')[0];
     const participantBaseName = participant.identity ? participant.identity.split('-')[0] : '';
-    
-    console.log('My base name:', myBaseName);
-    console.log('Participant base name:', participantBaseName);
     
     // より厳密な自分自身の除外チェック
     const isMyself = room && (
@@ -755,48 +618,24 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       participant.identity?.includes(participantName) // 完全な名前が含まれている場合
     );
     
-    console.log('Is myself check result:', isMyself);
-    console.log('Exclusion checks:');
-    console.log('  - SID match:', participant.sid === room?.localParticipant?.sid);
-    console.log('  - Identity match:', participant.identity === room?.localParticipant?.identity);
-    console.log('  - Direct name match:', participant.identity === participantName);
-    console.log('  - Base name match:', participantBaseName === myBaseName);
-    console.log('  - Contains base name:', participant.identity?.includes(myBaseName));
-    console.log('  - Contains full name:', participant.identity?.includes(participantName));
-    
     if (isMyself) {
-      console.log('🚫 BLOCKING self participant:', participant.identity);
       return;
     }
-    
-    console.log('✅ ALLOWING remote participant:', participant.identity);
     
                 setParticipants(prev => {
       // より厳密な重複チェック
       const existingParticipant = prev.find(p => {
         const sameId = p.sid === participant.sid;
         const sameIdentity = p.identity === participant.identity;
-        const sameBaseName = p.identity && participant.identity && 
-                            p.identity.split('-')[0] === participant.identity.split('-')[0];
-        
-        console.log(`Duplicate check for ${participant.identity}:`);
-        console.log(`  - Same SID: ${sameId}`);
-        console.log(`  - Same Identity: ${sameIdentity}`);
-        console.log(`  - Same Base Name: ${sameBaseName}`);
         
         return sameId || sameIdentity;
       });
       
       if (existingParticipant) {
-        console.log('🚫 DUPLICATE BLOCKED: Participant already exists, skipping:', participant.identity);
-        console.log('Existing:', existingParticipant.identity, 'New:', participant.identity);
         return prev;
       }
       
                   const newParticipants = [...prev, participant];
-      console.log('✅ PARTICIPANT ADDED:', participant.identity);
-      console.log('New participants count (excluding self):', newParticipants.length);
-      console.log('All participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
       
       // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
       setTimeout(() => {
@@ -807,7 +646,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           participants: newParticipants,
           actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
         };
-        console.log('🔄 STATE CHANGE NOTIFICATION (participant added):', newState);
         onStateChange?.(newState);
       }, 0);
       
@@ -816,13 +654,8 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
               };
 
                 const handleParticipantDisconnected = (participant: RemoteParticipant) => {
-    console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
-    
     setParticipants(prev => {
       const newParticipants = prev.filter(p => p.sid !== participant.sid);
-      console.log('❌ PARTICIPANT REMOVED:', participant.identity);
-      console.log('Remaining participants count:', newParticipants.length);
-      console.log('Remaining participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
       
       // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
       setTimeout(() => {
@@ -833,7 +666,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           participants: newParticipants,
           actualParticipantCount: actualCount // 自分も含めた正確な参加者数
         };
-        console.log('🔄 STATE CHANGE NOTIFICATION (participant removed):', newState);
         onStateChange?.(newState);
       }, 0);
       
@@ -842,11 +674,10 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
   };
 
   const handleAudioPlaybackStatusChanged = (playing: boolean) => {
-    console.log('Audio playback status changed:', playing);
+    // Audio playback status changed
   };
 
   const handleDisconnected = () => {
-    console.log('Disconnected from room');
     connectionRef.current = false;
     hasConnectedRef.current = false; // 接続フラグリセット
     setIsConnected(false);
@@ -875,8 +706,6 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
       // コンポーネントのアンマウント時にクリーンアップ
       if (room) {
         try {
-          console.log('Cleaning up room on unmount...');
-          
           // 音声レベル監視を停止
           stopAudioLevelMonitoring();
           

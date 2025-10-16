@@ -68,9 +68,12 @@ export default function ChatRoom() {
     cleanupOldSessionData();
   }, [roomId]);
 
+  // useRefで初回参加済みフラグを管理
+  const hasJoinedRef = useRef(false);
+
   // ルーム情報が取得できたら参加処理を実行（HMR対応）
   useEffect(() => {
-    if (roomInfo && !isLoading) {
+    if (roomInfo && !isLoading && !hasJoinedRef.current) {
       // セッションストレージから既存の参加状態をチェック
       const sessionJoinKey = `room-${roomId}-joined`;
       const hasJoined = sessionStorage.getItem(sessionJoinKey);
@@ -91,12 +94,11 @@ export default function ChatRoom() {
       // 本番環境または初回参加の場合のみjoinRoomを実行
       if (!hasJoined && existingUserKeys.length === 0) {
         console.log('🚀 EXECUTING: joinRoom()');
-      joinRoom();
-      } else {
-        console.log('🔧 Already joined - skipping joinRoom()');
+        joinRoom();
+        hasJoinedRef.current = true; //フラグを立てる
       }
     }
-  }, [roomInfo, isLoading]);
+  }, [isLoading, roomId]);
 
   // ページを離れる時に参加者数を減らす（通常のクリーンアップ）
   useEffect(() => {
@@ -190,14 +192,14 @@ export default function ChatRoom() {
 
   // 定期的にルーム情報を更新（参加者数の同期）
   useEffect(() => {
-    if (roomInfo) {
+    if (roomId) {
       const interval = setInterval(() => {
         fetchRoomInfo();
       }, 3000); // 3秒ごとに更新
 
       return () => clearInterval(interval);
     }
-  }, [roomInfo]);
+  }, [roomId]);
 
   const fetchRoomInfo = async () => {
     try {

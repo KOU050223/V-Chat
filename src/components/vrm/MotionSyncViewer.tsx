@@ -46,7 +46,13 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setError(errorMessage);
       console.error(errorMessage, err);
     }
-  }, [isInitialized, startCamera, onMotionSync]);
+  }, [isInitialized, startCamera]); // onMotionSyncを依存配列から除外
+
+  // handleStartMotionSyncへの参照を保持
+  const handleStartMotionSyncRef = useRef(handleStartMotionSync);
+  useEffect(() => {
+    handleStartMotionSyncRef.current = handleStartMotionSync;
+  }, [handleStartMotionSync]);
 
   // VRM読み込み完了時のハンドラ（useCallbackでメモ化）
   const handleVRMLoaded = useCallback((vrm: VRM) => {
@@ -55,9 +61,9 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
 
     // オートスタートが有効な場合、カメラを開始
     if (autoStart && isInitialized) {
-      handleStartMotionSync();
+      handleStartMotionSyncRef.current();
     }
-  }, [autoStart, isInitialized, handleStartMotionSync]); // 依存配列を明確に指定
+  }, [autoStart, isInitialized]); // handleStartMotionSyncを依存配列から除外
 
   // モーション同期停止（useCallbackでメモ化）
   const handleStopMotionSync = useCallback(() => {
@@ -71,7 +77,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     }
 
     console.log('モーション同期を停止しました');
-  }, [stopCamera, onMotionSync]);
+  }, [stopCamera]); // onMotionSyncを依存配列から除外
 
   // エラー状態の管理
   useEffect(() => {
@@ -80,14 +86,14 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setIsMotionActive(false);
       onMotionSync?.(false);
     }
-  }, [poseError, onMotionSync]);
+  }, [poseError]); // onMotionSyncを依存配列から除外
 
   // MediaPipe初期化完了後のオートスタート処理
   useEffect(() => {
     if (autoStart && isInitialized && vrmRef.current && !isMotionActive) {
-      handleStartMotionSync();
+      handleStartMotionSyncRef.current();
     }
-  }, [autoStart, isInitialized, isMotionActive, handleStartMotionSync]);
+  }, [autoStart, isInitialized, isMotionActive]); // handleStartMotionSyncを依存配列から除外
 
   return {
     vrmRef,

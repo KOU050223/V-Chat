@@ -102,6 +102,12 @@ export default function VRMMotionDemoPage() {
           fov: 50
         }}
         style={{ width: '100%', height: '100%' }}
+        gl={{
+          antialias: true,  // 品質維持のため有効
+          powerPreference: 'high-performance',
+          alpha: false  // 透明度不要
+        }}
+        dpr={typeof window !== 'undefined' && window.devicePixelRatio > 2 ? 2 : (typeof window !== 'undefined' ? window.devicePixelRatio : 1)}
       >
         {/* 環境光 */}
         <ambientLight intensity={0.6} />
@@ -111,8 +117,8 @@ export default function VRMMotionDemoPage() {
           position={[5, 5, 5]}
           intensity={1}
           castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
         />
 
         {/* 環境マップ */}

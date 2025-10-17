@@ -40,7 +40,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const animationFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
   const lastDetectionTimeRef = useRef<number>(0);
-  const DETECTION_INTERVAL = 100; // 100ms間隔でポーズ検出
+  const DETECTION_INTERVAL = 150; // 150ms間隔でポーズ検出（パフォーマンス最適化）
 
   // MediaPipeの初期化
   useEffect(() => {
@@ -128,9 +128,10 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
+          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
+          height: { ideal: 360 }, // 480→360に削減
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 30 } // フレームレート制限
         }
       });
 
@@ -161,9 +162,10 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: 'user'
+          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
+          height: { ideal: 360 }, // 480→360に削減
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 30 } // フレームレート制限
         }
       });
 

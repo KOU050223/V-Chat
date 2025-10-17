@@ -23,6 +23,12 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // onVRMLoadedのrefを保持（依存配列の変更を避けるため）
+  const onVRMLoadedRef = useRef(onVRMLoaded);
+  useEffect(() => {
+    onVRMLoadedRef.current = onVRMLoaded;
+  }, [onVRMLoaded]);
+
   // 直接GLTFLoaderを使用してVRMファイルを読み込み
   useEffect(() => {
     let isMounted = true; // クリーンアップ用フラグ
@@ -46,7 +52,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         });
 
         // VRMファイルを読み込み
-        let lastProgressPercent = 0;
         const gltf = await new Promise<any>((resolve, reject) => {
           loader.load(
             vrmUrl,
@@ -54,16 +59,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
               console.log('GLTF loaded successfully');
               resolve(gltf);
             },
-            (progress) => {
-              // プログレス表示を10%刻みに制限
-              if (progress.lengthComputable) {
-                const percent = Math.floor((progress.loaded / progress.total) * 100);
-                if (percent >= lastProgressPercent + 10) {
-                  console.log(`VRM Loading: ${percent}% (${(progress.loaded / 1024 / 1024).toFixed(1)}MB / ${(progress.total / 1024 / 1024).toFixed(1)}MB)`);
-                  lastProgressPercent = percent;
-                }
-              }
-            },
+            undefined, // プログレスログを削除（パフォーマンス向上）
             (error) => {
               console.error('GLTF loading error:', error);
               reject(error);
@@ -94,7 +90,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
           if (child instanceof THREE.Mesh) {
             child.castShadow = true;
             child.receiveShadow = true;
-            child.frustumCulled = false;
+            child.frustumCulled = true; // カメラ外は描画しない（パフォーマンス最適化）
           }
         });
 
@@ -108,7 +104,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
 
         setVrm(vrmInstance);
         setIsLoading(false);
-        onVRMLoaded?.(vrmInstance);
+        onVRMLoadedRef.current?.(vrmInstance);
 
         console.log('VRM successfully loaded and configured');
 
@@ -137,7 +133,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
     return () => {
       isMounted = false; // クリーンアップ時にフラグを設定
     };
-  }, [vrmUrl, onVRMLoaded]);
+  }, [vrmUrl]); // onVRMLoadedを依存配列から除外
 
   // エラーが発生した場合の表示
   if (error) {

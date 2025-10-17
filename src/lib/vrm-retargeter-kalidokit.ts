@@ -9,22 +9,31 @@ import type { VRM } from '@pixiv/three-vrm';
 import type { PoseLandmark } from '../hooks/usePoseEstimation';
 
 /**
- * 回転をスムーズに適用するヘルパー関数
+ * オブジェクトプーリング用の再利用可能なオブジェクト
+ * 毎フレームの新規オブジェクト生成を避けてガベージコレクション負荷を軽減
+ */
+const tempEuler = new THREE.Euler();
+const tempQuaternion = new THREE.Quaternion();
+const tempVector3 = new THREE.Vector3();
+
+/**
+ * 回転をスムーズに適用するヘルパー関数（最適化版）
  */
 const applySmoothRotation = (
   bone: THREE.Object3D,
   targetRotation: { x: number; y: number; z: number },
   smoothing: number = 0.3
 ): void => {
-  const targetEuler = new THREE.Euler(
+  // 再利用可能なオブジェクトを使用（毎回新規作成しない）
+  tempEuler.set(
     targetRotation.x || 0,
     targetRotation.y || 0,
     targetRotation.z || 0
   );
-  const targetQuaternion = new THREE.Quaternion().setFromEuler(targetEuler);
+  tempQuaternion.setFromEuler(tempEuler);
 
   // Slerpを使って滑らかに補間
-  bone.quaternion.slerp(targetQuaternion, smoothing);
+  bone.quaternion.slerp(tempQuaternion, smoothing);
 };
 
 /**
@@ -61,32 +70,20 @@ export const retargetPoseToVRMWithKalidokit = (
 
     const humanoid = vrm.humanoid;
 
-    // デバッグログ（たまに出力）
-    if (Math.random() < 0.01) {
-      console.log('🎭 Kalidokitリグ結果:', {
-        hips: riggedPose.Hips,
-        spine: riggedPose.Spine,
-        leftArm: riggedPose.LeftUpperArm,
-        rightArm: riggedPose.RightUpperArm
-      });
-    }
-
     // 腰（Hips）の回転
     if (riggedPose.Hips && riggedPose.Hips.rotation) {
       const hips = humanoid.getNormalizedBoneNode('hips');
       if (hips) {
         applySmoothRotation(hips, riggedPose.Hips.rotation, 0.3);
 
-        // 位置も設定（オプション）- 位置はスムージング弱め
+        // 位置も設定（オプション）- 再利用可能なVector3を使用
         if (riggedPose.Hips.position) {
-          hips.position.lerp(
-            new THREE.Vector3(
-              riggedPose.Hips.position.x || 0,
-              riggedPose.Hips.position.y || 0,
-              riggedPose.Hips.position.z || 0
-            ),
-            0.1
+          tempVector3.set(
+            riggedPose.Hips.position.x || 0,
+            riggedPose.Hips.position.y || 0,
+            riggedPose.Hips.position.z || 0
           );
+          hips.position.lerp(tempVector3, 0.1);
         }
       }
     }

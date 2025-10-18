@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 // 環境変数の検証
 const requiredEnvVars = {
@@ -44,5 +45,8 @@ if (getApps().length === 0) {
 
 // Firebase Authentication の初期化（クライアントサイドのみ）
 export const auth = typeof window !== 'undefined' ? getAuth(app) : null;
+
+// Firestore の初期化（クライアントサイドのみ）
+export const db = typeof window !== 'undefined' ? getFirestore(app) : null;
 
 export default firebaseConfig;

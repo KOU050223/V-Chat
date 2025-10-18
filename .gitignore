@@ -43,4 +43,4 @@ yarn-error.log*
 next-env.d.ts
 
 # Firebase Admin SDK秘密鍵ファイル
-*/v-chat-a495e-firebase-adminsdk-fbsvc-26a151349c.json
+v-chat-a495e-firebase-adminsdk-fbsvc-26a151349c.json

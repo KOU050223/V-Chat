@@ -22,13 +22,14 @@ const tempVector3 = new THREE.Vector3();
 const applySmoothRotation = (
   bone: THREE.Object3D,
   targetRotation: { x: number; y: number; z: number },
-  smoothing: number = 0.3 // 0.5 → 0.3 に戻して応答性向上
+  smoothing: number = 0.3
 ): void => {
   // 再利用可能なオブジェクトを使用（毎回新規作成しない）
-  // VRMシーンの180度回転を考慮してY軸を反転
+  // Y軸反転を削除（Kalidokitの出力はそのまま使用）
+  // VRMシーンは180度回転しているが、Kalidokitが既に適切に変換済み
   tempEuler.set(
     targetRotation.x || 0,
-    -(targetRotation.y || 0),  // Y軸反転（VRMシーンの180度回転を考慮）
+    targetRotation.y || 0,  // 反転なし（重要！）
     targetRotation.z || 0,
     'XYZ'
   );
@@ -148,7 +149,26 @@ export const retargetPoseToVRMWithKalidokit = (
       return;
     }
 
+    // デバッグ: riggedPoseの値を確認（10%の確率でログ）
+    if (Math.random() < 0.1) {
+      console.log('🎯 riggedPose (Kalidokit出力):', {
+        RightUpperArm: riggedPose.RightUpperArm,
+        LeftUpperArm: riggedPose.LeftUpperArm,
+        Spine: riggedPose.Spine,
+        Hips: riggedPose.Hips
+      });
+    }
+
     const humanoid = vrm.humanoid;
+
+    // デバッグ: 初期状態のriggedPose値を確認
+    if (Math.random() < 0.1) {
+      console.log('🔍 初期状態のriggedPose値:', {
+        RightUpperArm: riggedPose.RightUpperArm,
+        LeftUpperArm: riggedPose.LeftUpperArm,
+        Spine: riggedPose.Spine
+      });
+    }
 
     // 腰（Hips）の回転を完全に無効化（ビデオ会議用）
     // ビデオ会議では常にカメラを向いているため、Hipsの回転は不要
@@ -193,33 +213,36 @@ export const retargetPoseToVRMWithKalidokit = (
 
     // Kalidokitが返すTPose型にはChest, Neck, Headがないため、手動実装は保留
 
-    // 左腕（応答性と精度を向上）
+    // 腕の動きを有効化（Y軸反転修正後）
+    // 肩しか見えない場合でも、Kalidokitの推測を信頼して適用
+    
+    // 左腕
     if (riggedPose.LeftUpperArm) {
       const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
       if (leftUpperArm) {
-        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.15); // 応答性向上
       }
     }
 
     if (riggedPose.LeftLowerArm) {
       const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
       if (leftLowerArm) {
-        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.15);
       }
     }
 
-    // 右腕（応答性と精度を向上）
+    // 右腕
     if (riggedPose.RightUpperArm) {
       const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
       if (rightUpperArm) {
-        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.15); // 応答性向上
       }
     }
 
     if (riggedPose.RightLowerArm) {
       const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
       if (rightLowerArm) {
-        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.15);
       }
     }
 

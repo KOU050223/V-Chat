@@ -159,7 +159,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         {/* ランドマーク付きキャンバス（サイズ縮小） */}
         <canvas
           ref={canvasRef}
-          className="w-64 h-48 object-cover"
+          className="w-80 h-60 object-cover"
           style={{ transform: 'scaleX(-1)' }} // 鏡像反転
         />
 

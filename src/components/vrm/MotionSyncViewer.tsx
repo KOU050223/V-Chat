@@ -3,8 +3,10 @@ import { useFrame } from '@react-three/fiber';
 import { VRM } from '@pixiv/three-vrm';
 import { VRMViewer } from './VRMViewer';
 import { usePoseEstimation } from '../../hooks/usePoseEstimation';
+import { useFaceEstimation } from '../../hooks/useFaceEstimation';
 import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
 import { resetVRMPose } from '../../lib/vrm-retargeter';
+import { applyFaceExpressionsToVRM, resetVRMExpressions } from '../../lib/vrm-expression-mapper';
 import { LogViewer } from '../ui/LogViewer';
 
 // モーション同期のロジックを管理するカスタムフック
@@ -27,6 +29,16 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     requestCameraPermission
   } = usePoseEstimation();
 
+  // Face推定フックを使用（同じvideoRefを共有）
+  const {
+    faceBlendShapes,
+    isInitialized: isFaceInitialized,
+    isLoading: isFaceLoading,
+    error: faceError,
+    startDetection: startFaceDetection,
+    stopDetection: stopFaceDetection
+  } = useFaceEstimation(videoRef);
+
   // モーション同期開始（useCallbackでメモ化）
   const handleStartMotionSync = useCallback(async () => {
     try {
@@ -36,7 +48,12 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
         throw new Error('MediaPipeが初期化されていません');
       }
 
+      if (!isFaceInitialized) {
+        throw new Error('Face Landmarkerが初期化されていません');
+      }
+
       await startCamera();
+      startFaceDetection(); // 顔検出を開始
       setIsMotionActive(true);
       onMotionSync?.(true);
 
@@ -45,7 +62,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setError(errorMessage);
       console.error(errorMessage, err);
     }
-  }, [isInitialized, startCamera]); // onMotionSyncを依存配列から除外
+  }, [isInitialized, isFaceInitialized, startCamera, startFaceDetection]); // onMotionSyncを依存配列から除外
 
   // handleStartMotionSyncへの参照を保持
   const handleStartMotionSyncRef = useRef(handleStartMotionSync);
@@ -66,14 +83,16 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
   // モーション同期停止（useCallbackでメモ化）
   const handleStopMotionSync = useCallback(() => {
     stopCamera();
+    stopFaceDetection(); // 顔検出を停止
     setIsMotionActive(false);
     onMotionSync?.(false);
 
     // VRMポーズをリセット
     if (vrmRef.current) {
       resetVRMPose(vrmRef.current);
+      resetVRMExpressions(vrmRef.current); // 表情もリセット
     }
-  }, [stopCamera]); // onMotionSyncを依存配列から除外
+  }, [stopCamera, stopFaceDetection]); // onMotionSyncを依存配列から除外
 
   // エラー状態の管理
   useEffect(() => {
@@ -95,11 +114,12 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     vrmRef,
     landmarks,
     worldLandmarks,
-    isInitialized,
-    isLoading,
+    faceBlendShapes, // 顔のBlendShapeを追加
+    isInitialized: isInitialized && isFaceInitialized, // 両方が初期化されている必要がある
+    isLoading: isLoading || isFaceLoading, // どちらかがロード中ならロード中
     isCameraPermissionGranted,
     isMotionActive,
-    error,
+    error: error || poseError || faceError, // 全てのエラーを統合
     videoRef,
     handleVRMLoaded,
     handleStartMotionSync,
@@ -144,6 +164,7 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
     vrmRef,
     landmarks,
     worldLandmarks,
+    faceBlendShapes,
     isMotionActive,
     handleVRMLoaded
   } = useMotionSync(autoStart, onMotionSync);
@@ -162,6 +183,19 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
       const currentWorldLandmarks = worldLandmarks; // クロージャーでキャプチャ
       if (landmarks && landmarks.length > 0) {
         retargetPoseToVRMWithKalidokit(vrm, landmarks, currentWorldLandmarks);
+      }
+
+      // 顔の表情を適用
+      if (faceBlendShapes) {
+        applyFaceExpressionsToVRM(vrm, faceBlendShapes);
+      } else if (Math.random() < 0.1) {
+        // faceBlendShapesが取得できていない場合のデバッグ
+        console.warn('⚠️ faceBlendShapes が null または undefined です');
+        console.log('🔍 現在の状態:', {
+          landmarks: landmarks?.length || 0,
+          worldLandmarks: worldLandmarks?.length || 0,
+          faceBlendShapes: faceBlendShapes
+        });
       }
 
       // VRMの更新

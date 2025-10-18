@@ -128,8 +128,8 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
-          height: { ideal: 360 }, // 480→360に削減
+          width: { ideal: 640 },  // 480→640に向上（顔認識の精度向上）
+          height: { ideal: 480 }, // 360→480に向上
           facingMode: 'user',
           frameRate: { ideal: 30, max: 30 } // フレームレート制限
         }
@@ -162,8 +162,8 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
-          height: { ideal: 360 }, // 480→360に削減
+          width: { ideal: 640 },  // 480→640に向上（顔認識の精度向上）
+          height: { ideal: 480 }, // 360→480に向上
           facingMode: 'user',
           frameRate: { ideal: 30, max: 30 } // フレームレート制限
         }

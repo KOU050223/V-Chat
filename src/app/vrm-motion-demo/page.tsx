@@ -36,7 +36,12 @@ const MotionSyncRenderer: React.FC<{
       if (motionSyncState.landmarks && motionSyncState.landmarks.length > 0) {
         // Kalidokit版と現状版を切り替え
         if (useKalidokit) {
-          retargetPoseToVRMWithKalidokit(vrm, motionSyncState.landmarks);
+          // worldLandmarksを渡して正確な3D回転を計算
+          retargetPoseToVRMWithKalidokit(
+            vrm,
+            motionSyncState.landmarks,
+            motionSyncState.worldLandmarks
+          );
         } else {
           retargetPoseToVRM(vrm, motionSyncState.landmarks);
         }

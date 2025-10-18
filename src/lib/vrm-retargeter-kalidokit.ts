@@ -22,13 +22,15 @@ const tempVector3 = new THREE.Vector3();
 const applySmoothRotation = (
   bone: THREE.Object3D,
   targetRotation: { x: number; y: number; z: number },
-  smoothing: number = 0.5 // デフォルト値を 0.3 → 0.5 に変更
+  smoothing: number = 0.3 // 0.5 → 0.3 に戻して応答性向上
 ): void => {
   // 再利用可能なオブジェクトを使用（毎回新規作成しない）
+  // VRMシーンの180度回転を考慮してY軸を反転
   tempEuler.set(
     targetRotation.x || 0,
-    targetRotation.y || 0,
-    targetRotation.z || 0
+    -(targetRotation.y || 0),  // Y軸反転（VRMシーンの180度回転を考慮）
+    targetRotation.z || 0,
+    'XYZ'
   );
   tempQuaternion.setFromEuler(tempEuler);
 
@@ -109,7 +111,8 @@ const applyHeadRotationFromLandmarks = (
  */
 export const retargetPoseToVRMWithKalidokit = (
   vrm: VRM,
-  landmarks: PoseLandmark[]
+  landmarks: PoseLandmark[],
+  worldLandmarks: PoseLandmark[] | null = null
 ): void => {
   if (!vrm.humanoid || landmarks.length === 0) {
     return;
@@ -124,10 +127,19 @@ export const retargetPoseToVRMWithKalidokit = (
       visibility: landmark.visibility
     }));
 
+    // worldLandmarksも変換（3D空間座標）
+    const worldLandmarksFormatted = worldLandmarks
+      ? worldLandmarks.map(landmark => ({
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility
+        }))
+      : poseLandmarks;
+
     // Kalidokitでポーズを解析
-    // 注意: KalidokitはworldLandmarksも必要とするが、MediaPipe Poseでは取得できないため
-    // poseLandmarksを両方に使用する
-    const riggedPose = Kalidokit.Pose.solve(poseLandmarks, poseLandmarks, {
+    // worldLandmarksを使用することで正確な3D回転を計算
+    const riggedPose = Kalidokit.Pose.solve(poseLandmarks, worldLandmarksFormatted, {
       runtime: 'mediapipe',
       enableLegs: true
     });
@@ -138,32 +150,35 @@ export const retargetPoseToVRMWithKalidokit = (
 
     const humanoid = vrm.humanoid;
 
-    // 腰（Hips）の回転
+    // 腰（Hips）の回転を完全に無効化（ビデオ会議用）
+    // ビデオ会議では常にカメラを向いているため、Hipsの回転は不要
+    // 回転を適用すると体を傾けたときに不自然な回転が発生する
+    // 体の傾きはSpineとChestで表現する
+    /*
     if (riggedPose.Hips && riggedPose.Hips.rotation) {
       const hips = humanoid.getNormalizedBoneNode('hips');
       if (hips) {
-        applySmoothRotation(hips, riggedPose.Hips.rotation, 0.7); // 0.3 → 0.7 安定化
-
-        // 位置の設定を無効化（ビデオ会議用 - 座位を想定）
-        // カメラ前での移動がアバター全体の移動になるため、コメントアウト
-        /*
-        if (riggedPose.Hips.position) {
-          tempVector3.set(
-            riggedPose.Hips.position.x || 0,
-            riggedPose.Hips.position.y || 0,
-            riggedPose.Hips.position.z || 0
-          );
-          hips.position.lerp(tempVector3, 0.1);
-        }
-        */
+        applySmoothRotation(hips, riggedPose.Hips.rotation, 0.5);
       }
     }
+    */
 
-    // 背骨（Spine）の回転
+    // 背骨（Spine）の回転 - 体の傾きを主に表現
     if (riggedPose.Spine) {
       const spine = humanoid.getNormalizedBoneNode('spine');
       if (spine) {
-        applySmoothRotation(spine, riggedPose.Spine, 0.5); // 0.25 → 0.5 安定化
+        applySmoothRotation(spine, riggedPose.Spine, 0.25); // 0.3 → 0.25 より滑らかに
+      }
+
+      // 上部背骨（Chest）にも補助的な動きを追加
+      const chest = humanoid.getNormalizedBoneNode('chest');
+      if (chest) {
+        const chestRotation = {
+          x: (riggedPose.Spine.x || 0) * 0.5,
+          y: (riggedPose.Spine.y || 0) * 0.5,
+          z: (riggedPose.Spine.z || 0) * 0.5
+        };
+        applySmoothRotation(chest, chestRotation, 0.25);
       }
     }
 
@@ -178,33 +193,33 @@ export const retargetPoseToVRMWithKalidokit = (
 
     // Kalidokitが返すTPose型にはChest, Neck, Headがないため、手動実装は保留
 
-    // 左腕（スムージング強化）
+    // 左腕（応答性と精度を向上）
     if (riggedPose.LeftUpperArm) {
       const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
       if (leftUpperArm) {
-        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.5); // 0.3 → 0.5
+        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.2); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.LeftLowerArm) {
       const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
       if (leftLowerArm) {
-        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.5); // 0.3 → 0.5
+        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.2); // 0.3 → 0.2
       }
     }
 
-    // 右腕（スムージング強化）
+    // 右腕（応答性と精度を向上）
     if (riggedPose.RightUpperArm) {
       const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
       if (rightUpperArm) {
-        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.5); // 0.3 → 0.5
+        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.2); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.RightLowerArm) {
       const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
       if (rightLowerArm) {
-        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.5); // 0.3 → 0.5
+        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.2); // 0.3 → 0.2
       }
     }
 

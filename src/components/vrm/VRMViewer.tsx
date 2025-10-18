@@ -43,13 +43,10 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         setError(null);
         setIsLoading(true);
 
-        console.log('Starting VRM load from URL:', vrmUrl);
-
         // GLTFLoaderを作成
         const loader = new GLTFLoader();
 
         // VRMLoaderPluginを登録
-        console.log('Registering VRMLoaderPlugin...');
         loader.register((parser) => {
           return new VRMLoaderPlugin(parser);
         });
@@ -59,19 +56,15 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
           loader.load(
             vrmUrl,
             (gltf) => {
-              console.log('GLTF loaded successfully');
               resolve(gltf);
             },
-            undefined, // プログレスログを削除（パフォーマンス向上）
+            undefined,
             (error) => {
               console.error('GLTF loading error:', error);
               reject(error);
             }
           );
         });
-
-        // VRM情報をログ出力（詳細は省略）
-        console.log('VRM data loaded, checking for VRM instance...');
 
         // VRMLoaderPluginによって読み込まれたVRMを取得
         const vrmInstance = gltf.userData.vrm as VRM;
@@ -81,8 +74,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
           console.log('Available userData keys:', Object.keys(gltf.userData));
           throw new Error(`VRMインスタンスの生成に失敗しました。userData.vrm が見つかりません。利用可能なキー: ${Object.keys(gltf.userData).join(', ')}`);
         }
-
-        console.log('VRM instance found:', vrmInstance);
 
         // パフォーマンス最適化
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
@@ -109,8 +100,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         vrmRef.current = vrmInstance; // クリーンアップ用にrefにも保存
         setIsLoading(false);
         onVRMLoadedRef.current?.(vrmInstance);
-
-        console.log('VRM successfully loaded and configured');
 
       } catch (err) {
         if (!isMounted) return; // エラー時にアンマウント済みの場合は処理しない
@@ -139,8 +128,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
       
       // VRMリソースのクリーンアップ（メモリリーク防止）
       if (vrmRef.current) {
-        console.log('VRMリソースをクリーンアップ中...');
-        
         // すべてのジオメトリ、マテリアル、テクスチャを破棄
         vrmRef.current.scene.traverse((child: any) => {
           if (child.geometry) {
@@ -167,7 +154,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         VRMUtils.deepDispose(vrmRef.current.scene);
         
         vrmRef.current = null;
-        console.log('VRMリソースのクリーンアップ完了');
       }
     };
   }, [vrmUrl]); // vrmUrlのみを依存配列に

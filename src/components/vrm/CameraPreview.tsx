@@ -18,6 +18,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   isActive
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastFrameTimeRef = useRef<number>(0);
+  const canvasSizeSetRef = useRef<boolean>(false);
+
+  // フレームレート制限（30FPS = 33ms間隔）- チカチカ解消
+  const PREVIEW_FPS = 30;
+  const FRAME_INTERVAL = 1000 / PREVIEW_FPS;
 
   // ランドマークを描画
   useEffect(() => {
@@ -27,7 +34,6 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
     // videoRefが有効か確認
     if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) {
-      console.log('⚠️ カメラ映像がまだ準備できていません');
       return;
     }
 
@@ -37,15 +43,25 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
     if (!ctx) return;
 
-    const drawFrame = () => {
-      if (!video.videoWidth || !video.videoHeight) {
-        requestAnimationFrame(drawFrame);
-        return;
-      }
-
-      // キャンバスサイズを動画に合わせる
+    // Canvasサイズを初回のみ設定（パフォーマンス最適化）
+    if (!canvasSizeSetRef.current) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+      canvasSizeSetRef.current = true;
+    }
+
+    const drawFrame = (currentTime: number) => {
+      // フレームレート制限
+      if (currentTime - lastFrameTimeRef.current < FRAME_INTERVAL) {
+        animationFrameRef.current = requestAnimationFrame(drawFrame);
+        return;
+      }
+      lastFrameTimeRef.current = currentTime;
+
+      if (!video.videoWidth || !video.videoHeight) {
+        animationFrameRef.current = requestAnimationFrame(drawFrame);
+        return;
+      }
 
       // 動画フレームを描画
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -55,20 +71,28 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         drawLandmarks(ctx, landmarks, canvas.width, canvas.height);
       }
 
-      requestAnimationFrame(drawFrame);
+      animationFrameRef.current = requestAnimationFrame(drawFrame);
     };
 
-    requestAnimationFrame(drawFrame);
-  }, [videoRef, landmarks, isActive]);
+    animationFrameRef.current = requestAnimationFrame(drawFrame);
 
-  // ランドマークを描画する関数
+    // クリーンアップ
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+      canvasSizeSetRef.current = false;
+    };
+  }, [videoRef, landmarks, isActive, FRAME_INTERVAL]);
+
+  // ランドマークを描画する関数（簡略化版）
   const drawLandmarks = (
     ctx: CanvasRenderingContext2D,
     landmarks: PoseLandmark[],
     width: number,
     height: number
   ) => {
-    // MediaPipe Pose Connections（骨格の線）
+    // MediaPipe Pose Connections（主要な骨格のみ - パフォーマンス最適化）
     const connections = [
       // 胴体
       [11, 12], // 左肩-右肩
@@ -84,22 +108,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       [12, 14], // 右肩-右肘
       [14, 16], // 右肘-右手首
 
-      // 左脚
-      [23, 25], // 左腰-左膝
-      [25, 27], // 左膝-左足首
-
-      // 右脚
-      [24, 26], // 右腰-右膝
-      [26, 28], // 右膝-右足首
-
-      // 顔
-      [0, 1],   // 鼻-左目内側
-      [0, 4],   // 鼻-右目内側
-      [1, 2],   // 左目内側-左目
-      [4, 5],   // 右目内側-右目
-      [2, 3],   // 左目-左目外側
-      [5, 6],   // 右目-右目外側
-      [9, 10],  // 口左-口右
+      // 脚は省略（パフォーマンス優先）
     ];
 
     // 線を描画
@@ -120,15 +129,18 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       }
     });
 
-    // ポイントを描画
+    // ポイントを描画（サイズ縮小 - パフォーマンス最適化）
     ctx.fillStyle = '#ff0000';
-    landmarks.forEach((landmark) => {
-      if ((landmark.visibility ?? 1) > 0.5) {
+    // 主要な関節のみ描画（パフォーマンス最適化）
+    const keyPoints = [0, 11, 12, 13, 14, 15, 16, 23, 24]; // 顔、肩、肘、手首、腰
+    keyPoints.forEach((index) => {
+      const landmark = landmarks[index];
+      if (landmark && (landmark.visibility ?? 1) > 0.5) {
         ctx.beginPath();
         ctx.arc(
           landmark.x * width,
           landmark.y * height,
-          5,
+          3, // 5 → 3 に縮小
           0,
           2 * Math.PI
         );
@@ -141,20 +153,13 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     return null;
   }
 
-  console.log('🎥 CameraPreview rendering:', {
-    hasVideoRef: !!videoRef?.current,
-    hasLandmarks: !!landmarks,
-    landmarkCount: landmarks?.length || 0,
-    isActive
-  });
-
   return (
     <div className="fixed bottom-4 right-4 z-20 bg-black bg-opacity-75 rounded-lg overflow-hidden shadow-lg">
       <div className="relative">
-        {/* ランドマーク付きキャンバス */}
+        {/* ランドマーク付きキャンバス（サイズ縮小） */}
         <canvas
           ref={canvasRef}
-          className="w-80 h-60 object-cover"
+          className="w-64 h-48 object-cover"
           style={{ transform: 'scaleX(-1)' }} // 鏡像反転
         />
 

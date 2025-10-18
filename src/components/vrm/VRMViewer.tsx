@@ -22,6 +22,15 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // vrmのrefも保持（クリーンアップ用）
+  const vrmRef = useRef<VRM | null>(null);
+
+  // onVRMLoadedのrefを保持（依存配列の変更を避けるため）
+  const onVRMLoadedRef = useRef(onVRMLoaded);
+  useEffect(() => {
+    onVRMLoadedRef.current = onVRMLoaded;
+  }, [onVRMLoaded]);
 
   // 直接GLTFLoaderを使用してVRMファイルを読み込み
   useEffect(() => {
@@ -34,45 +43,28 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         setError(null);
         setIsLoading(true);
 
-        console.log('Starting VRM load from URL:', vrmUrl);
-
         // GLTFLoaderを作成
         const loader = new GLTFLoader();
 
         // VRMLoaderPluginを登録
-        console.log('Registering VRMLoaderPlugin...');
         loader.register((parser) => {
           return new VRMLoaderPlugin(parser);
         });
 
         // VRMファイルを読み込み
-        let lastProgressPercent = 0;
         const gltf = await new Promise<any>((resolve, reject) => {
           loader.load(
             vrmUrl,
             (gltf) => {
-              console.log('GLTF loaded successfully');
               resolve(gltf);
             },
-            (progress) => {
-              // プログレス表示を10%刻みに制限
-              if (progress.lengthComputable) {
-                const percent = Math.floor((progress.loaded / progress.total) * 100);
-                if (percent >= lastProgressPercent + 10) {
-                  console.log(`VRM Loading: ${percent}% (${(progress.loaded / 1024 / 1024).toFixed(1)}MB / ${(progress.total / 1024 / 1024).toFixed(1)}MB)`);
-                  lastProgressPercent = percent;
-                }
-              }
-            },
+            undefined,
             (error) => {
               console.error('GLTF loading error:', error);
               reject(error);
             }
           );
         });
-
-        // VRM情報をログ出力（詳細は省略）
-        console.log('VRM data loaded, checking for VRM instance...');
 
         // VRMLoaderPluginによって読み込まれたVRMを取得
         const vrmInstance = gltf.userData.vrm as VRM;
@@ -83,8 +75,6 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
           throw new Error(`VRMインスタンスの生成に失敗しました。userData.vrm が見つかりません。利用可能なキー: ${Object.keys(gltf.userData).join(', ')}`);
         }
 
-        console.log('VRM instance found:', vrmInstance);
-
         // パフォーマンス最適化
         VRMUtils.removeUnnecessaryVertices(gltf.scene);
         VRMUtils.combineSkeletons(gltf.scene);
@@ -92,9 +82,9 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         // VRMの初期設定
         vrmInstance.scene.traverse((child: any) => {
           if (child instanceof THREE.Mesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
-            child.frustumCulled = false;
+            child.castShadow = false; // シャドウオフ（パフォーマンス最適化）
+            child.receiveShadow = false;
+            child.frustumCulled = true; // カメラ外は描画しない（パフォーマンス最適化）
           }
         });
 
@@ -107,10 +97,9 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         if (!isMounted) return; // レスポンス受信時にアンマウント済みの場合は処理しない
 
         setVrm(vrmInstance);
+        vrmRef.current = vrmInstance; // クリーンアップ用にrefにも保存
         setIsLoading(false);
-        onVRMLoaded?.(vrmInstance);
-
-        console.log('VRM successfully loaded and configured');
+        onVRMLoadedRef.current?.(vrmInstance);
 
       } catch (err) {
         if (!isMounted) return; // エラー時にアンマウント済みの場合は処理しない
@@ -136,8 +125,38 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
 
     return () => {
       isMounted = false; // クリーンアップ時にフラグを設定
+      
+      // VRMリソースのクリーンアップ（メモリリーク防止）
+      if (vrmRef.current) {
+        // すべてのジオメトリ、マテリアル、テクスチャを破棄
+        vrmRef.current.scene.traverse((child: any) => {
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m: any) => {
+                if (m.map) m.map.dispose();
+                if (m.normalMap) m.normalMap.dispose();
+                if (m.emissiveMap) m.emissiveMap.dispose();
+                m.dispose();
+              });
+            } else {
+              if (child.material.map) child.material.map.dispose();
+              if (child.material.normalMap) child.material.normalMap.dispose();
+              if (child.material.emissiveMap) child.material.emissiveMap.dispose();
+              child.material.dispose();
+            }
+          }
+        });
+        
+        // VRMUtils.deepDisposeを使用して完全にクリーンアップ
+        VRMUtils.deepDispose(vrmRef.current.scene);
+        
+        vrmRef.current = null;
+      }
     };
-  }, [vrmUrl, onVRMLoaded]);
+  }, [vrmUrl]); // vrmUrlのみを依存配列に
 
   // エラーが発生した場合の表示
   if (error) {

@@ -39,25 +39,29 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       await startCamera();
       setIsMotionActive(true);
       onMotionSync?.(true);
-      console.log('モーション同期を開始しました');
 
     } catch (err) {
       const errorMessage = `モーション同期の開始に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`;
       setError(errorMessage);
       console.error(errorMessage, err);
     }
-  }, [isInitialized, startCamera, onMotionSync]);
+  }, [isInitialized, startCamera]); // onMotionSyncを依存配列から除外
+
+  // handleStartMotionSyncへの参照を保持
+  const handleStartMotionSyncRef = useRef(handleStartMotionSync);
+  useEffect(() => {
+    handleStartMotionSyncRef.current = handleStartMotionSync;
+  }, [handleStartMotionSync]);
 
   // VRM読み込み完了時のハンドラ（useCallbackでメモ化）
   const handleVRMLoaded = useCallback((vrm: VRM) => {
     vrmRef.current = vrm;
-    console.log('VRM読み込み完了:', vrm);
 
     // オートスタートが有効な場合、カメラを開始
     if (autoStart && isInitialized) {
-      handleStartMotionSync();
+      handleStartMotionSyncRef.current();
     }
-  }, [autoStart, isInitialized, handleStartMotionSync]); // 依存配列を明確に指定
+  }, [autoStart, isInitialized]); // handleStartMotionSyncを依存配列から除外
 
   // モーション同期停止（useCallbackでメモ化）
   const handleStopMotionSync = useCallback(() => {
@@ -69,9 +73,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     if (vrmRef.current) {
       resetVRMPose(vrmRef.current);
     }
-
-    console.log('モーション同期を停止しました');
-  }, [stopCamera, onMotionSync]);
+  }, [stopCamera]); // onMotionSyncを依存配列から除外
 
   // エラー状態の管理
   useEffect(() => {
@@ -80,14 +82,14 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setIsMotionActive(false);
       onMotionSync?.(false);
     }
-  }, [poseError, onMotionSync]);
+  }, [poseError]); // onMotionSyncを依存配列から除外
 
   // MediaPipe初期化完了後のオートスタート処理
   useEffect(() => {
     if (autoStart && isInitialized && vrmRef.current && !isMotionActive) {
-      handleStartMotionSync();
+      handleStartMotionSyncRef.current();
     }
-  }, [autoStart, isInitialized, isMotionActive, handleStartMotionSync]);
+  }, [autoStart, isInitialized, isMotionActive]); // handleStartMotionSyncを依存配列から除外
 
   return {
     vrmRef,
@@ -141,6 +143,7 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
   const {
     vrmRef,
     landmarks,
+    worldLandmarks,
     isMotionActive,
     handleVRMLoaded
   } = useMotionSync(autoStart, onMotionSync);
@@ -155,8 +158,10 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
 
     try {
       // ポーズデータが有効な場合、VRMに適用（Kalidokit使用）
+      // worldLandmarksを渡すことで正確な3D回転を計算
+      const currentWorldLandmarks = worldLandmarks; // クロージャーでキャプチャ
       if (landmarks && landmarks.length > 0) {
-        retargetPoseToVRMWithKalidokit(vrm, landmarks);
+        retargetPoseToVRMWithKalidokit(vrm, landmarks, currentWorldLandmarks);
       }
 
       // VRMの更新
@@ -215,7 +220,8 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
         <div>モーション同期: {isMotionActive ? '✓' : '✗'}</div>
         <div>ランドマーク検出: {landmarks && landmarks.length > 0 ? '✓' : '✗'}</div>
         <div>VRM読み込み: {vrmLoaded ? '✓' : '✗'}</div>
-        {error && <div style={{ color: '#ff6b6b' }}>エラー: {error}</div>}
+        {error &&         <div style={{ color: '#ff6b6b' }}>エラー: {error}</div>}
+        {/* LogViewerボタンを無効化（パフォーマンス最適化）
         <button
           onClick={() => setShowLogViewer(true)}
           style={{
@@ -231,6 +237,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
         >
           📄 ログを表示
         </button>
+        */}
       </div>
     );
   };
@@ -328,10 +335,12 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
     <>
       {renderDebugInfo()}
       {renderControls()}
+      {/* LogViewerを無効化（パフォーマンス最適化）
       <LogViewer
         isVisible={showLogViewer}
         onClose={() => setShowLogViewer(false)}
       />
+      */}
     </>
   );
 };

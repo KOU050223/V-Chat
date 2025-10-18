@@ -1,14 +1,14 @@
 'use client';
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Environment } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import { VRMViewer } from '../../components/vrm/VRMViewer';
 import { MotionSyncUI, useMotionSync } from '../../components/vrm/MotionSyncViewer';
 import { CameraPreview } from '../../components/vrm/CameraPreview';
 import { useFrame } from '@react-three/fiber';
 import { retargetPoseToVRM } from '../../lib/vrm-retargeter';
 import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 // Canvas内でモーション同期を行うコンポーネント
 const MotionSyncRenderer: React.FC<{
@@ -16,7 +16,13 @@ const MotionSyncRenderer: React.FC<{
   position: [number, number, number];
   motionSyncState: ReturnType<typeof useMotionSync>;
   useKalidokit: boolean;
-}> = ({ vrmUrl, position, motionSyncState, useKalidokit }) => {
+  setIsVRMLoading: (loading: boolean) => void;
+}> = ({ vrmUrl, position, motionSyncState, useKalidokit, setIsVRMLoading }) => {
+  // コンポーネントマウント時にローディング状態をリセット
+  useEffect(() => {
+    setIsVRMLoading(true);
+  }, [vrmUrl, setIsVRMLoading]);
+
   // フレームごとの更新処理
   useFrame((_state, delta) => {
     const vrm = motionSyncState.vrmRef.current;
@@ -30,7 +36,12 @@ const MotionSyncRenderer: React.FC<{
       if (motionSyncState.landmarks && motionSyncState.landmarks.length > 0) {
         // Kalidokit版と現状版を切り替え
         if (useKalidokit) {
-          retargetPoseToVRMWithKalidokit(vrm, motionSyncState.landmarks);
+          // worldLandmarksを渡して正確な3D回転を計算
+          retargetPoseToVRMWithKalidokit(
+            vrm,
+            motionSyncState.landmarks,
+            motionSyncState.worldLandmarks
+          );
         } else {
           retargetPoseToVRM(vrm, motionSyncState.landmarks);
         }
@@ -47,7 +58,10 @@ const MotionSyncRenderer: React.FC<{
   return (
     <VRMViewer
       vrmUrl={vrmUrl}
-      onVRMLoaded={motionSyncState.handleVRMLoaded}
+      onVRMLoaded={(vrm) => {
+        motionSyncState.handleVRMLoaded(vrm);
+        setIsVRMLoading(false);
+      }}
       position={position}
     />
   );
@@ -61,9 +75,23 @@ export default function VRMMotionDemoPage() {
 
   // Kalidokit使用フラグ（デフォルトはKalidokit）
   const [useKalidokit, setUseKalidokit] = useState(true);
+  
+  // ローディング状態
+  const [isVRMLoading, setIsVRMLoading] = useState(true);
 
   return (
     <div className="h-screen w-full bg-gray-900">
+      {/* ローディングオーバーレイ */}
+      {isVRMLoading && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+            <h2 className="text-white text-2xl font-bold mb-2">VRMモデルを読み込み中...</h2>
+            <p className="text-gray-400 text-sm">初回読み込みには時間がかかる場合があります</p>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-4 left-4 z-10 text-white">
         <h1 className="text-2xl font-bold mb-2">VRM Motion Sync Demo</h1>
         <p className="text-sm opacity-70 mb-3">
@@ -102,21 +130,35 @@ export default function VRMMotionDemoPage() {
           fov: 50
         }}
         style={{ width: '100%', height: '100%' }}
+        gl={{
+          antialias: true,  // 品質維持のため有効
+          powerPreference: 'high-performance',
+          alpha: false  // 透明度不要
+        }}
+        dpr={typeof window !== 'undefined' && window.devicePixelRatio > 2 ? 2 : (typeof window !== 'undefined' ? window.devicePixelRatio : 1)}
       >
-        {/* 環境光 */}
-        <ambientLight intensity={0.6} />
+        {/* 環境光（強度を上げて補完） */}
+        <ambientLight intensity={0.8} />
 
-        {/* 方向光 */}
+        {/* メインの方向光 */}
         <directionalLight
           position={[5, 5, 5]}
-          intensity={1}
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
+          intensity={1.2}
         />
 
-        {/* 環境マップ */}
-        <Environment preset="studio" />
+        {/* 補助ライト（右側） */}
+        <directionalLight
+          position={[-3, 3, 2]}
+          intensity={0.5}
+        />
+
+        {/* 補助ライト（後ろ） */}
+        <directionalLight
+          position={[0, 3, -5]}
+          intensity={0.3}
+        />
+
+        {/* Environmentを削除（重い読み込みを回避） */}
 
         {/* グリッド床 */}
         <gridHelper args={[10, 10]} />
@@ -127,6 +169,7 @@ export default function VRMMotionDemoPage() {
           position={[0, 0, 0]}
           motionSyncState={motionSyncState}
           useKalidokit={useKalidokit}
+          setIsVRMLoading={setIsVRMLoading}
         />
 
         {/* カメラコントロール */}

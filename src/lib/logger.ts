@@ -10,22 +10,26 @@ export interface LogEntry {
 
 class Logger {
   private logs: LogEntry[] = [];
-  private maxLogs: number = 1000;
+  private maxLogs: number = 100; // 1000 → 100 に削減
   private isDevelopment: boolean = process.env.NODE_ENV === 'development';
 
   constructor() {
-    // ブラウザ環境でのみ実行
+    // console.logのオーバーライドを無効化（パフォーマンス最適化）
+    // メモリリークとCPU負荷を防ぐため、ログ傍受を削除
+    /*
     if (typeof window !== 'undefined') {
       try {
         this.setupConsoleOverride();
       } catch (error) {
-        // セットアップに失敗してもアプリが落ちないようにする
         console.error('Logger setup failed:', error);
       }
     }
+    */
   }
 
   private setupConsoleOverride() {
+    // この関数は使用されません（無効化済み）
+    return;
     // 元のconsole関数を保存
     const originalConsole = {
       log: console.log.bind(console),
@@ -181,14 +185,9 @@ class Logger {
   }
 
   private saveToLocalStorage() {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('vchat-logs', JSON.stringify(this.logs));
-      }
-    } catch (error) {
-      // ローカルストレージの容量制限などでエラーが発生した場合
-      // エラーを無視してアプリの動作を継続
-    }
+    // LocalStorage保存を無効化（パフォーマンス最適化）
+    // 毎回のI/O処理を削減
+    return;
   }
 
   // 公開メソッド

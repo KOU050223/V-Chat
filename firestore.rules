@@ -13,28 +13,8 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // マッチングキューのルール
-    match /matching_queue/{queueId} {
-      // 読み取り：自分のキューのみ
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-
-      // 作成：認証済みユーザーが自分のキューを作成
-      allow create: if isAuthenticated()
-                    && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.status == "waiting"
-                    && request.resource.data.matchedAt == null
-                    && request.resource.data.matchedUserId == null
-                    && request.resource.data.roomId == null;
-
-      // 更新：Cloud Functionのみ（Admin SDKを使用）
-      allow update: if false;
-
-      // 削除：自分のキューのみ（キャンセル時）
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
-    }
-
-    // マッチングルームのルール
-    match /matching_rooms/{roomId} {
+    // ルームのルール
+    match /rooms/{roomId} {
       // 読み取り：参加者のみ
       allow read: if isAuthenticated()
                   && request.auth.uid in resource.data.participants;

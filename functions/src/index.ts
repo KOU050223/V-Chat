@@ -3,12 +3,11 @@
  * マッチング機能とLiveKit統合
  */
 
-import {setGlobalOptions} from "firebase-functions/v2";
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
-import * as admin from "firebase-admin";
-import {AccessToken} from "livekit-server-sdk";
-import * as logger from "firebase-functions/logger";
+import { setGlobalOptions } from 'firebase-functions/v2';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import * as admin from 'firebase-admin';
+import { AccessToken } from 'livekit-server-sdk';
+import * as logger from 'firebase-functions/logger';
 
 // Firebase Admin SDKの初期化
 admin.initializeApp();
@@ -16,243 +15,266 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // グローバル設定: コスト管理のため最大インスタンス数を制限
-setGlobalOptions({maxInstances: 10});
+setGlobalOptions({ maxInstances: 10 });
 
 /**
- * マッチングキューの監視と自動マッチング処理
- * 新しいドキュメントが作成されたときにトリガーされる
+ * ルーム作成
+ * HTTP Callable関数として公開
  */
-export const processMatchingQueue = onDocumentCreated(
-  "matching_queue/{queueId}",
-  async (event) => {
-    const queueId = event.params.queueId;
-    const queueData = event.data?.data();
+export const createRoom = onCall(async (request) => {
+    // 認証チェック
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '認証が必要です');
+    }
 
-    if (!queueData || queueData.status !== "waiting") {
-      return;
+    const { name, description, isPrivate } = request.data;
+    const userId = request.auth.uid;
+
+    // バリデーション
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+        throw new HttpsError('invalid-argument', 'ルーム名が必要です');
     }
 
     try {
-      // 他の待機中のキューを検索（自分以外）
-      const waitingQueues = await db
-        .collection("matching_queue")
-        .where("status", "==", "waiting")
-        .orderBy("enqueuedAt", "asc")
-        .limit(2)
-        .get();
+        // 短いルームIDを生成（6文字の英数字）
+        const generateShortId = () => {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        };
 
-      // 自分以外の待機者がいるかチェック
-      const otherQueues = waitingQueues.docs.filter(
-        (doc) => doc.id !== queueId
-      );
+        let roomId = generateShortId();
+        let attempts = 0;
+        const maxAttempts = 5;
 
-      if (otherQueues.length === 0) {
-        // マッチング相手がいない場合は待機
-        logger.info(`No match found for queue ${queueId}, waiting...`);
-        return;
-      }
+        // IDの重複を確認
+        while (attempts < maxAttempts) {
+            const existingRoom = await db.collection('rooms').doc(roomId).get();
+            if (!existingRoom.exists) {
+                break;
+            }
+            roomId = generateShortId();
+            attempts++;
+        }
 
-      // マッチング相手を見つけた
-      const matchedQueue = otherQueues[0];
-      const matchedQueueData = matchedQueue.data();
+        if (attempts >= maxAttempts) {
+            throw new HttpsError('internal', 'ルームIDの生成に失敗しました');
+        }
 
-      // LiveKitのルームIDを生成
-      const roomId = `room_${Date.now()}_${Math.random()
-        .toString(36)
-        .substring(7)}`;
-      const livekitRoomId = `livekit_${roomId}`;
+        // LiveKitのルームIDを生成
+        const livekitRoomId = `livekit_${roomId}_${Date.now()}`;
 
-      // トランザクションでマッチング処理を実行
-      await db.runTransaction(async (transaction) => {
-        const currentQueueRef = db.collection("matching_queue").doc(queueId);
+        // ルームを作成
+        const roomData = {
+            roomId,
+            name: name.trim(),
+            description: description?.trim() || '',
+            isPrivate: isPrivate || false,
+            createdBy: userId,
+            participants: [userId],
+            status: 'active',
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            livekitRoomId,
+        };
 
-        // 両方のキューのステータスを更新
-        transaction.update(currentQueueRef, {
-          status: "matched",
-          matchedAt: admin.firestore.FieldValue.serverTimestamp(),
-          matchedUserId: matchedQueueData.userId,
-          roomId,
+        await db.collection('rooms').doc(roomId).set(roomData);
+
+        logger.info({
+            message: 'Room created',
+            roomId,
+            userId,
         });
 
-        transaction.update(matchedQueue.ref, {
-          status: "matched",
-          matchedAt: admin.firestore.FieldValue.serverTimestamp(),
-          matchedUserId: queueData.userId,
-          roomId,
-        });
-
-        // マッチングルームを作成
-        const roomRef = db.collection("matching_rooms").doc(roomId);
-        transaction.set(roomRef, {
-          roomId,
-          participants: [queueData.userId, matchedQueueData.userId],
-          status: "active",
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          endedAt: null,
-          livekitRoomId,
-        });
-      });
-
-      logger.info(
-        `Match created: ${queueData.userId} <-> ${matchedQueueData.userId}`,
-        {roomId}
-      );
+        return roomData;
     } catch (error) {
-      logger.error("Error processing matching queue:", error);
+        logger.error('Error creating room:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'ルームの作成に失敗しました');
     }
-  }
-);
+});
 
 /**
- * タイムアウト処理
- * キューが作成されたときにチェックし、既にタイムアウトしている場合は処理
- *
- * 注意: Cloud Scheduler（定期実行）は課金が必要なため、
- * 開発環境ではこのトリガーベースの方法を使用します。
- * 本番環境では、より正確なタイムアウト処理のため、
- * Cloud Schedulerを有効化することを推奨します。
+ * ルーム参加
+ * HTTP Callable関数として公開
  */
-export const checkMatchingTimeoutOnCreate = onDocumentCreated(
-  "matching_queue/{queueId}",
-  async (event) => {
-    // 60秒後にタイムアウトチェックを実行
-    await new Promise((resolve) => setTimeout(resolve, 60000));
+export const joinRoom = onCall(async (request) => {
+    // 認証チェック
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '認証が必要です');
+    }
+
+    const { roomId } = request.data;
+    const userId = request.auth.uid;
+
+    // roomIdのバリデーション
+    if (!roomId || typeof roomId !== 'string') {
+        throw new HttpsError('invalid-argument', 'roomIdが必要です');
+    }
 
     try {
-      const queueId = event.params.queueId;
-      const queueRef = db.collection("matching_queue").doc(queueId);
-      const queueDoc = await queueRef.get();
+        // ルームの存在確認
+        const roomRef = db.collection('rooms').doc(roomId);
+        const roomDoc = await roomRef.get();
 
-      if (!queueDoc.exists) {
-        return;
-      }
+        if (!roomDoc.exists) {
+            throw new HttpsError('not-found', 'ルームが見つかりません');
+        }
 
-      const queueData = queueDoc.data();
+        const roomData = roomDoc.data();
 
-      // まだwaitingステータスの場合はタイムアウト
-      if (queueData?.status === "waiting") {
-        await queueRef.update({
-          status: "timeout",
+        if (roomData?.status !== 'active') {
+            throw new HttpsError(
+                'failed-precondition',
+                'このルームは利用できません'
+            );
+        }
+
+        // 参加者数のチェック（2人まで）
+        const currentParticipants = roomData?.participants || [];
+        if (
+            currentParticipants.length >= 2 &&
+            !currentParticipants.includes(userId)
+        ) {
+            throw new HttpsError('resource-exhausted', 'ルームが満員です');
+        }
+
+        // 参加者リストに追加（まだ追加されていない場合）
+        if (!currentParticipants.includes(userId)) {
+            await roomRef.update({
+                participants: admin.firestore.FieldValue.arrayUnion(userId),
+            });
+        }
+
+        logger.info({
+            message: 'User joined room',
+            roomId,
+            userId,
         });
-        logger.info(`Queue ${queueId} timed out`);
-      }
+
+        return {
+            roomId,
+            livekitRoomId: roomData.livekitRoomId,
+        };
     } catch (error) {
-      logger.error("Error checking timeout:", error);
+        logger.error('Error joining room:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'ルームへの参加に失敗しました');
     }
-  }
-);
+});
 
 /**
  * LiveKitアクセストークンの生成
  * HTTP Callable関数として公開
  */
 export const generateLivekitToken = onCall(async (request) => {
-  // 認証チェック
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "認証が必要です");
-  }
-
-  const {roomId} = request.data;
-  const userId = request.auth.uid;
-
-  // roomIdのバリデーション
-  if (!roomId || typeof roomId !== "string") {
-    throw new HttpsError("invalid-argument", "roomIdが必要です");
-  }
-
-  try {
-    // ルームの存在確認と参加権限のチェック
-    const roomDoc = await db.collection("matching_rooms").doc(roomId).get();
-
-    if (!roomDoc.exists) {
-      throw new HttpsError("not-found", "ルームが見つかりません");
+    // 認証チェック
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const roomData = roomDoc.data();
-    if (!roomData?.participants.includes(userId)) {
-      throw new HttpsError(
-        "permission-denied",
-        "このルームへの参加権限がありません"
-      );
+    const { roomId } = request.data;
+    const userId = request.auth.uid;
+
+    // roomIdのバリデーション
+    if (!roomId || typeof roomId !== 'string') {
+        throw new HttpsError('invalid-argument', 'roomIdが必要です');
     }
 
-    // LiveKitのアクセストークンを生成
-    const livekitApiKey = process.env.LIVEKIT_API_KEY;
-    const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+    try {
+        // ルームの存在確認と参加権限のチェック
+        const roomDoc = await db.collection('rooms').doc(roomId).get();
 
-    if (!livekitApiKey || !livekitApiSecret) {
-      throw new HttpsError(
-        "failed-precondition",
-        "LiveKitの設定が不完全です"
-      );
+        if (!roomDoc.exists) {
+            throw new HttpsError('not-found', 'ルームが見つかりません');
+        }
+
+        const roomData = roomDoc.data();
+        if (!roomData?.participants.includes(userId)) {
+            throw new HttpsError(
+                'permission-denied',
+                'このルームへの参加権限がありません'
+            );
+        }
+
+        // LiveKitのアクセストークンを生成
+        const livekitApiKey = process.env.LIVEKIT_API_KEY;
+        const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+
+        if (!livekitApiKey || !livekitApiSecret) {
+            throw new HttpsError(
+                'failed-precondition',
+                'LiveKitの設定が不完全です'
+            );
+        }
+
+        const at = new AccessToken(livekitApiKey, livekitApiSecret, {
+            identity: userId,
+        });
+
+        at.addGrant({
+            roomJoin: true,
+            room: roomData.livekitRoomId,
+            canPublish: true,
+            canSubscribe: true,
+        });
+
+        const token = await at.toJwt();
+
+        return {
+            token,
+            livekitRoomId: roomData.livekitRoomId,
+        };
+    } catch (error) {
+        logger.error('Error generating LiveKit token:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'トークンの生成に失敗しました');
     }
-
-    const at = new AccessToken(livekitApiKey, livekitApiSecret, {
-      identity: userId,
-    });
-
-    at.addGrant({
-      roomJoin: true,
-      room: roomData.livekitRoomId,
-      canPublish: true,
-      canSubscribe: true,
-    });
-
-    const token = await at.toJwt();
-
-    return {
-      token,
-      livekitRoomId: roomData.livekitRoomId,
-    };
-  } catch (error) {
-    logger.error("Error generating LiveKit token:", error);
-    if (error instanceof HttpsError) {
-      throw error;
-    }
-    throw new HttpsError("internal", "トークンの生成に失敗しました");
-  }
 });
 
 /**
  * ルーム終了処理
  */
 export const endRoom = onCall(async (request) => {
-  // 認証チェック
-  if (!request.auth) {
-    throw new HttpsError("unauthenticated", "認証が必要です");
-  }
-
-  const {roomId} = request.data;
-  const userId = request.auth.uid;
-
-  try {
-    // ルームの存在確認と参加権限のチェック
-    const roomDoc = await db.collection("matching_rooms").doc(roomId).get();
-
-    if (!roomDoc.exists) {
-      throw new HttpsError("not-found", "ルームが見つかりません");
+    // 認証チェック
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const roomData = roomDoc.data();
-    if (!roomData?.participants.includes(userId)) {
-      throw new HttpsError(
-        "permission-denied",
-        "このルームへの権限がありません"
-      );
-    }
+    const { roomId } = request.data;
+    const userId = request.auth.uid;
 
-    // ルームを終了状態に更新
-    await roomDoc.ref.update({
-      status: "ended",
-      endedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    try {
+        // ルームの存在確認と参加権限のチェック
+        const roomDoc = await db.collection('rooms').doc(roomId).get();
 
-    return {success: true};
-  } catch (error) {
-    logger.error("Error ending room:", error);
-    if (error instanceof HttpsError) {
-      throw error;
+        if (!roomDoc.exists) {
+            throw new HttpsError('not-found', 'ルームが見つかりません');
+        }
+
+        const roomData = roomDoc.data();
+        if (!roomData?.participants.includes(userId)) {
+            throw new HttpsError(
+                'permission-denied',
+                'このルームへの権限がありません'
+            );
+        }
+
+        // ルームを終了状態に更新
+        await roomDoc.ref.update({
+            status: 'ended',
+            endedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return { success: true };
+    } catch (error) {
+        logger.error('Error ending room:', error);
+        if (error instanceof HttpsError) {
+            throw error;
+        }
+        throw new HttpsError('internal', 'ルームの終了に失敗しました');
     }
-    throw new HttpsError("internal", "ルームの終了に失敗しました");
-  }
 });

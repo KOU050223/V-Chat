@@ -3,20 +3,26 @@
 #   Refer for explanation to following link:
 #   https://lefthook.dev/configuration/
 #
-# pre-push:
-#   jobs:
-#     - name: packages audit
-#       tags:
-#         - frontend
-#         - security
-#       run: npm audit
-#
-#     - name: gems audit
-#       tags:
-#         - backend
-#         - security
-#       run: bundle audit
-#
+pre-push:
+  parallel: false
+  commands:
+    # Node.js tests and security
+    # node-test:
+    #   glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+    #   run: npm test
+    #   skip:
+    #     - merge
+    #     - rebase
+
+    npm-audit:
+      glob: "package*.json"
+      run: npm audit --audit-level=high
+    lint:
+      glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+      run: npm run lint
+    node-build:
+      run: npm run build
+
 pre-commit:
   parallel: true
   commands:

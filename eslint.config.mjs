@@ -12,11 +12,14 @@ const compat = new FlatCompat({
     allConfig: js.configs.all
 });
 
-export default defineConfig([{
-    extends: compat.extends("next/core-web-vitals"),
-
-    rules: {
-        "prefer-const": "error",
-        "no-var": "error",
+export default defineConfig([
+    ...compat.config({
+        extends: ["next/core-web-vitals", "next/typescript"]
+    }),
+    {
+        rules: {
+            "prefer-const": "error",
+            "no-var": "error",
+        },
     },
-}]);
+]);

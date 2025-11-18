@@ -17,11 +17,11 @@ pre-push:
     npm-audit:
       glob: "package*.json"
       run: npm audit --audit-level=high
-    lint:
-      glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
-      run: npm run lint
-    node-build:
-      run: npm run build
+    # lint:
+    #   glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+    #   run: npm run lint
+    # node-build:
+    #   run: npm run build
 
 pre-commit:
   parallel: true

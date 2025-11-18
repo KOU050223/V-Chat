@@ -93,21 +93,21 @@ export default function SessionProvider({ children }: { children: React.ReactNod
 ### 環境変数 (`.env.local`)
 ```env
 # Firebase Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyCmAaQLYezHVLM8nL6flaokzLvNqj2obbc
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=v-chat-a495e.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=v-chat-a495e
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=v-chat-a495e.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=127899298566
-NEXT_PUBLIC_FIREBASE_APP_ID=1:127899298566:web:1b7cbc9d7ee5723e338c87
-NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=G-2XGLEYGQY4
+NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
 
 # VRoid Hub Configuration
-VROID_CLIENT_ID=YU6WviDCckXyhsC5IvxQctqIuYYJcbebHqAuE_-FeTM
-VROID_CLIENT_SECRET=5FL6ldReh7_pzIcFi89s9mzsxFN0GUwuMCXSOw70XIg
+VROID_CLIENT_ID=your_vroid_client_id
+VROID_CLIENT_SECRET=your_vroid_client_secret
 
 # NextAuth Configuration
 NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=hwHcEVxA+Qy11EiNX0UTodo5GDlGkNwDIGEOUmmoqBU=
+NEXTAUTH_SECRET=your_nextauth_secret
 NEXTAUTH_DEBUG=true
 ```
 

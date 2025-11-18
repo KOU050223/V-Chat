@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ヘルパー関数：認証済みユーザーかどうか
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ルームのルール
+    match /rooms/{roomId} {
+      // 読み取り：参加者のみ
+      allow read: if isAuthenticated()
+                  && request.auth.uid in resource.data.participants;
+
+      // 作成・更新・削除：Cloud Functionのみ（Admin SDKを使用）
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

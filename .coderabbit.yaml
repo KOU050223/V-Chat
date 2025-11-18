@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: ja
+
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - ".*"  # すべてのブランチで有効
+
+  profile: assertive  # 詳細なレビュー
+
+  review_status: true
+  request_changes_workflow: false  # 重大な問題があればマージをブロックするか？
+
+  # レビュー対象から除外するパターン
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/*.lock"
+    - "!**/*.min.js"
+  

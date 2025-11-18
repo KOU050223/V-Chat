@@ -41,3 +41,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Firebase
+## Admin SDK秘密鍵ファイル
+*-firebase-adminsdk-*.json
+## Firebase cache
+.firebase/
+## Firebase config (if using .runtimeconfig.json for local development)
+.runtimeconfig.json
+## Firebase Functions node_modules
+functions/node_modules/
+functions/lib/
+
+# 個人的開発環境設定
+.serena/
+.tmp/
+**/.claude/**/my-*

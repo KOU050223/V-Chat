@@ -1,0 +1,42 @@
+# EXAMPLE USAGE:
+#
+#   Refer for explanation to following link:
+#   https://lefthook.dev/configuration/
+#
+pre-push:
+  parallel: false
+  commands:
+    # Node.js tests and security
+    # node-test:
+    #   glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+    #   run: npm test
+    #   skip:
+    #     - merge
+    #     - rebase
+
+    npm-audit:
+      glob: "package*.json"
+      run: npm audit --audit-level=high
+    # lint:
+    #   glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+    #   run: npm run lint
+    # node-build:
+    #   run: npm run build
+
+pre-commit:
+  parallel: true
+  commands:
+    # Node.js/TypeScript checks
+    eslint:
+      glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
+      run: npx eslint {staged_files} --fix
+      stage_fixed: true
+
+    prettier:
+      glob: "{src,app}/**/*.{js,ts,jsx,tsx,json,md,yml,yaml}"
+      run: npx prettier --write {staged_files}
+      stage_fixed: true
+
+    typescript:
+      glob: "{src,app}/**/*.{ts,tsx}"
+      run: npx tsc --noEmit --skipLibCheck

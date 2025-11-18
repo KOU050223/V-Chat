@@ -15,7 +15,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // グローバル設定: コスト管理のため最大インスタンス数を制限
-setGlobalOptions({ maxInstances: 10 });
+setGlobalOptions({ region: 'us-central1', maxInstances: 10 });
 
 /**
  * ルーム作成
@@ -27,55 +27,83 @@ export const createRoom = onCall(async (request) => {
         throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const { name, description, isPrivate } = request.data;
-    const userId = request.auth.uid;
-
-    // バリデーション
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-        throw new HttpsError('invalid-argument', 'ルーム名が必要です');
-    }
-
     try {
+        // request.dataのバリデーション
+        if (!request.data || typeof request.data !== 'object') {
+            throw new HttpsError(
+                'invalid-argument',
+                '無効なリクエストデータです'
+            );
+        }
+
+        const { name, description, isPrivate } = request.data as {
+            name?: unknown;
+            description?: unknown;
+            isPrivate?: unknown;
+        };
+        const userId = request.auth.uid;
+
+        // バリデーション
+        if (!name || typeof name !== 'string' || name.trim().length === 0) {
+            throw new HttpsError('invalid-argument', 'ルーム名が必要です');
+        }
         // 短いルームIDを生成（6文字の英数字）
         const generateShortId = () => {
             return Math.random().toString(36).substring(2, 8).toUpperCase();
         };
 
-        let roomId = generateShortId();
         let attempts = 0;
         const maxAttempts = 5;
+        let roomId = '';
+        let livekitRoomId = '';
+        let createdSuccessfully = false;
 
-        // IDの重複を確認
-        while (attempts < maxAttempts) {
-            const existingRoom = await db.collection('rooms').doc(roomId).get();
-            if (!existingRoom.exists) {
-                break;
-            }
+        // アトミックな作成処理（競合を回避）
+        while (attempts < maxAttempts && !createdSuccessfully) {
             roomId = generateShortId();
-            attempts++;
+            livekitRoomId = `livekit_${roomId}_${Date.now()}`;
+
+            const roomDataToSave = {
+                roomId,
+                name: name.trim(),
+                description:
+                    typeof description === 'string' ? description.trim() : '',
+                isPrivate: isPrivate || false,
+                createdBy: userId,
+                participants: [userId],
+                status: 'active',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                livekitRoomId,
+            };
+
+            try {
+                // create()は、ドキュメントが存在しない場合のみ成功する
+                await db.collection('rooms').doc(roomId).create(roomDataToSave);
+                createdSuccessfully = true;
+            } catch (error: any) {
+                // ALREADY_EXISTS (code 6 or 'already-exists')
+                if (error.code === 'already-exists' || error.code === 6) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        // 指数バックオフでリトライ
+                        await new Promise((resolve) =>
+                            setTimeout(resolve, 100 * attempts)
+                        );
+                    }
+                } else {
+                    // その他のエラーは再スロー
+                    throw error;
+                }
+            }
         }
 
-        if (attempts >= maxAttempts) {
+        if (!createdSuccessfully) {
             throw new HttpsError('internal', 'ルームIDの生成に失敗しました');
         }
 
-        // LiveKitのルームIDを生成
-        const livekitRoomId = `livekit_${roomId}_${Date.now()}`;
-
-        // ルームを作成
-        const roomData = {
-            roomId,
-            name: name.trim(),
-            description: description?.trim() || '',
-            isPrivate: isPrivate || false,
-            createdBy: userId,
-            participants: [userId],
-            status: 'active',
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            livekitRoomId,
-        };
-
-        await db.collection('rooms').doc(roomId).set(roomData);
+        // 保存されたドキュメントを再読み込みしてTimestampを取得
+        const savedDoc = await db.collection('rooms').doc(roomId).get();
+        const savedData = savedDoc.data();
 
         logger.info({
             message: 'Room created',
@@ -83,7 +111,19 @@ export const createRoom = onCall(async (request) => {
             userId,
         });
 
-        return roomData;
+        // JSON-serializableなレスポンスを返す
+        return {
+            roomId,
+            name: name.trim(),
+            description:
+                typeof description === 'string' ? description.trim() : '',
+            isPrivate: isPrivate || false,
+            createdBy: userId,
+            participants: [userId],
+            status: 'active',
+            createdAt: savedData?.createdAt?.toDate().toISOString() || null,
+            livekitRoomId,
+        };
     } catch (error) {
         logger.error('Error creating room:', error);
         if (error instanceof HttpsError) {
@@ -103,47 +143,65 @@ export const joinRoom = onCall(async (request) => {
         throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const { roomId } = request.data;
-    const userId = request.auth.uid;
-
-    // roomIdのバリデーション
-    if (!roomId || typeof roomId !== 'string') {
-        throw new HttpsError('invalid-argument', 'roomIdが必要です');
-    }
-
     try {
-        // ルームの存在確認
-        const roomRef = db.collection('rooms').doc(roomId);
-        const roomDoc = await roomRef.get();
-
-        if (!roomDoc.exists) {
-            throw new HttpsError('not-found', 'ルームが見つかりません');
-        }
-
-        const roomData = roomDoc.data();
-
-        if (roomData?.status !== 'active') {
+        // request.dataのバリデーション
+        if (!request.data || typeof request.data !== 'object') {
             throw new HttpsError(
-                'failed-precondition',
-                'このルームは利用できません'
+                'invalid-argument',
+                '無効なリクエストデータです'
             );
         }
 
-        // 参加者数のチェック（2人まで）
-        const currentParticipants = roomData?.participants || [];
-        if (
-            currentParticipants.length >= 2 &&
-            !currentParticipants.includes(userId)
-        ) {
-            throw new HttpsError('resource-exhausted', 'ルームが満員です');
-        }
+        const { roomId } = request.data as { roomId?: unknown };
+        const userId = request.auth.uid;
 
-        // 参加者リストに追加（まだ追加されていない場合）
-        if (!currentParticipants.includes(userId)) {
-            await roomRef.update({
-                participants: admin.firestore.FieldValue.arrayUnion(userId),
-            });
+        // roomIdのバリデーション
+        if (!roomId || typeof roomId !== 'string' || roomId.trim() === '') {
+            throw new HttpsError('invalid-argument', 'roomIdが必要です');
         }
+        // Transactionを使用してアトミックに参加処理を実行
+        const roomRef = db.collection('rooms').doc(roomId);
+        let livekitRoomIdResult: string;
+
+        await db.runTransaction(async (tx) => {
+            const roomDoc = await tx.get(roomRef);
+
+            if (!roomDoc.exists) {
+                throw new HttpsError('not-found', 'ルームが見つかりません');
+            }
+
+            const roomData = roomDoc.data();
+
+            if (roomData?.status !== 'active') {
+                throw new HttpsError(
+                    'failed-precondition',
+                    'このルームは利用できません'
+                );
+            }
+
+            const currentParticipants = (roomData?.participants ||
+                []) as string[];
+
+            // 既に参加している場合はスキップ
+            if (!currentParticipants.includes(userId)) {
+                // 参加者数のチェック（2人まで）
+                if (currentParticipants.length >= 2) {
+                    throw new HttpsError(
+                        'resource-exhausted',
+                        'ルームが満員です'
+                    );
+                }
+
+                // 参加者リストに追加
+                tx.update(roomRef, {
+                    participants:
+                        admin.firestore.FieldValue.arrayUnion(userId),
+                });
+            }
+
+            // livekitRoomIdを保存
+            livekitRoomIdResult = roomData.livekitRoomId;
+        });
 
         logger.info({
             message: 'User joined room',
@@ -153,7 +211,7 @@ export const joinRoom = onCall(async (request) => {
 
         return {
             roomId,
-            livekitRoomId: roomData.livekitRoomId,
+            livekitRoomId: livekitRoomIdResult!,
         };
     } catch (error) {
         logger.error('Error joining room:', error);
@@ -174,15 +232,22 @@ export const generateLivekitToken = onCall(async (request) => {
         throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const { roomId } = request.data;
-    const userId = request.auth.uid;
-
-    // roomIdのバリデーション
-    if (!roomId || typeof roomId !== 'string') {
-        throw new HttpsError('invalid-argument', 'roomIdが必要です');
-    }
-
     try {
+        // request.dataのバリデーション
+        if (!request.data || typeof request.data !== 'object') {
+            throw new HttpsError(
+                'invalid-argument',
+                '無効なリクエストデータです'
+            );
+        }
+
+        const { roomId } = request.data as { roomId?: unknown };
+        const userId = request.auth.uid;
+
+        // roomIdのバリデーション
+        if (!roomId || typeof roomId !== 'string' || roomId.trim() === '') {
+            throw new HttpsError('invalid-argument', 'roomIdが必要です');
+        }
         // ルームの存在確認と参加権限のチェック
         const roomDoc = await db.collection('rooms').doc(roomId).get();
 
@@ -191,7 +256,15 @@ export const generateLivekitToken = onCall(async (request) => {
         }
 
         const roomData = roomDoc.data();
-        if (!roomData?.participants.includes(userId)) {
+        if (!roomData) {
+            throw new HttpsError('internal', 'ルームデータの取得に失敗しました');
+        }
+
+        const participants = Array.isArray(roomData.participants)
+            ? roomData.participants
+            : [];
+
+        if (!participants.includes(userId)) {
             throw new HttpsError(
                 'permission-denied',
                 'このルームへの参加権限がありません'
@@ -199,6 +272,8 @@ export const generateLivekitToken = onCall(async (request) => {
         }
 
         // LiveKitのアクセストークンを生成
+        // 注: 環境変数からAPIキーとシークレットを読み取り
+        // 本番環境とステージング環境では異なるキーを使用すること
         const livekitApiKey = process.env.LIVEKIT_API_KEY;
         const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
 
@@ -209,13 +284,19 @@ export const generateLivekitToken = onCall(async (request) => {
             );
         }
 
+        // トークンの有効期限を1時間に設定
         const at = new AccessToken(livekitApiKey, livekitApiSecret, {
             identity: userId,
+            ttl: 3600, // 1時間（秒単位）
         });
 
+        // 最小限の権限を付与:
+        // - roomJoin: 指定されたルームへの参加
+        // - canPublish: 音声・映像の送信（カメラ・マイク）
+        // - canSubscribe: 他のユーザーからの音声・映像の受信
         at.addGrant({
             roomJoin: true,
-            room: roomData.livekitRoomId,
+            room: roomData.livekitRoomId, // 特定のルームに限定
             canPublish: true,
             canSubscribe: true,
         });
@@ -244,10 +325,22 @@ export const endRoom = onCall(async (request) => {
         throw new HttpsError('unauthenticated', '認証が必要です');
     }
 
-    const { roomId } = request.data;
-    const userId = request.auth.uid;
-
     try {
+        // request.dataのバリデーション
+        if (!request.data || typeof request.data !== 'object') {
+            throw new HttpsError(
+                'invalid-argument',
+                '無効なリクエストデータです'
+            );
+        }
+
+        const { roomId } = request.data as { roomId?: unknown };
+        const userId = request.auth.uid;
+
+        // roomIdのバリデーション
+        if (!roomId || typeof roomId !== 'string' || roomId.trim() === '') {
+            throw new HttpsError('invalid-argument', 'roomIdが必要です');
+        }
         // ルームの存在確認と参加権限のチェック
         const roomDoc = await db.collection('rooms').doc(roomId).get();
 
@@ -256,7 +349,15 @@ export const endRoom = onCall(async (request) => {
         }
 
         const roomData = roomDoc.data();
-        if (!roomData?.participants.includes(userId)) {
+        if (!roomData) {
+            throw new HttpsError('internal', 'ルームデータの取得に失敗しました');
+        }
+
+        const participants = Array.isArray(roomData.participants)
+            ? roomData.participants
+            : [];
+
+        if (!participants.includes(userId)) {
             throw new HttpsError(
                 'permission-denied',
                 'このルームへの権限がありません'

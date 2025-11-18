@@ -41,6 +41,25 @@ interface VRoidProfile {
   };
 }
 
+// VRoid プロフィールからユーザーIDを安全に抽出するユーティリティ
+function getVroidUserId(vroidProfile?: VRoidProfile): string | undefined {
+  if (!vroidProfile) return undefined;
+
+  const candidates: Array<string | undefined> = [
+    vroidProfile.actualUser?.id,
+    vroidProfile.userDetail?.user?.id,
+    vroidProfile.actualUser?.pixiv_user_id,
+    vroidProfile.userDetail?.user?.pixiv_user_id,
+    vroidProfile.id,
+  ];
+
+  for (const c of candidates) {
+    if (c && c !== 'unknown') return c;
+  }
+
+  return undefined;
+}
+
 export default function Dashboard() {
   const {
     user,
@@ -353,18 +372,8 @@ export default function Dashboard() {
                             VRoidユーザーID
                           </p>
                           <p className="text-sm text-gray-900">
-                            {(() => {
-                              const vroidProfile =
-                                nextAuthSession?.vroidProfile as VRoidProfile;
-                              const vroidId =
-                                vroidProfile?.actualUser?.id ||
-                                vroidProfile?.actualUser?.pixiv_user_id ||
-                                vroidProfile?.userDetail?.user?.id ||
-                                vroidProfile?.userDetail?.user?.pixiv_user_id ||
-                                vroidProfile?.id ||
-                                '取得中...';
-                              return vroidId;
-                            })()}
+                            {getVroidUserId(nextAuthSession?.vroidProfile) ??
+                              '取得中...'}
                           </p>
                         </div>
                         <div>
@@ -386,16 +395,9 @@ export default function Dashboard() {
                                   !nextAuthSession?.vroidProfile?.actualUser?.id
                                 }
                                 onClick={() => {
-                                  // 複数のパスからVRoidユーザーIDを取得を試行
                                   const vroidProfile =
                                     nextAuthSession?.vroidProfile as VRoidProfile;
-                                  const vroidId =
-                                    vroidProfile?.actualUser?.id ||
-                                    vroidProfile?.actualUser?.pixiv_user_id ||
-                                    vroidProfile?.userDetail?.user?.id ||
-                                    vroidProfile?.userDetail?.user
-                                      ?.pixiv_user_id ||
-                                    vroidProfile?.id;
+                                  const vroidId = getVroidUserId(vroidProfile);
 
                                   console.log('VRoid ID検索:', {
                                     actualUserId: vroidProfile?.actualUser?.id,
@@ -410,7 +412,7 @@ export default function Dashboard() {
                                     selectedId: vroidId,
                                   });
 
-                                  if (vroidId && vroidId !== 'unknown') {
+                                  if (vroidId) {
                                     const url = `https://hub.vroid.com/users/${vroidId}`;
                                     console.log('VRoidマイページを開く:', url);
                                     window.open(url, '_blank');

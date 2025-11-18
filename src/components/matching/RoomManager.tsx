@@ -6,36 +6,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebaseConfig';
 import { handleFirebaseFunctionError } from '@/lib/utils';
+import {
+  CreateRoomRequest,
+  CreateRoomResponse,
+  JoinRoomRequest,
+  JoinRoomResponse,
+} from '@/types/room';
 
 type TabType = 'create' | 'join';
-
-// Cloud Functions型定義（実際の返り値に合わせた定義）
-interface CreateRoomRequest {
-  name: string;
-  description?: string;
-  isPrivate?: boolean;
-}
-
-interface CreateRoomResponse {
-  roomId: string;
-  name: string;
-  description: string;
-  isPrivate: boolean;
-  createdBy: string;
-  participants: string[];
-  status: string;
-  createdAt: string | null;
-  livekitRoomId: string;
-}
-
-interface JoinRoomRequest {
-  roomId: string;
-}
-
-interface JoinRoomResponse {
-  roomId: string;
-  livekitRoomId: string;
-}
 
 export default function RoomManager() {
   const router = useRouter();

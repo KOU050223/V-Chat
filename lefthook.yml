@@ -22,7 +22,7 @@ pre-commit:
   commands:
     # Node.js/TypeScript checks
     eslint:
-      glob: "src/**/*.{js,ts,jsx,tsx}"
+      glob: "{src,app}/**/*.{js,ts,jsx,tsx}"
       run: npx eslint {staged_files} --fix
       stage_fixed: true
 
@@ -32,5 +32,5 @@ pre-commit:
       stage_fixed: true
 
     typescript:
-      glob: "src/**/*.{ts,tsx}"
+      glob: "{src,app}/**/*.{ts,tsx}"
       run: npx tsc --noEmit --skipLibCheck

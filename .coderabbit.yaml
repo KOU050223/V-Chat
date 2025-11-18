@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - ".*"  # すべてのブランチで有効
+
+  profile: assertive  # 詳細なレビュー
+
+  review_status: true

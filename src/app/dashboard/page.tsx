@@ -263,6 +263,27 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle>掲示板</CardTitle>
+                  <CardDescription>
+                    話題を共有して仲間を募集しましょう
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Link href="/bulletin">
+                      <Button className="w-full">掲示板を見る</Button>
+                    </Link>
+                    <Link href="/bulletin/create">
+                      <Button className="w-full" variant="outline">
+                        新規投稿を作成
+                      </Button>
+                    </Link>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* V体設定カード */}
               {isVRoidLinked && (
                 <Card>

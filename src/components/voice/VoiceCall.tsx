@@ -1,7 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Room, RoomEvent, RemoteParticipant } from 'livekit-client';
+import {
+  Room,
+  RoomEvent,
+  RemoteParticipant,
+  ConnectionState,
+} from 'livekit-client';
 import {
   Mic,
   MicOff,
@@ -14,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebaseConfig';
 import { handleFirebaseFunctionError } from '@/lib/utils';
+import type { VoiceCallState } from '@/types/voice';
 
 // setSinkIdメソッドを持つオーディオトラックの型定義
 interface AudioTrackWithSinkId {
@@ -24,8 +30,7 @@ interface VoiceCallProps {
   roomId: string;
   participantName: string;
   onLeave?: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  onStateChange?: (state: any) => void;
+  onStateChange?: (state: VoiceCallState) => void;
   serverMemberCount?: number; // サーバー側の参加者数
 }
 
@@ -675,8 +680,7 @@ export default function VoiceCall({
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleConnectionStateChanged = (state: any) => {
+  const handleConnectionStateChanged = (state: ConnectionState) => {
     if (state === 'connected') {
       connectionRef.current = true;
       setIsConnected(true);

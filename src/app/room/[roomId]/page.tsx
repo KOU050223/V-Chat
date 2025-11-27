@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ArrowLeft,
   Send,
@@ -12,20 +12,20 @@ import {
   Settings,
   MoreVertical,
   Monitor,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import VoiceCall from '@/components/voice/VoiceCall';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebaseConfig';
-import { handleFirebaseFunctionError } from '@/lib/utils';
-import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import VoiceCall from "@/components/voice/VoiceCall";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebaseConfig";
+import { handleFirebaseFunctionError } from "@/lib/utils";
+import { getFirestore, doc, getDoc, onSnapshot } from "firebase/firestore";
 import type {
   JoinRoomRequest,
   JoinRoomResponse,
   ChatMessage,
   RoomDisplayInfo,
-} from '@/types/room';
-import type { VoiceCallState } from '@/types/voice';
+} from "@/types/room";
+import type { VoiceCallState } from "@/types/voice";
 
 export default function ChatRoom() {
   const params = useParams();
@@ -35,7 +35,7 @@ export default function ChatRoom() {
 
   const [roomInfo, setRoomInfo] = useState<RoomDisplayInfo | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -59,9 +59,9 @@ export default function ChatRoom() {
 
       // 現在のルーム以外の古いデータを削除
       allKeys.forEach((key) => {
-        if (key.startsWith('room-') && !key.startsWith(`room-${roomId}-`)) {
+        if (key.startsWith("room-") && !key.startsWith(`room-${roomId}-`)) {
           sessionStorage.removeItem(key);
-          console.log('🧹 Cleaned up old session data:', key);
+          console.log("🧹 Cleaned up old session data:", key);
         }
       });
 
@@ -85,28 +85,28 @@ export default function ChatRoom() {
       );
 
       console.log(
-        '🔍 Checking join status - hasJoined:',
+        "🔍 Checking join status - hasJoined:",
         hasJoined,
-        'existingUserKeys:',
+        "existingUserKeys:",
         existingUserKeys.length
       );
 
       // 開発環境でのHMR対応：既に参加済みの場合は再参加をスキップ
       if (
-        process.env.NODE_ENV === 'development' &&
+        process.env.NODE_ENV === "development" &&
         (hasJoined || existingUserKeys.length > 0)
       ) {
         console.log(
-          '🔧 DEV MODE: HMR DETECTED - Skipping joinRoom() - already joined'
+          "🔧 DEV MODE: HMR DETECTED - Skipping joinRoom() - already joined"
         );
-        console.log('Session join status:', hasJoined);
-        console.log('Existing user keys:', existingUserKeys);
+        console.log("Session join status:", hasJoined);
+        console.log("Existing user keys:", existingUserKeys);
         return;
       }
 
       // 本番環境または初回参加の場合のみjoinRoomを実行
       if (!hasJoined && existingUserKeys.length === 0) {
-        console.log('🚀 EXECUTING: joinRoom()');
+        console.log("🚀 EXECUTING: joinRoom()");
         joinRoom();
         hasJoinedRef.current = true; //フラグを立てる
       }
@@ -117,9 +117,9 @@ export default function ChatRoom() {
   useEffect(() => {
     return () => {
       // 開発環境でのHMR時はleaveRoomをスキップ
-      if (process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === "development") {
         console.log(
-          '🔧 DEV MODE: HMR DETECTED - Skipping leaveRoom() on cleanup'
+          "🔧 DEV MODE: HMR DETECTED - Skipping leaveRoom() on cleanup"
         );
         return;
       }
@@ -135,7 +135,7 @@ export default function ChatRoom() {
   // 通常のleaveRoom()での退出処理に依存します
   useEffect(() => {
     const handleBeforeUnload = () => {
-      console.log('Page unloading, clearing session...');
+      console.log("Page unloading, clearing session...");
 
       // セッションストレージをクリア
       const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
@@ -145,11 +145,11 @@ export default function ChatRoom() {
     };
 
     // イベントリスナーを追加
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
       // クリーンアップ時にもイベントリスナーを削除
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [roomId]);
 
@@ -158,7 +158,7 @@ export default function ChatRoom() {
     if (!roomId) return;
 
     const db = getFirestore(app);
-    const roomRef = doc(db, 'rooms', roomId);
+    const roomRef = doc(db, "rooms", roomId);
 
     // リアルタイムリスナーをセットアップ
     const unsubscribe = onSnapshot(
@@ -167,39 +167,40 @@ export default function ChatRoom() {
         if (snapshot.exists()) {
           const data = snapshot.data();
 
-          console.log('🔄 Real-time Room Update:', {
-            roomId,
-            status: data.status,
-            participants: data.participants,
-            createdBy: data.createdBy,
-            livekitRoomId: data.livekitRoomId,
-            name: data.name,
-          });
+          // 開発環境でのみデバッグ情報を出力
+          if (process.env.NODE_ENV === "development") {
+            console.log("🔄 Real-time Room Update:", {
+              roomId,
+              status: data.status,
+              participantCount: data.participants?.length || 0,
+              name: data.name,
+            });
+          }
 
           setRoomInfo({
-            id: roomId,
-            name: data.name || '不明なルーム',
-            description: data.description || '',
+            roomId: roomId,
+            name: data.name || "不明なルーム",
+            description: data.description || "",
             isPrivate: data.isPrivate || false,
             members: data.participants?.length || 0,
           });
         } else {
-          console.warn('Room not found in Firestore:', roomId);
+          console.warn("Room not found in Firestore:", roomId);
           setRoomInfo({
-            id: roomId,
-            name: '不明なルーム',
-            description: 'ルーム情報を取得できませんでした',
+            roomId: roomId,
+            name: "不明なルーム",
+            description: "ルーム情報を取得できませんでした",
             isPrivate: false,
             members: 0,
           });
         }
       },
       (error) => {
-        console.error('Failed to listen to room updates:', error);
+        console.error("Failed to listen to room updates:", error);
         setRoomInfo({
-          id: roomId,
-          name: '不明なルーム',
-          description: 'ルーム情報を取得できませんでした',
+          roomId: roomId,
+          name: "不明なルーム",
+          description: "ルーム情報を取得できませんでした",
           isPrivate: false,
           members: 0,
         });
@@ -220,7 +221,7 @@ export default function ChatRoom() {
       // デバウンス：短時間での重複実行を防ぐ
       const now = Date.now();
       if (joinAttemptRef.current || now - lastJoinTimeRef.current < 2000) {
-        console.log('🔧 JOIN DEBOUNCED - Skipping duplicate join attempt');
+        console.log("🔧 JOIN DEBOUNCED - Skipping duplicate join attempt");
         return;
       }
 
@@ -232,46 +233,57 @@ export default function ChatRoom() {
 
       // 既に参加済みの場合はスキップ
       if (hasJoined) {
-        console.log('⚠️ Already joined this room');
+        console.log("⚠️ Already joined this room");
         joinAttemptRef.current = false;
         return;
       }
 
       // ルーム情報を取得して、ルーム作成者かチェック
       const db = getFirestore(app);
-      const roomRef = doc(db, 'rooms', roomId);
+      const roomRef = doc(db, "rooms", roomId);
       const roomSnap = await getDoc(roomRef);
 
       if (roomSnap.exists()) {
         const roomData = roomSnap.data();
         const currentUserId = user?.uid || nextAuthSession?.user?.id;
 
+        // currentUserIdが未定義の場合は早期リターン
+        // Note: roomJoinKeyは削除せず、ログイン後の再参加を可能にする
+        if (!currentUserId) {
+          console.warn("⚠️ currentUserId is undefined - cannot join room");
+          console.warn("💡 Please sign in to join the room");
+          joinAttemptRef.current = false;
+          // TODO: ミドルウェアレベルでの認証チェックを実装し、
+          // 未認証ユーザーをログインページにリダイレクトすることを検討
+          return;
+        }
+
         // ルーム作成者の場合は、既にparticipantsに含まれているためjoinRoomをスキップ
         if (roomData.createdBy === currentUserId) {
           console.log(
-            '👑 Room creator - skipping joinRoom, already in participants'
+            "👑 Room creator - skipping joinRoom, already in participants"
           );
-          sessionStorage.setItem(roomJoinKey, 'true');
+          sessionStorage.setItem(roomJoinKey, "true");
           joinAttemptRef.current = false;
           return;
         }
 
         // 既にparticipantsに含まれている場合もスキップ
         if (roomData.participants?.includes(currentUserId)) {
-          console.log('✅ Already in participants - skipping joinRoom');
-          sessionStorage.setItem(roomJoinKey, 'true');
+          console.log("✅ Already in participants - skipping joinRoom");
+          sessionStorage.setItem(roomJoinKey, "true");
           joinAttemptRef.current = false;
           return;
         }
       }
 
-      console.log('Joining room via Cloud Functions:', roomId);
+      console.log("Joining room via Cloud Functions:", roomId);
 
       // Firebase Cloud Functionsでルームに参加
-      const functions = getFunctions(app, 'us-central1');
+      const functions = getFunctions(app, "us-central1");
       const joinRoomFunction = httpsCallable<JoinRoomRequest, JoinRoomResponse>(
         functions,
-        'joinRoom'
+        "joinRoom"
       );
 
       const result = await joinRoomFunction({
@@ -279,17 +291,17 @@ export default function ChatRoom() {
       });
 
       const data = result.data;
-      console.log('Successfully joined room:', data);
+      console.log("Successfully joined room:", data);
 
       // セッション情報を保存
-      sessionStorage.setItem(roomJoinKey, 'true');
+      sessionStorage.setItem(roomJoinKey, "true");
     } catch (error) {
       const message = handleFirebaseFunctionError(
-        'ルーム参加エラー',
+        "ルーム参加エラー",
         error,
-        'ルームへの参加に失敗しました'
+        "ルームへの参加に失敗しました"
       );
-      console.error('Error joining room:', message);
+      console.error("Error joining room:", message);
     } finally {
       // デバウンスフラグをリセット
       joinAttemptRef.current = false;
@@ -300,17 +312,17 @@ export default function ChatRoom() {
     try {
       const dummyMessages: ChatMessage[] = [
         {
-          id: '1',
-          userId: 'system',
-          userName: 'システム',
-          content: 'ルームに参加しました。音声通話を開始できます。',
+          id: "1",
+          userId: "system",
+          userName: "システム",
+          content: "ルームに参加しました。音声通話を開始できます。",
           timestamp: new Date(Date.now() - 60000),
         },
       ];
       setMessages(dummyMessages);
       setIsLoading(false);
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
+      console.error("Failed to fetch messages:", error);
       setIsLoading(false);
     }
   };
@@ -321,32 +333,32 @@ export default function ChatRoom() {
 
     const message: ChatMessage = {
       id: Date.now().toString(),
-      userId: 'currentUser',
-      userName: 'あなた',
+      userId: "currentUser",
+      userName: "あなた",
       content: newMessage,
       timestamp: new Date(),
     };
 
     setMessages((prev) => [...prev, message]);
-    setNewMessage('');
+    setNewMessage("");
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('ja-JP', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleTimeString("ja-JP", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const handleVoiceCallStateChange = (state: VoiceCallState) => {
-    console.log('=== VOICE CALL STATE CHANGE DEBUG ===');
-    console.log('State:', state);
-    console.log('State participants:', state.participants);
+    console.log("=== VOICE CALL STATE CHANGE DEBUG ===");
+    console.log("State:", state);
+    console.log("State participants:", state.participants);
     console.log(
-      'State participants count:',
+      "State participants count:",
       state.participants ? state.participants.length : 0
     );
-    console.log('Current roomInfo:', roomInfo);
+    console.log("Current roomInfo:", roomInfo);
 
     setVoiceCallState(state);
 
@@ -357,11 +369,11 @@ export default function ChatRoom() {
         (state.participants ? state.participants.length + 1 : 1);
       const newMemberCount = Math.max(rawMemberCount, 1); // 最低1人
       console.log(
-        'Updating room members to:',
+        "Updating room members to:",
         newMemberCount,
-        '(raw:',
+        "(raw:",
         rawMemberCount,
-        ')'
+        ")"
       );
 
       setRoomInfo((prev: RoomDisplayInfo | null) =>
@@ -378,9 +390,9 @@ export default function ChatRoom() {
   const handleMicTest = () => {
     // 新しいウィンドウでマイクテストページを開く
     window.open(
-      '/mic-test',
-      '_blank',
-      'width=500,height=700,scrollbars=no,resizable=yes'
+      "/mic-test",
+      "_blank",
+      "width=500,height=700,scrollbars=no,resizable=yes"
     );
     setShowSettings(false);
   };
@@ -395,7 +407,7 @@ export default function ChatRoom() {
 
   const handleCopyRoomId = () => {
     navigator.clipboard.writeText(roomId);
-    alert('ルームIDをコピーしました');
+    alert("ルームIDをコピーしました");
   };
 
   const handleResetRoom = async () => {
@@ -403,13 +415,13 @@ export default function ChatRoom() {
 
     try {
       const response = await fetch(`/api/rooms/${roomId}/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
       });
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Room reset successfully:', data);
+        console.log("Room reset successfully:", data);
         setRoomInfo(data.room);
 
         // セッションストレージもクリア
@@ -419,15 +431,15 @@ export default function ChatRoom() {
           }
         });
 
-        alert('ルームがリセットされました');
+        alert("ルームがリセットされました");
         window.location.reload(); // ページをリロードして状態をクリア
       } else {
-        console.error('Failed to reset room');
-        alert('ルームのリセットに失敗しました');
+        console.error("Failed to reset room");
+        alert("ルームのリセットに失敗しました");
       }
     } catch (error) {
-      console.error('Error resetting room:', error);
-      alert('ルームのリセットに失敗しました');
+      console.error("Error resetting room:", error);
+      alert("ルームのリセットに失敗しました");
     }
   };
 
@@ -441,34 +453,34 @@ export default function ChatRoom() {
       // 参加済みの場合のみ退出処理を実行
       const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
       if (!hasJoined) {
-        console.log('Not joined this room');
+        console.log("Not joined this room");
         return;
       }
 
-      console.log('Leaving room via Cloud Functions:', roomId);
+      console.log("Leaving room via Cloud Functions:", roomId);
 
       // Firebase Cloud Functionsでルームを終了
-      const functions = getFunctions(app, 'us-central1');
+      const functions = getFunctions(app, "us-central1");
       const endRoomFunction = httpsCallable<
         { roomId: string },
         { success: boolean }
-      >(functions, 'endRoom');
+      >(functions, "endRoom");
 
       await endRoomFunction({
         roomId: roomId,
       });
 
-      console.log('Successfully left room');
+      console.log("Successfully left room");
 
       // セッション情報をクリア
       sessionStorage.removeItem(`room-${roomId}-joined`);
     } catch (error) {
       const message = handleFirebaseFunctionError(
-        'ルーム退出エラー',
+        "ルーム退出エラー",
         error,
-        'ルームからの退出に失敗しました'
+        "ルームからの退出に失敗しました"
       );
-      console.error('Error leaving room:', message);
+      console.error("Error leaving room:", message);
     }
   };
 
@@ -478,14 +490,14 @@ export default function ChatRoom() {
     try {
       // 退出処理が完了するまで待つ
       await leaveRoom();
-      console.log('Exit process completed, navigating to dashboard');
+      console.log("Exit process completed, navigating to dashboard");
 
       // 退出処理完了後にダッシュボードに移動
-      router.push('/dashboard');
+      router.push("/dashboard");
     } catch (error) {
-      console.error('Error during exit process:', error);
+      console.error("Error during exit process:", error);
       // エラーが発生してもダッシュボードに移動
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   };
 
@@ -494,20 +506,20 @@ export default function ChatRoom() {
   };
 
   const handleVoiceCallLeave = async () => {
-    console.log('Voice call leave requested');
+    console.log("Voice call leave requested");
     try {
       // 退出処理が完了するまで待つ
       await leaveRoom();
       console.log(
-        'Voice call leave process completed, navigating to dashboard'
+        "Voice call leave process completed, navigating to dashboard"
       );
 
       // 退出処理完了後にダッシュボードに移動
-      router.push('/dashboard');
+      router.push("/dashboard");
     } catch (error) {
-      console.error('Error during voice call leave process:', error);
+      console.error("Error during voice call leave process:", error);
       // エラーが発生してもダッシュボードに移動
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   };
 
@@ -549,7 +561,7 @@ export default function ChatRoom() {
             </div>
             <Button
               onClick={() => setShowChat(!showChat)}
-              variant={showChat ? 'default' : 'outline'}
+              variant={showChat ? "default" : "outline"}
               size="sm"
               className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
             >
@@ -635,27 +647,27 @@ export default function ChatRoom() {
       {/* メインコンテンツ */}
       <div className="flex-1 flex">
         {/* 音声通話メインエリア */}
-        <div className={`flex-1 flex flex-col ${showChat ? 'mr-80' : ''}`}>
+        <div className={`flex-1 flex flex-col ${showChat ? "mr-80" : ""}`}>
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center">
               <div
                 className={`w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6 ${
                   voiceCallState.isConnected
-                    ? 'bg-gradient-to-br from-blue-500 to-purple-600'
-                    : 'bg-gray-700'
+                    ? "bg-gradient-to-br from-blue-500 to-purple-600"
+                    : "bg-gray-700"
                 }`}
               >
                 <Mic
-                  className={`w-16 h-16 ${voiceCallState.isConnected ? 'text-white' : 'text-gray-400'}`}
+                  className={`w-16 h-16 ${voiceCallState.isConnected ? "text-white" : "text-gray-400"}`}
                 />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">
-                {voiceCallState.isConnected ? '音声通話中' : '接続中...'}
+                {voiceCallState.isConnected ? "音声通話中" : "接続中..."}
               </h2>
               <p className="text-gray-400 mb-6">
                 {voiceCallState.isConnected
-                  ? 'マイクをクリックしてミュート/ミュート解除'
-                  : 'LiveKitサーバーに接続しています...'}
+                  ? "マイクをクリックしてミュート/ミュート解除"
+                  : "LiveKitサーバーに接続しています..."}
               </p>
 
               {/* 接続状態表示 */}
@@ -731,13 +743,13 @@ export default function ChatRoom() {
         roomId={roomId}
         participantName={(() => {
           // 安定したparticipantNameを取得
-          const stableUserIdKey = `stable-user-id-${user?.uid || nextAuthSession?.user?.id || 'anonymous'}`;
+          const stableUserIdKey = `stable-user-id-${user?.uid || nextAuthSession?.user?.id || "anonymous"}`;
           let stableUserId = sessionStorage.getItem(stableUserIdKey);
           if (!stableUserId) {
-            stableUserId = `${user?.uid || nextAuthSession?.user?.id || 'anonymous'}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            stableUserId = `${user?.uid || nextAuthSession?.user?.id || "anonymous"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             sessionStorage.setItem(stableUserIdKey, stableUserId);
           }
-          return `${user?.displayName || nextAuthSession?.user?.name || 'ゲスト'}-${stableUserId.split('-').slice(-2).join('-')}`;
+          return `${user?.displayName || nextAuthSession?.user?.name || "ゲスト"}-${stableUserId.split("-").slice(-2).join("-")}`;
         })()}
         onLeave={handleVoiceCallLeave}
         onStateChange={handleVoiceCallStateChange}

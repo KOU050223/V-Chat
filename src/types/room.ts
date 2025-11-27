@@ -5,7 +5,7 @@
 /**
  * ルームのステータス
  */
-export type RoomStatus = 'waiting' | 'active' | 'ended';
+export type RoomStatus = "waiting" | "active" | "ended";
 
 /**
  * Firestore Timestampの型定義
@@ -47,7 +47,7 @@ export interface Room {
 /**
  * FirestoreのルームドキュメントType
  */
-export interface RoomDoc extends Omit<Room, 'createdAt' | 'endedAt'> {
+export interface RoomDoc extends Omit<Room, "createdAt" | "endedAt"> {
   createdAt: FirestoreTimestamp;
   endedAt: FirestoreTimestamp | null;
 }
@@ -108,7 +108,7 @@ export interface ChatMessage {
  */
 export interface RoomDisplayInfo {
   /** ルームID */
-  id: string;
+  roomId: string;
   /** ルーム名 */
   name: string;
   /** ルームの説明 */

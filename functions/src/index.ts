@@ -3,11 +3,12 @@
  * マッチング機能とLiveKit統合
  */
 
-import {setGlobalOptions} from "firebase-functions/v2";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import { setGlobalOptions } from "firebase-functions/v2";
+import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import {AccessToken} from "livekit-server-sdk";
+import { AccessToken } from "livekit-server-sdk";
 import * as logger from "firebase-functions/logger";
+import * as crypto from "crypto";
 
 // Firebase Admin SDKの初期化
 admin.initializeApp();
@@ -15,7 +16,7 @@ admin.initializeApp();
 const db = admin.firestore();
 
 // グローバル設定: コスト管理のため最大インスタンス数を制限
-setGlobalOptions({region: "us-central1", maxInstances: 10});
+setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 
 /**
  * ルーム作成
@@ -30,26 +31,29 @@ export const createRoom = onCall(async (request) => {
   try {
     // request.dataのバリデーション
     if (!request.data || typeof request.data !== "object") {
-      throw new HttpsError(
-        "invalid-argument",
-        "無効なリクエストデータです",
-      );
+      throw new HttpsError("invalid-argument", "無効なリクエストデータです");
     }
 
-    const {name, description, isPrivate} = request.data as {
-            name?: unknown;
-            description?: unknown;
-            isPrivate?: unknown;
-        };
+    const { name, description, isPrivate } = request.data as {
+      name?: unknown;
+      description?: unknown;
+      isPrivate?: unknown;
+    };
     const userId = request.auth.uid;
 
     // バリデーション
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       throw new HttpsError("invalid-argument", "ルーム名が必要です");
     }
-    // 短いルームIDを生成（6文字の英数字）
+    // 短いルームIDを生成（8文字の英数字）
+    // 暗号学的に安全なランダムバイトを使用
+    // エントロピー: 36^8 ≈ 2^41 (約2.8兆通り) → コリジョン確率を大幅に削減
     const generateShortId = () => {
-      return Math.random().toString(36).substring(2, 8).toUpperCase();
+      // 6バイトのランダムデータを生成（エントロピー向上）
+      const randomBytes = crypto.randomBytes(6);
+      // バイト列を整数に変換してbase36変換、最初の8文字を取得
+      const randomValue = randomBytes.readUIntBE(0, 6);
+      return randomValue.toString(36).substring(0, 8).toUpperCase();
     };
 
     let attempts = 0;
@@ -66,8 +70,7 @@ export const createRoom = onCall(async (request) => {
       const roomDataToSave = {
         roomId,
         name: name.trim(),
-        description:
-                    typeof description === "string" ? description.trim() : "",
+        description: typeof description === "string" ? description.trim() : "",
         isPrivate: isPrivate || false,
         createdBy: userId,
         participants: [userId],
@@ -92,9 +95,7 @@ export const createRoom = onCall(async (request) => {
           attempts++;
           if (attempts < maxAttempts) {
             // 指数バックオフでリトライ
-            await new Promise((resolve) =>
-              setTimeout(resolve, 100 * attempts),
-            );
+            await new Promise((resolve) => setTimeout(resolve, 100 * attempts));
           }
         } else {
           // その他のエラーは再スロー
@@ -121,8 +122,7 @@ export const createRoom = onCall(async (request) => {
     return {
       roomId,
       name: name.trim(),
-      description:
-                typeof description === "string" ? description.trim() : "",
+      description: typeof description === "string" ? description.trim() : "",
       isPrivate: isPrivate || false,
       createdBy: userId,
       participants: [userId],
@@ -152,13 +152,10 @@ export const joinRoom = onCall(async (request) => {
   try {
     // request.dataのバリデーション
     if (!request.data || typeof request.data !== "object") {
-      throw new HttpsError(
-        "invalid-argument",
-        "無効なリクエストデータです",
-      );
+      throw new HttpsError("invalid-argument", "無効なリクエストデータです");
     }
 
-    const {roomId} = request.data as { roomId?: unknown };
+    const { roomId } = request.data as { roomId?: unknown };
     const userId = request.auth.uid;
 
     // roomIdのバリデーション
@@ -167,7 +164,7 @@ export const joinRoom = onCall(async (request) => {
     }
     // Transactionを使用してアトミックに参加処理を実行
     const roomRef = db.collection("rooms").doc(roomId);
-    let livekitRoomIdResult: string;
+    let livekitRoomIdResult: string | undefined;
 
     await db.runTransaction(async (tx) => {
       const roomDoc = await tx.get(roomRef);
@@ -184,8 +181,7 @@ export const joinRoom = onCall(async (request) => {
         userId,
         status: roomData?.status,
         statusType: typeof roomData?.status,
-        participants: roomData?.participants,
-        rawData: roomData,
+        participantCount: roomData?.participants?.length || 0,
       });
 
       if (roomData?.status !== "active") {
@@ -197,33 +193,37 @@ export const joinRoom = onCall(async (request) => {
         });
         throw new HttpsError(
           "failed-precondition",
-          "このルームは利用できません",
+          "このルームは利用できません"
         );
       }
 
-      const currentParticipants = (roomData?.participants ||
-                []) as string[];
+      const currentParticipants = (roomData?.participants || []) as string[];
 
       // 既に参加している場合はスキップ
       if (!currentParticipants.includes(userId)) {
         // 参加者数のチェック（2人まで）
         if (currentParticipants.length >= 2) {
-          throw new HttpsError(
-            "resource-exhausted",
-            "ルームが満員です",
-          );
+          throw new HttpsError("resource-exhausted", "ルームが満員です");
         }
 
         // 参加者リストに追加
         tx.update(roomRef, {
-          participants:
-                        admin.firestore.FieldValue.arrayUnion(userId),
+          participants: admin.firestore.FieldValue.arrayUnion(userId),
         });
       }
 
       // livekitRoomIdを保存
       livekitRoomIdResult = roomData.livekitRoomId;
     });
+
+    // livekitRoomIdの存在確認
+    if (!livekitRoomIdResult) {
+      logger.error("livekitRoomId not found in room data", {
+        roomId,
+        userId,
+      });
+      throw new HttpsError("internal", "LiveKitルームIDが見つかりません");
+    }
 
     logger.info({
       message: "User joined room",
@@ -233,7 +233,7 @@ export const joinRoom = onCall(async (request) => {
 
     return {
       roomId,
-      livekitRoomId: livekitRoomIdResult!,
+      livekitRoomId: livekitRoomIdResult!, // 232-239行目で存在確認済み
     };
   } catch (error) {
     logger.error("Error joining room:", error);
@@ -257,13 +257,10 @@ export const generateLivekitToken = onCall(async (request) => {
   try {
     // request.dataのバリデーション
     if (!request.data || typeof request.data !== "object") {
-      throw new HttpsError(
-        "invalid-argument",
-        "無効なリクエストデータです",
-      );
+      throw new HttpsError("invalid-argument", "無効なリクエストデータです");
     }
 
-    const {roomId} = request.data as { roomId?: unknown };
+    const { roomId } = request.data as { roomId?: unknown };
     const userId = request.auth.uid;
 
     // roomIdのバリデーション
@@ -291,9 +288,9 @@ export const generateLivekitToken = onCall(async (request) => {
       livekitRoomId: roomData.livekitRoomId,
     });
 
-    const participants = Array.isArray(roomData.participants) ?
-      roomData.participants :
-      [];
+    const participants = Array.isArray(roomData.participants)
+      ? roomData.participants
+      : [];
 
     if (!participants.includes(userId)) {
       logger.warn("generateLivekitToken - Permission denied:", {
@@ -303,7 +300,7 @@ export const generateLivekitToken = onCall(async (request) => {
       });
       throw new HttpsError(
         "permission-denied",
-        "このルームへの参加権限がありません",
+        "このルームへの参加権限がありません"
       );
     }
 
@@ -314,10 +311,7 @@ export const generateLivekitToken = onCall(async (request) => {
     const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
 
     if (!livekitApiKey || !livekitApiSecret) {
-      throw new HttpsError(
-        "failed-precondition",
-        "LiveKitの設定が不完全です",
-      );
+      throw new HttpsError("failed-precondition", "LiveKitの設定が不完全です");
     }
 
     // トークンの有効期限を1時間に設定
@@ -364,13 +358,10 @@ export const endRoom = onCall(async (request) => {
   try {
     // request.dataのバリデーション
     if (!request.data || typeof request.data !== "object") {
-      throw new HttpsError(
-        "invalid-argument",
-        "無効なリクエストデータです",
-      );
+      throw new HttpsError("invalid-argument", "無効なリクエストデータです");
     }
 
-    const {roomId} = request.data as { roomId?: unknown };
+    const { roomId } = request.data as { roomId?: unknown };
     const userId = request.auth.uid;
 
     // roomIdのバリデーション
@@ -389,14 +380,14 @@ export const endRoom = onCall(async (request) => {
       throw new HttpsError("internal", "ルームデータの取得に失敗しました");
     }
 
-    const participants = Array.isArray(roomData.participants) ?
-      roomData.participants :
-      [];
+    const participants = Array.isArray(roomData.participants)
+      ? roomData.participants
+      : [];
 
     if (!participants.includes(userId)) {
       throw new HttpsError(
         "permission-denied",
-        "このルームへの権限がありません",
+        "このルームへの権限がありません"
       );
     }
 
@@ -406,7 +397,7 @@ export const endRoom = onCall(async (request) => {
       endedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    return {success: true};
+    return { success: true };
   } catch (error) {
     logger.error("Error ending room:", error);
     if (error instanceof HttpsError) {

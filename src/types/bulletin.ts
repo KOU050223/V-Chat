@@ -82,7 +82,7 @@ export interface PostFilter {
 }
 
 // API レスポンスの型
-export interface BulletinApiResponse<T = any> {
+export interface BulletinApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

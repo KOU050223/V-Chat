@@ -152,8 +152,8 @@ export async function POST(request: NextRequest) {
     const userName = body.userName || 'ゲストユーザー';
     const userPhoto = body.userPhoto;
 
-    // Firestoreに保存するデータ（undefinedフィールドを除外）
-    const postData: any = {
+    // Firestoreに保存するデータ
+    const postData: Record<string, unknown> = {
       title: body.title.trim(),
       content: body.content.trim(),
       category: body.category,
@@ -180,9 +180,19 @@ export async function POST(request: NextRequest) {
 
     const createdPost: BulletinPost = {
       id: docRef.id,
-      ...postData,
-      createdAt: postData.createdAt.toDate(),
-      updatedAt: postData.updatedAt.toDate(),
+      title: postData.title as string,
+      content: postData.content as string,
+      category: postData.category as any,
+      maxParticipants: postData.maxParticipants as number,
+      currentParticipants: postData.currentParticipants as number,
+      authorId: postData.authorId as string,
+      authorName: postData.authorName as string,
+      authorPhoto: postData.authorPhoto as string | undefined,
+      likes: postData.likes as string[],
+      tags: postData.tags as string[],
+      roomId: postData.roomId as string | undefined,
+      createdAt: (postData.createdAt as any).toDate(),
+      updatedAt: (postData.updatedAt as any).toDate(),
     };
 
     const response: BulletinApiResponse<BulletinPost> = {
@@ -192,12 +202,16 @@ export async function POST(request: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('投稿作成エラー:', error);
-    console.error('エラー詳細:', error.message, error.stack);
+    console.error(
+      'エラー詳細:',
+      error instanceof Error ? error.message : String(error)
+    );
     const response: BulletinApiResponse = {
       success: false,
-      error: error.message || '投稿の作成に失敗しました',
+      error:
+        error instanceof Error ? error.message : '投稿の作成に失敗しました',
     };
     return NextResponse.json(response, { status: 500 });
   }

@@ -24,9 +24,8 @@ const optionalEnvVars = {
 // 必須の環境変数をチェック（SSR時はスキップ）
 if (typeof window !== 'undefined') {
   const missingVars = Object.entries(requiredEnvVars)
-    .filter(([_, value]) => !value)
+    .filter(([, value]) => !value)
     .map(([key]) => key);
-
   if (missingVars.length > 0) {
     console.error('Missing Firebase environment variables:', missingVars);
     throw new Error(

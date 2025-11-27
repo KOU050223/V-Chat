@@ -20,6 +20,7 @@ export default defineConfig([
         rules: {
             "prefer-const": "error",
             "no-var": "error",
+            "@typescript-eslint/no-explicit-any": "warn",
         },
     },
 ]);

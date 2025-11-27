@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,7 @@ function PostDetailContent({ postId }: { postId: string }) {
   );
 
   // 投稿取得
-  const fetchPost = async () => {
+  const fetchPost = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -78,10 +78,10 @@ function PostDetailContent({ postId }: { postId: string }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [postId]);
 
   // 返信取得
-  const fetchReplies = async () => {
+  const fetchReplies = useCallback(async () => {
     try {
       console.log('返信を取得します。postId:', postId);
       const response = await fetch(`/api/bulletin/${postId}/replies`);
@@ -92,11 +92,13 @@ function PostDetailContent({ postId }: { postId: string }) {
 
       if (data.success) {
         console.log('返信データ:', data.data);
-        const repliesWithDates = data.data.map((reply: any) => ({
-          ...reply,
-          createdAt: new Date(reply.createdAt),
-          updatedAt: new Date(reply.updatedAt),
-        }));
+        const repliesWithDates = data.data.map(
+          (reply: Record<string, unknown>) => ({
+            ...reply,
+            createdAt: new Date(reply.createdAt as string),
+            updatedAt: new Date(reply.updatedAt as string),
+          })
+        );
         console.log('日付変換後の返信データ:', repliesWithDates);
         setReplies(repliesWithDates);
       } else {
@@ -105,7 +107,7 @@ function PostDetailContent({ postId }: { postId: string }) {
     } catch (err) {
       console.error(handleError('返信取得エラー', err));
     }
-  };
+  }, [postId]);
 
   // いいね処理
   const handleLike = async () => {
@@ -134,8 +136,8 @@ function PostDetailContent({ postId }: { postId: string }) {
             }
           : null
       );
-    } catch (err) {
-      console.error(handleError('いいねエラー', err));
+    } catch {
+      console.error('いいね処理に失敗しました');
     }
   };
 
@@ -216,7 +218,7 @@ function PostDetailContent({ postId }: { postId: string }) {
           text: post?.content,
           url,
         });
-      } catch (err) {
+      } catch {
         console.log('シェアがキャンセルされました');
       }
     } else {
@@ -229,7 +231,7 @@ function PostDetailContent({ postId }: { postId: string }) {
   useEffect(() => {
     fetchPost();
     fetchReplies();
-  }, [postId]);
+  }, [postId, fetchPost, fetchReplies]);
 
   const formatDate = (date: Date) => {
     return new Date(date).toLocaleString('ja-JP', {

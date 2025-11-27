@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { bulletinStore } from '@/lib/bulletinStore';
-import { BulletinApiResponse } from '@/types/bulletin';
+import { BulletinApiResponse, BulletinPost } from '@/types/bulletin';
 
 interface RouteContext {
   params: Promise<{
@@ -15,7 +15,7 @@ interface RouteContext {
 
 interface CreateRoomResponse {
   roomId: string;
-  post: any;
+  post: BulletinPost;
 }
 
 // POST: ルーム作成
@@ -63,6 +63,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     // 投稿にルームIDを設定
     const updatedPost = bulletinStore.setPostRoom(postId, roomId);
+
+    if (!updatedPost) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: '投稿が見つかりません',
+      };
+      return NextResponse.json(response, { status: 404 });
+    }
 
     const response: BulletinApiResponse<CreateRoomResponse> = {
       success: true,

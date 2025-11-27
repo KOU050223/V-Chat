@@ -16,7 +16,7 @@ interface ReplyFormProps {
   className?: string;
 }
 
-export function ReplyForm({ postId, onSubmit, className }: ReplyFormProps) {
+export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
   const { user } = useAuth();
   const [content, setContent] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -12,7 +12,6 @@ import {
   getDocs,
   query,
   where,
-  orderBy,
   doc,
   getDoc,
   Timestamp,
@@ -97,13 +96,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.log('レスポンスを返します');
 
     return NextResponse.json(response);
-  } catch (error: any) {
+  } catch (error) {
     console.error('返信一覧取得エラー:', error);
 
     // コレクションが存在しない場合は空の配列を返す
+    const errorObj = error as any;
     if (
-      error.code === 'failed-precondition' ||
-      error.message?.includes('index')
+      errorObj?.code === 'failed-precondition' ||
+      errorObj?.message?.includes('index')
     ) {
       const response: BulletinApiResponse<BulletinReply[]> = {
         success: true,
@@ -164,8 +164,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const userName = body.userName || 'ゲストユーザー';
     const userPhoto = body.userPhoto;
 
-    // Firestoreに保存するデータ（undefinedフィールドを除外）
-    const replyData: any = {
+    // Firestoreに保存するデータ
+    const replyData: Record<string, unknown> = {
       postId,
       content: body.content.trim(),
       authorId: userId,
@@ -185,9 +185,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const createdReply: BulletinReply = {
       id: docRef.id,
-      ...replyData,
-      createdAt: replyData.createdAt.toDate(),
-      updatedAt: replyData.updatedAt.toDate(),
+      postId: replyData.postId as string,
+      content: replyData.content as string,
+      authorId: replyData.authorId as string,
+      authorName: replyData.authorName as string,
+      authorPhoto: replyData.authorPhoto as string | undefined,
+      createdAt: (replyData.createdAt as any).toDate(),
+      updatedAt: (replyData.updatedAt as any).toDate(),
     };
 
     const response: BulletinApiResponse<BulletinReply> = {
@@ -197,9 +201,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
     };
 
     return NextResponse.json(response, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('返信作成エラー:', error);
-    console.error('エラー詳細:', error.message, error.stack);
+    const errorMessage = error instanceof Error ? error.message : '';
+    console.error('エラー詳細:', errorMessage);
     const response: BulletinApiResponse = {
       success: false,
       error: '返信の投稿に失敗しました',

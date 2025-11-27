@@ -4,7 +4,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { PostCard } from '@/components/bulletin/PostCard';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ export default function BulletinPage() {
   const [showFilters, setShowFilters] = useState(false);
 
   // 投稿取得
-  const fetchPosts = async () => {
+  const fetchPosts = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -52,10 +52,10 @@ export default function BulletinPage() {
       }
 
       // Date型に変換
-      const postsWithDates = data.data.map((post: any) => ({
+      const postsWithDates = data.data.map((post: Record<string, unknown>) => ({
         ...post,
-        createdAt: new Date(post.createdAt),
-        updatedAt: new Date(post.updatedAt),
+        createdAt: new Date(post.createdAt as string),
+        updatedAt: new Date(post.updatedAt as string),
       }));
 
       setPosts(postsWithDates);
@@ -64,7 +64,7 @@ export default function BulletinPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery, sortOrder]);
 
   // いいね処理
   const handleLike = async (postId: string) => {
@@ -104,7 +104,7 @@ export default function BulletinPage() {
   // 初回読み込み
   useEffect(() => {
     fetchPosts();
-  }, []);
+  }, [fetchPosts]);
 
   // フィルター変更時に再読み込み
   useEffect(() => {
@@ -113,7 +113,7 @@ export default function BulletinPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, sortOrder]);
+  }, [searchQuery, sortOrder, fetchPosts]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">

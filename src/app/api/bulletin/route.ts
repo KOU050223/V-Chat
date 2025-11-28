@@ -5,16 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebaseConfig';
-import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  orderBy,
-  where,
-  Timestamp,
-} from 'firebase/firestore';
+import { getAdminFirestore } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import {
   BulletinApiResponse,
   BulletinPost,
@@ -26,38 +18,36 @@ import {
 // GET: 投稿一覧取得
 export async function GET(request: NextRequest) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
+    const db = getAdminFirestore();
 
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category') as PostCategory | null;
     const search = searchParams.get('search');
     const sortOrder = (searchParams.get('sortOrder') as SortOrder) || 'newest';
 
-    const postsRef = collection(db, 'bulletin_posts');
-    let q = query(postsRef);
+    const postsRef = db.collection('bulletin_posts');
+    let q: FirebaseFirestore.Query = postsRef;
 
     // カテゴリフィルター
     if (category) {
-      q = query(postsRef, where('category', '==', category));
+      q = postsRef.where('category', '==', category);
     }
 
     // ソート（Firestoreクエリで実行）
     switch (sortOrder) {
       case 'popular':
-        q = query(q, orderBy('likesCount', 'desc'));
+        q = q.orderBy('likesCount', 'desc');
         break;
       case 'participants':
-        q = query(q, orderBy('currentParticipants', 'asc'));
+        q = q.orderBy('currentParticipants', 'asc');
         break;
       case 'newest':
       default:
-        q = query(q, orderBy('createdAt', 'desc'));
+        q = q.orderBy('createdAt', 'desc');
         break;
     }
 
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     let posts: BulletinPost[] = querySnapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -108,9 +98,7 @@ export async function GET(request: NextRequest) {
 // POST: 投稿作成
 export async function POST(request: NextRequest) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
+    const db = getAdminFirestore();
 
     const body: CreatePostRequest = await request.json();
 
@@ -175,14 +163,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Firestoreに保存
-    const docRef = await addDoc(collection(db, 'bulletin_posts'), postData);
+    const docRef = await db.collection('bulletin_posts').add(postData);
     console.log('投稿をFirestoreに保存しました:', docRef.id);
 
     const createdPost: BulletinPost = {
       id: docRef.id,
       title: postData.title as string,
       content: postData.content as string,
-      category: postData.category as any,
+      category: postData.category as PostCategory,
       maxParticipants: postData.maxParticipants as number,
       currentParticipants: postData.currentParticipants as number,
       authorId: postData.authorId as string,
@@ -191,8 +179,14 @@ export async function POST(request: NextRequest) {
       likes: postData.likes as string[],
       tags: postData.tags as string[],
       roomId: postData.roomId as string | undefined,
-      createdAt: (postData.createdAt as any).toDate(),
-      updatedAt: (postData.updatedAt as any).toDate(),
+      createdAt:
+        postData.createdAt instanceof Timestamp
+          ? postData.createdAt.toDate()
+          : new Date(),
+      updatedAt:
+        postData.updatedAt instanceof Timestamp
+          ? postData.updatedAt.toDate()
+          : new Date(),
     };
 
     const response: BulletinApiResponse<BulletinPost> = {

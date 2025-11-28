@@ -6,14 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebaseConfig';
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  Timestamp,
-} from 'firebase/firestore';
+import { getAdminFirestore } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import {
   BulletinApiResponse,
   BulletinPost,
@@ -29,15 +23,12 @@ interface RouteContext {
 // GET: 投稿詳細取得
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
-
+    const db = getAdminFirestore();
     const { postId } = await context.params;
-    const docRef = doc(db, 'bulletin_posts', postId);
-    const docSnap = await getDoc(docRef);
+    const docRef = db.collection('bulletin_posts').doc(postId);
+    const docSnap = await docRef.get();
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: '投稿が見つかりません',
@@ -45,7 +36,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json(response, { status: 404 });
     }
 
-    const data = docSnap.data();
+    const data = docSnap.data()!;
     const post: BulletinPost = {
       id: docSnap.id,
       title: data.title,
@@ -82,10 +73,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
 // PATCH: 投稿更新
 export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
-
+    const db = getAdminFirestore();
     const { postId } = await context.params;
     const body: UpdatePostRequest = await request.json();
 
@@ -103,10 +91,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     // 認証情報の取得
     const userId = request.headers.get('x-user-id') || 'anonymous';
-    const docRef = doc(db, 'bulletin_posts', postId);
-    const docSnap = await getDoc(docRef);
+    const docRef = db.collection('bulletin_posts').doc(postId);
+    const docSnap = await docRef.get();
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: '投稿が見つかりません',
@@ -114,7 +102,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json(response, { status: 404 });
     }
 
-    const postData = docSnap.data();
+    const postData = docSnap.data()!;
 
     // 投稿者確認
     if (postData.authorId !== userId) {
@@ -126,7 +114,14 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     // 更新データ
-    const updateData: any = {
+    const updateData: {
+      updatedAt: Timestamp;
+      title?: string;
+      content?: string;
+      category?: string;
+      maxParticipants?: number;
+      tags?: string[];
+    } = {
       updatedAt: Timestamp.now(),
     };
 
@@ -137,10 +132,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (body.tags) updateData.tags = body.tags;
 
     // Firestoreを更新
-    await updateDoc(docRef, updateData);
+    await docRef.update(updateData);
 
     // 更新後のデータを取得
-    const updatedDocSnap = await getDoc(docRef);
+    const updatedDocSnap = await docRef.get();
     const updatedData = updatedDocSnap.data()!;
 
     const updatedPost: BulletinPost = {
@@ -180,18 +175,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 // DELETE: 投稿削除
 export async function DELETE(request: NextRequest, context: RouteContext) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
-
+    const db = getAdminFirestore();
     const { postId } = await context.params;
 
     // 認証情報の取得
     const userId = request.headers.get('x-user-id') || 'anonymous';
-    const docRef = doc(db, 'bulletin_posts', postId);
-    const docSnap = await getDoc(docRef);
+    const docRef = db.collection('bulletin_posts').doc(postId);
+    const docSnap = await docRef.get();
 
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: '投稿が見つかりません',
@@ -199,7 +191,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json(response, { status: 404 });
     }
 
-    const postData = docSnap.data();
+    const postData = docSnap.data()!;
 
     // 投稿者確認
     if (postData.authorId !== userId) {
@@ -211,7 +203,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // Firestoreから削除
-    await deleteDoc(docRef);
+    await docRef.delete();
 
     const response: BulletinApiResponse = {
       success: true,

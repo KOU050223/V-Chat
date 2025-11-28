@@ -5,17 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebaseConfig';
-import {
-  collection,
-  addDoc,
-  getDocs,
-  query,
-  where,
-  doc,
-  getDoc,
-  Timestamp,
-} from 'firebase/firestore';
+import { getAdminFirestore } from '@/lib/firebase-admin';
+import { Timestamp } from 'firebase-admin/firestore';
 import {
   BulletinApiResponse,
   BulletinReply,
@@ -33,18 +24,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
   try {
     console.log('返信一覧取得API開始');
 
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
-
+    const db = getAdminFirestore();
     const { postId } = await context.params;
     console.log('取得対象のpostId:', postId);
 
     // 投稿の存在確認
-    const postDocRef = doc(db, 'bulletin_posts', postId);
-    const postDocSnap = await getDoc(postDocRef);
+    const postDocRef = db.collection('bulletin_posts').doc(postId);
+    const postDocSnap = await postDocRef.get();
 
-    if (!postDocSnap.exists()) {
+    if (!postDocSnap.exists) {
       console.error('投稿が見つかりません:', postId);
       const response: BulletinApiResponse = {
         success: false,
@@ -56,14 +44,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.log('投稿が見つかりました');
 
     // 返信を取得
-    const repliesRef = collection(db, 'bulletin_replies');
+    const repliesRef = db.collection('bulletin_replies');
     console.log('返信コレクションを取得');
 
     // Firestoreのインデックスエラーを回避するため、orderByなしで取得
-    const q = query(repliesRef, where('postId', '==', postId));
+    const q = repliesRef.where('postId', '==', postId);
     console.log('クエリを実行します');
 
-    const querySnapshot = await getDocs(q);
+    const querySnapshot = await q.get();
     console.log('取得された返信数:', querySnapshot.size);
 
     let replies: BulletinReply[] = querySnapshot.docs.map((doc) => {
@@ -100,10 +88,18 @@ export async function GET(request: NextRequest, context: RouteContext) {
     console.error('返信一覧取得エラー:', error);
 
     // コレクションが存在しない場合は空の配列を返す
-    const errorObj = error as any;
+    const isFirestoreError = (
+      err: unknown
+    ): err is { code?: string; message?: string } => {
+      return (
+        typeof err === 'object' &&
+        err !== null &&
+        ('code' in err || 'message' in err)
+      );
+    };
     if (
-      errorObj?.code === 'failed-precondition' ||
-      errorObj?.message?.includes('index')
+      (isFirestoreError(error) && error.code === 'failed-precondition') ||
+      (error instanceof Error && error.message?.includes('index'))
     ) {
       const response: BulletinApiResponse<BulletinReply[]> = {
         success: true,
@@ -123,18 +119,15 @@ export async function GET(request: NextRequest, context: RouteContext) {
 // POST: 返信作成
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
-    }
-
+    const db = getAdminFirestore();
     const { postId } = await context.params;
     const body: CreateReplyRequest = await request.json();
 
     // 投稿の存在確認
-    const postDocRef = doc(db, 'bulletin_posts', postId);
-    const postDocSnap = await getDoc(postDocRef);
+    const postDocRef = db.collection('bulletin_posts').doc(postId);
+    const postDocSnap = await postDocRef.get();
 
-    if (!postDocSnap.exists()) {
+    if (!postDocSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: '投稿が見つかりません',
@@ -180,7 +173,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // Firestoreに保存
-    const docRef = await addDoc(collection(db, 'bulletin_replies'), replyData);
+    const docRef = await db.collection('bulletin_replies').add(replyData);
     console.log('返信をFirestoreに保存しました:', docRef.id);
 
     const createdReply: BulletinReply = {
@@ -190,8 +183,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       authorId: replyData.authorId as string,
       authorName: replyData.authorName as string,
       authorPhoto: replyData.authorPhoto as string | undefined,
-      createdAt: (replyData.createdAt as any).toDate(),
-      updatedAt: (replyData.updatedAt as any).toDate(),
+      createdAt:
+        replyData.createdAt instanceof Timestamp
+          ? replyData.createdAt.toDate()
+          : new Date(),
+      updatedAt:
+        replyData.updatedAt instanceof Timestamp
+          ? replyData.updatedAt.toDate()
+          : new Date(),
     };
 
     const response: BulletinApiResponse<BulletinReply> = {

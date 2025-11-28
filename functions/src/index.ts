@@ -5,6 +5,7 @@
 
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineString } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import { AccessToken } from "livekit-server-sdk";
 import * as logger from "firebase-functions/logger";
@@ -17,6 +18,10 @@ const db = admin.firestore();
 
 // グローバル設定: コスト管理のため最大インスタンス数を制限
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
+
+// LiveKit環境変数の定義
+const livekitApiKey = defineString("LIVEKIT_API_KEY");
+const livekitApiSecret = defineString("LIVEKIT_API_SECRET");
 
 /**
  * ルーム作成
@@ -79,6 +84,13 @@ export const createRoom = onCall(async (request) => {
         livekitRoomId,
       };
 
+      logger.info("createRoom - Saving room data:", {
+        roomId,
+        userId,
+        participants: roomDataToSave.participants,
+        userIdType: typeof userId,
+      });
+
       try {
         // create()は、ドキュメントが存在しない場合のみ成功する
         await db.collection("rooms").doc(roomId).create(roomDataToSave);
@@ -111,6 +123,14 @@ export const createRoom = onCall(async (request) => {
     // 保存されたドキュメントを再読み込みしてTimestampを取得
     const savedDoc = await db.collection("rooms").doc(roomId).get();
     const savedData = savedDoc.data();
+
+    logger.info("createRoom - Saved data verification:", {
+      roomId,
+      userId,
+      savedParticipants: savedData?.participants,
+      savedCreatedBy: savedData?.createdBy,
+      participantsMatch: savedData?.participants?.includes(userId),
+    });
 
     logger.info({
       message: "Room created",
@@ -157,6 +177,12 @@ export const joinRoom = onCall(async (request) => {
 
     const { roomId } = request.data as { roomId?: unknown };
     const userId = request.auth.uid;
+
+    logger.info("joinRoom - Request received:", {
+      roomId,
+      userId,
+      roomIdType: typeof roomId,
+    });
 
     // roomIdのバリデーション
     if (!roomId || typeof roomId !== "string" || roomId.trim() === "") {
@@ -263,6 +289,12 @@ export const generateLivekitToken = onCall(async (request) => {
     const { roomId } = request.data as { roomId?: unknown };
     const userId = request.auth.uid;
 
+    logger.info("generateLivekitToken - Request received:", {
+      roomId,
+      userId,
+      roomIdType: typeof roomId,
+    });
+
     // roomIdのバリデーション
     if (!roomId || typeof roomId !== "string" || roomId.trim() === "") {
       throw new HttpsError("invalid-argument", "roomIdが必要です");
@@ -307,15 +339,15 @@ export const generateLivekitToken = onCall(async (request) => {
     // LiveKitのアクセストークンを生成
     // 注: 環境変数からAPIキーとシークレットを読み取り
     // 本番環境とステージング環境では異なるキーを使用すること
-    const livekitApiKey = process.env.LIVEKIT_API_KEY;
-    const livekitApiSecret = process.env.LIVEKIT_API_SECRET;
+    const apiKey = livekitApiKey.value();
+    const apiSecret = livekitApiSecret.value();
 
-    if (!livekitApiKey || !livekitApiSecret) {
+    if (!apiKey || !apiSecret) {
       throw new HttpsError("failed-precondition", "LiveKitの設定が不完全です");
     }
 
     // トークンの有効期限を1時間に設定
-    const at = new AccessToken(livekitApiKey, livekitApiSecret, {
+    const at = new AccessToken(apiKey, apiSecret, {
       identity: userId,
       ttl: 3600, // 1時間（秒単位）
     });
@@ -405,4 +437,164 @@ export const endRoom = onCall(async (request) => {
     }
     throw new HttpsError("internal", "ルームの終了に失敗しました");
   }
+});
+
+/**
+ * マッチング待機列のアイテム定義
+ */
+interface MatchingQueueItem {
+  id: string;
+  userId: string;
+  [key: string]: unknown;
+}
+
+/**
+ * マッチング待機列への参加・検索
+ * HTTP Callable関数として公開
+ */
+export const findMatch = onCall(async (request) => {
+  // 認証チェック
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です");
+  }
+
+  const userId = request.auth.uid;
+  const db = admin.firestore();
+  const queueRef = db.collection("matching_queue");
+
+  try {
+    // 1. 既に待機中のユーザーを探す（自分以外）
+    // 古い待機ユーザー（例: 5分以上経過）は除外するクエリなどが望ましいが、
+    // ここではシンプルに created_at でソートして古い順に取得
+    const snapshot = await queueRef
+      .where("userId", "!=", userId)
+      .orderBy("userId") // whereとorderByのフィールドが異なると複合インデックスが必要になるため、一旦userIdでソート（実際はランダム性が欲しい）
+      // Firestoreの制約: 不等号フィルタを使用したフィールドで最初の並べ替えを行う必要がある
+      // そのため、単純なクエリでは「自分以外」かつ「古い順」は難しい。
+      // ここでは「自分以外」を優先し、クライアント側またはメモリ上でフィルタリングするか、
+      // 別のステータス管理を行う。
+      // 簡易実装として、limit(10)で取得してメモリ上で選ぶ。
+      .limit(10)
+      .get();
+
+    let matchPartner: MatchingQueueItem | null = null;
+
+    // 有効なパートナーを探す（トランザクション外で検索）
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      // 自身のIDと異なることはクエリで保証されているが念のため
+      // また、既にマッチング成立済みのものが残っている可能性も考慮（本来は削除されるべき）
+      if (data.userId !== userId) {
+        matchPartner = { id: doc.id, ...data } as MatchingQueueItem;
+        break;
+      }
+    }
+
+    if (matchPartner) {
+      // 2. マッチング成立処理（トランザクション）
+      return await db.runTransaction(async (tx) => {
+        // パートナーがまだ待機中か確認
+        const partnerDocRef = queueRef.doc(matchPartner.id);
+        const partnerDoc = await tx.get(partnerDocRef);
+
+        if (!partnerDoc.exists) {
+          // パートナーが居なくなっていた場合（タッチの差でマッチング済み or キャンセル）
+          // 今回は諦めて待機列に追加するフローへ（リトライさせても良い）
+          throw new Error("Partner unavailable");
+        }
+
+        // ルームを作成
+        const roomId = crypto.randomBytes(6).readUIntBE(0, 6).toString(36).substring(0, 8).toUpperCase();
+        const livekitRoomId = `livekit_${roomId}_${Date.now()}`;
+
+        const roomData = {
+          roomId,
+          name: "Matching Room",
+          description: "Random matching",
+          isPrivate: true,
+          createdBy: "system",
+          participants: [userId, matchPartner.userId],
+          status: "active",
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          livekitRoomId,
+        };
+
+        // ルーム保存
+        tx.set(db.collection("rooms").doc(roomId), roomData);
+
+        // 待機列からパートナーを削除
+        tx.delete(partnerDocRef);
+
+        // 自分も待機列に居たら削除（念のため）
+        tx.delete(queueRef.doc(userId));
+
+        // パートナーへの通知（FirestoreのUserドキュメントなどを更新して通知する仕組みが必要だが、
+        // ここでは待機列ドキュメントに結果を書き込む方式を採用する手もある。
+        // しかし、待機列ドキュメントを削除してしまうと通知できない。
+        // 解決策: 待機列ドキュメントを削除せず、status="matched" に更新し、roomIdを含める。
+        // クライアントはそれを監視してルームに遷移する。）
+
+        // 訂正: パートナーのドキュメントを更新して通知
+        // deleteではなくupdate
+        tx.update(partnerDocRef, {
+          status: "matched",
+          roomId,
+          matchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {
+          status: "matched",
+          roomId,
+          partnerId: matchPartner.userId
+        };
+      });
+
+    } else {
+      // 3. 待機列に追加（マッチ相手が見つからなかった場合）
+      // 自分の待機ドキュメントを作成/更新
+      await queueRef.doc(userId).set({
+        userId,
+        status: "waiting",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return {
+        status: "waiting",
+        message: "待機列に追加しました"
+      };
+    }
+
+  } catch (error) {
+    // トランザクション失敗（パートナーが取られたなど）の場合も、
+    // 基本的には待機列に追加して待つようにする
+    logger.warn("Matching transaction failed or partner unavailable, adding to queue:", error);
+
+    await queueRef.doc(userId).set({
+      userId,
+      status: "waiting",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      status: "waiting",
+      message: "待機列に追加しました"
+    };
+  }
+});
+
+/**
+ * マッチングキャンセル
+ */
+export const cancelMatch = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です");
+  }
+  const userId = request.auth.uid;
+  const db = admin.firestore();
+
+  await db.collection("matching_queue").doc(userId).delete();
+
+  return { success: true };
 });

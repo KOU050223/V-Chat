@@ -1,33 +1,40 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebaseConfig';
-import { handleFirebaseFunctionError } from '@/lib/utils';
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebaseConfig";
+import { handleFirebaseFunctionError } from "@/lib/utils";
+import { matchingService, MatchingState } from "@/lib/matching-service";
 import {
   CreateRoomRequest,
   CreateRoomResponse,
   JoinRoomRequest,
   JoinRoomResponse,
-} from '@/types/room';
+} from "@/types/room";
+import { Sparkles, Users, Loader2 } from "lucide-react";
 
-type TabType = 'create' | 'join';
+type TabType = "create" | "join" | "match";
 
 export default function RoomManager() {
   const router = useRouter();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabType>('create');
+  const [activeTab, setActiveTab] = useState<TabType>("create");
 
   // ルーム作成用の状態
-  const [roomName, setRoomName] = useState('');
-  const [roomDescription, setRoomDescription] = useState('');
+  const [roomName, setRoomName] = useState("");
+  const [roomDescription, setRoomDescription] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
   const [createdRoomId, setCreatedRoomId] = useState<string | null>(null);
 
   // ルーム参加用の状態
-  const [joinRoomId, setJoinRoomId] = useState('');
+  const [joinRoomId, setJoinRoomId] = useState("");
+
+  // ランダムマッチング用の状態
+  const [matchingState, setMatchingState] = useState<MatchingState>({
+    status: "idle",
+  });
 
   // 共通の状態
   const [isLoading, setIsLoading] = useState(false);
@@ -40,12 +47,12 @@ export default function RoomManager() {
     e.preventDefault();
 
     if (!user) {
-      setError('ログインが必要です');
+      setError("ログインが必要です");
       return;
     }
 
     if (!roomName.trim()) {
-      setError('ルーム名を入力してください');
+      setError("ルーム名を入力してください");
       return;
     }
 
@@ -53,10 +60,10 @@ export default function RoomManager() {
     setError(null);
 
     try {
-      const functions = getFunctions(app, 'us-central1');
+      const functions = getFunctions(app, "us-central1");
       const createRoom = httpsCallable<CreateRoomRequest, CreateRoomResponse>(
         functions,
-        'createRoom'
+        "createRoom"
       );
 
       const result = await createRoom({
@@ -74,9 +81,9 @@ export default function RoomManager() {
       }, 3000);
     } catch (err: unknown) {
       const message = handleFirebaseFunctionError(
-        'ルーム作成エラー',
+        "ルーム作成エラー",
         err,
-        'ルームの作成に失敗しました'
+        "ルームの作成に失敗しました"
       );
       setError(message);
     } finally {
@@ -90,19 +97,23 @@ export default function RoomManager() {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
       }
+      // マッチング中の場合はキャンセル
+      if (matchingState.status === "waiting") {
+        matchingService.cancelMatching();
+      }
     };
-  }, []);
+  }, [matchingState.status]);
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!user) {
-      setError('ログインが必要です');
+      setError("ログインが必要です");
       return;
     }
 
     if (!joinRoomId.trim()) {
-      setError('ルームIDを入力してください');
+      setError("ルームIDを入力してください");
       return;
     }
 
@@ -110,10 +121,10 @@ export default function RoomManager() {
     setError(null);
 
     try {
-      const functions = getFunctions(app, 'us-central1');
+      const functions = getFunctions(app, "us-central1");
       const joinRoom = httpsCallable<JoinRoomRequest, JoinRoomResponse>(
         functions,
-        'joinRoom'
+        "joinRoom"
       );
 
       await joinRoom({
@@ -124,9 +135,9 @@ export default function RoomManager() {
       router.push(`/room/${joinRoomId.trim().toUpperCase()}`);
     } catch (err: unknown) {
       const message = handleFirebaseFunctionError(
-        'ルーム参加エラー',
+        "ルーム参加エラー",
         err,
-        'ルームへの参加に失敗しました'
+        "ルームへの参加に失敗しました"
       );
       setError(message);
     } finally {
@@ -134,10 +145,37 @@ export default function RoomManager() {
     }
   };
 
+  // const handleStartMatching = async () => {
+  //   if (!user) {
+  //     setError('ログインが必要です');
+  //     return;
+  //   }
+
+  //   setError(null);
+
+  //   await matchingService.startMatching(user.uid, (state) => {
+  //     setMatchingState(state);
+
+  //     if (state.status === 'matched' && state.roomId) {
+  //       // マッチング成功！少し待ってから遷移
+  //       setTimeout(() => {
+  //         router.push(`/room/${state.roomId}`);
+  //       }, 1500);
+  //     } else if (state.status === 'error' && state.error) {
+  //       setError(state.error);
+  //     }
+  //   });
+  // };
+
+  // const handleCancelMatching = async () => {
+  //   await matchingService.cancelMatching();
+  //   setMatchingState({ status: 'idle' });
+  // };
+
   const copyRoomId = () => {
     if (createdRoomId) {
       navigator.clipboard.writeText(createdRoomId);
-      alert('ルームIDをコピーしました');
+      alert("ルームIDをコピーしました");
     }
   };
 
@@ -153,44 +191,58 @@ export default function RoomManager() {
           <button
             type="button"
             onClick={() => {
-              setActiveTab('create');
+              setActiveTab("create");
               setError(null);
               setCreatedRoomId(null);
             }}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-              activeTab === 'create'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            className={`flex-1 py-3 px-2 text-sm md:text-base rounded-lg font-semibold transition-all ${
+              activeTab === "create"
+                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            ルームを作成
+            作成
           </button>
           <button
             type="button"
             onClick={() => {
-              setActiveTab('join');
+              setActiveTab("join");
               setError(null);
               setCreatedRoomId(null);
             }}
-            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-              activeTab === 'join'
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            className={`flex-1 py-3 px-2 text-sm md:text-base rounded-lg font-semibold transition-all ${
+              activeTab === "join"
+                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             }`}
           >
-            ルームに参加
+            参加
           </button>
+          {/* <button
+            type="button"
+            onClick={() => {
+              setActiveTab('match');
+              setError(null);
+              setCreatedRoomId(null);
+            }}
+            className={`flex-1 py-3 px-2 text-sm md:text-base rounded-lg font-semibold transition-all ${activeTab === 'match'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+          >
+            ランダム
+          </button> */}
         </div>
 
         {/* エラー表示 */}
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {error}
           </div>
         )}
 
         {/* ルーム作成成功表示 */}
-        {createdRoomId && activeTab === 'create' && (
+        {createdRoomId && activeTab === "create" && (
           <div className="mb-6 p-6 bg-green-50 border border-green-200 rounded-lg">
             <h3 className="font-bold text-green-800 mb-2">
               ルームを作成しました！
@@ -220,7 +272,7 @@ export default function RoomManager() {
         )}
 
         {/* ルーム作成フォーム */}
-        {activeTab === 'create' && !createdRoomId && (
+        {activeTab === "create" && !createdRoomId && (
           <form onSubmit={handleCreateRoom} className="space-y-4">
             <div>
               <label
@@ -275,15 +327,25 @@ export default function RoomManager() {
             <button
               type="submit"
               disabled={isLoading || !roomName.trim()}
-              className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isLoading ? '作成中...' : 'ルームを作成'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  作成中...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5 mr-2" />
+                  ルームを作成
+                </>
+              )}
             </button>
           </form>
         )}
 
         {/* ルーム参加フォーム */}
-        {activeTab === 'join' && (
+        {activeTab === "join" && (
           <form onSubmit={handleJoinRoom} className="space-y-4">
             <div>
               <label
@@ -300,7 +362,7 @@ export default function RoomManager() {
                 placeholder="例: ABC123"
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg font-mono text-xl text-center uppercase focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 disabled={isLoading}
-                maxLength={6}
+                maxLength={8}
               />
               <p className="text-sm text-gray-500 mt-2">
                 相手から共有されたルームIDを入力してください
@@ -310,17 +372,72 @@ export default function RoomManager() {
             <button
               type="submit"
               disabled={isLoading || !joinRoomId.trim()}
-              className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {isLoading ? '参加中...' : 'ルームに参加'}
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  参加中...
+                </>
+              ) : (
+                <>
+                  <Users className="w-5 h-5 mr-2" />
+                  ルームに参加
+                </>
+              )}
             </button>
           </form>
         )}
+        {/* 
+        // ランダムマッチング
+        {activeTab === 'match' && (
+          <div className="space-y-6 text-center">
+            <div className="py-4">
+              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className={`w-12 h-12 text-blue-600 ${matchingState.status === 'waiting' ? 'animate-pulse' : ''}`} />
+              </div>
+              <h3 className="text-xl font-bold text-gray-800 mb-2">
+                ランダムマッチング
+              </h3>
+              <p className="text-gray-600">
+                {matchingState.status === 'waiting'
+                  ? 'マッチング相手を探しています...'
+                  : matchingState.status === 'matched'
+                    ? 'マッチング成立！ルームへ移動します...'
+                    : '世界中の誰かとランダムに通話できます'}
+              </p>
+            </div>
+
+            {matchingState.status === 'waiting' ? (
+              <button
+                type="button"
+                onClick={handleCancelMatching}
+                className="w-full py-3 px-6 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-all"
+              >
+                キャンセル
+              </button>
+            ) : matchingState.status === 'matched' ? (
+              <div className="w-full py-3 px-6 bg-green-100 text-green-700 font-semibold rounded-lg">
+                移動中...
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartMatching}
+                className="w-full py-3 px-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-lg hover:shadow-lg transition-all flex items-center justify-center"
+              >
+                <Search className="w-5 h-5 mr-2" />
+                マッチング開始
+              </button>
+            )}
+          </div>
+        )}
+        */}
 
         {/* 戻るボタン */}
         <button
           type="button"
-          onClick={() => router.push('/')}
+          onClick={() => router.push("/")}
           className="w-full mt-6 py-2 text-gray-600 hover:text-gray-800 transition-colors"
         >
           ホームに戻る

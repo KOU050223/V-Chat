@@ -3,10 +3,12 @@ import { useFrame } from '@react-three/fiber';
 import { VRM } from '@pixiv/three-vrm';
 import { VRMViewer } from './VRMViewer';
 import { usePoseEstimation } from '../../hooks/usePoseEstimation';
-import { useFaceEstimation } from '../../hooks/useFaceEstimation';
+import { useFaceEstimation, FaceBlendShapes } from '../../hooks/useFaceEstimation';
+import { useHandEstimation } from '../../hooks/useHandEstimation';
 import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
 import { resetVRMPose } from '../../lib/vrm-retargeter';
 import { applyFaceExpressionsToVRM, resetVRMExpressions } from '../../lib/vrm-expression-mapper';
+import { retargetHandsToVRM } from '../../lib/vrm-hand-retargeter';
 import { LogViewer } from '../ui/LogViewer';
 
 // モーション同期のロジックを管理するカスタムフック
@@ -39,6 +41,34 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     stopDetection: stopFaceDetection
   } = useFaceEstimation(videoRef);
 
+  // Hand推定フックを使用（同じvideoRefを共有）
+  const {
+    leftHandLandmarks,
+    rightHandLandmarks,
+    isInitialized: isHandInitialized,
+    isLoading: isHandLoading,
+    error: handError,
+    startDetection: startHandDetection,
+    stopDetection: stopHandDetection
+  } = useHandEstimation(videoRef);
+
+  // handLandmarksをrefで管理（useFrame内のクロージャ問題を解決）
+  const leftHandLandmarksRef = useRef<typeof leftHandLandmarks>(null);
+  const rightHandLandmarksRef = useRef<typeof rightHandLandmarks>(null);
+  
+  useEffect(() => {
+    leftHandLandmarksRef.current = leftHandLandmarks;
+    rightHandLandmarksRef.current = rightHandLandmarks;
+  }, [leftHandLandmarks, rightHandLandmarks]);
+
+  // faceBlendShapesをrefで管理（useFrame内のクロージャ問題を解決）
+  const faceBlendShapesRef = useRef<FaceBlendShapes | null>(null);
+  
+  // faceBlendShapesが更新されたらrefも更新
+  useEffect(() => {
+    faceBlendShapesRef.current = faceBlendShapes;
+  }, [faceBlendShapes]);
+
   // モーション同期開始（useCallbackでメモ化）
   const handleStartMotionSync = useCallback(async () => {
     try {
@@ -52,8 +82,17 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
         throw new Error('Face Landmarkerが初期化されていません');
       }
 
+      // 手の検出はオプショナル（モデルファイルがない場合でも動作する）
+      // if (!isHandInitialized) {
+      //   throw new Error('Hand Landmarkerが初期化されていません');
+      // }
+
       await startCamera();
       startFaceDetection(); // 顔検出を開始
+      // 手の検出が初期化されている場合のみ開始
+      if (isHandInitialized) {
+        startHandDetection(); // 手検出を開始
+      }
       setIsMotionActive(true);
       onMotionSync?.(true);
 
@@ -62,7 +101,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setError(errorMessage);
       console.error(errorMessage, err);
     }
-  }, [isInitialized, isFaceInitialized, startCamera, startFaceDetection]); // onMotionSyncを依存配列から除外
+  }, [isInitialized, isFaceInitialized, isHandInitialized, startCamera, startFaceDetection, startHandDetection]); // onMotionSyncを依存配列から除外
 
   // handleStartMotionSyncへの参照を保持
   const handleStartMotionSyncRef = useRef(handleStartMotionSync);
@@ -84,6 +123,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
   const handleStopMotionSync = useCallback(() => {
     stopCamera();
     stopFaceDetection(); // 顔検出を停止
+    stopHandDetection(); // 手検出を停止
     setIsMotionActive(false);
     onMotionSync?.(false);
 
@@ -92,7 +132,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       resetVRMPose(vrmRef.current);
       resetVRMExpressions(vrmRef.current); // 表情もリセット
     }
-  }, [stopCamera, stopFaceDetection]); // onMotionSyncを依存配列から除外
+  }, [stopCamera, stopFaceDetection, stopHandDetection]); // onMotionSyncを依存配列から除外
 
   // エラー状態の管理
   useEffect(() => {
@@ -115,11 +155,16 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     landmarks,
     worldLandmarks,
     faceBlendShapes, // 顔のBlendShapeを追加
-    isInitialized: isInitialized && isFaceInitialized, // 両方が初期化されている必要がある
-    isLoading: isLoading || isFaceLoading, // どちらかがロード中ならロード中
+    faceBlendShapesRef, // faceBlendShapesRefを追加
+    leftHandLandmarks,
+    rightHandLandmarks,
+    leftHandLandmarksRef,
+    rightHandLandmarksRef,
+    isInitialized: isInitialized && isFaceInitialized, // ポーズと顔が初期化されていればOK（手はオプショナル）
+    isLoading: isLoading || isFaceLoading || isHandLoading, // どれかがロード中ならロード中
     isCameraPermissionGranted,
     isMotionActive,
-    error: error || poseError || faceError, // 全てのエラーを統合
+    error: error || poseError || faceError || handError, // 全てのエラーを統合
     videoRef,
     handleVRMLoaded,
     handleStartMotionSync,
@@ -165,7 +210,11 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
     landmarks,
     worldLandmarks,
     faceBlendShapes,
+    faceBlendShapesRef,
+    leftHandLandmarksRef,
+    rightHandLandmarksRef,
     isMotionActive,
+    isInitialized,
     handleVRMLoaded
   } = useMotionSync(autoStart, onMotionSync);
 
@@ -185,17 +234,17 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
         retargetPoseToVRMWithKalidokit(vrm, landmarks, currentWorldLandmarks);
       }
 
-      // 顔の表情を適用
-      if (faceBlendShapes) {
-        applyFaceExpressionsToVRM(vrm, faceBlendShapes);
-      } else if (Math.random() < 0.1) {
-        // faceBlendShapesが取得できていない場合のデバッグ
-        console.warn('⚠️ faceBlendShapes が null または undefined です');
-        console.log('🔍 現在の状態:', {
-          landmarks: landmarks?.length || 0,
-          worldLandmarks: worldLandmarks?.length || 0,
-          faceBlendShapes: faceBlendShapes
-        });
+      // 顔の表情を適用（refを使用してクロージャ問題を解決）
+      const currentFaceBlendShapes = faceBlendShapesRef.current;
+      if (currentFaceBlendShapes) {
+        applyFaceExpressionsToVRM(vrm, currentFaceBlendShapes);
+      }
+
+      // 手の動きを適用（refを使用してクロージャ問題を解決）
+      const currentLeftHandLandmarks = leftHandLandmarksRef.current;
+      const currentRightHandLandmarks = rightHandLandmarksRef.current;
+      if (currentLeftHandLandmarks || currentRightHandLandmarks) {
+        retargetHandsToVRM(vrm, currentLeftHandLandmarks, currentRightHandLandmarks);
       }
 
       // VRMの更新

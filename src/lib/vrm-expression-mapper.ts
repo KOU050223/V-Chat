@@ -1,5 +1,86 @@
 import { VRM } from '@pixiv/three-vrm';
-import { FaceBlendShapes } from '@/hooks/useFaceEstimation';
+import type { FaceBlendShapes } from '@/types/mediapipe';
+
+// デバッグモード（環境変数で制御、デフォルトはfalse）
+const DEBUG_MODE = process.env.NODE_ENV === 'development' && 
+  (typeof window !== 'undefined' && (window as any).__VRM_DEBUG__ === true);
+
+// BlendShape名のキャッシュ（一度見つかった名前を保存）
+const blendShapeNameCache = new WeakMap<VRM, {
+  blink?: string;
+  mouthOpen?: string;
+  smile?: string;
+}>();
+
+/**
+ * BlendShapeProxyで利用可能な名前を検索し、キャッシュに保存
+ * エラーハンドリングを強化
+ */
+const findBlendShapeName = (
+  vrm: VRM,
+  names: string[],
+  cacheKey: 'blink' | 'mouthOpen' | 'smile'
+): string | null => {
+  const cache = blendShapeNameCache.get(vrm) || {};
+  if (cache[cacheKey]) {
+    return cache[cacheKey]!;
+  }
+
+  const blendShapeProxy = (vrm as any).blendShapeProxy;
+  if (!blendShapeProxy) {
+    if (DEBUG_MODE) {
+      console.debug('BlendShapeProxyが利用できません');
+    }
+    return null;
+  }
+
+  // BlendShapeGroupsから利用可能な名前を取得（より確実な方法）
+  let availableNames: string[] = [];
+  try {
+    if (blendShapeProxy.blendShapeGroups) {
+      availableNames = blendShapeProxy.blendShapeGroups.map((group: any) => 
+        group.name || group.preset
+      ).filter(Boolean);
+    }
+  } catch (e) {
+    if (DEBUG_MODE) {
+      console.debug('BlendShapeGroupsの取得に失敗:', e);
+    }
+  }
+
+  // まず、利用可能な名前リストから検索
+  for (const name of names) {
+    if (availableNames.length > 0 && !availableNames.includes(name)) {
+      continue; // 利用可能な名前リストにない場合はスキップ
+    }
+
+    try {
+      // 値を0に設定してテスト（エラーが発生しなければ名前が存在する）
+      blendShapeProxy.setValue(name, 0);
+      cache[cacheKey] = name;
+      blendShapeNameCache.set(vrm, cache);
+      if (DEBUG_MODE) {
+        console.debug(`BlendShape名が見つかりました: ${name} (${cacheKey})`);
+      }
+      return name;
+    } catch (e) {
+      // 名前が存在しない場合は次の名前を試す
+      if (DEBUG_MODE && names.indexOf(name) === names.length - 1) {
+        console.debug(`BlendShape名の検索に失敗: ${cacheKey}`, e);
+      }
+      continue;
+    }
+  }
+
+  // 全ての名前を試しても見つからなかった場合
+  if (DEBUG_MODE) {
+    console.warn(`BlendShape名が見つかりませんでした: ${cacheKey}`, {
+      triedNames: names,
+      availableNames: availableNames.length > 0 ? availableNames : 'unknown'
+    });
+  }
+  return null;
+};
 
 /**
  * MediaPipe Face BlendShapesをVRM Expressionにマッピング
@@ -15,87 +96,83 @@ export const applyFaceExpressionsToVRM = (
   vrm: VRM,
   blendShapes: FaceBlendShapes
 ): void => {
+  if (!vrm) {
+    if (DEBUG_MODE) {
+      console.error('VRMオブジェクトが無効です');
+    }
+    return;
+  }
+
   const expressionManager = vrm.expressionManager;
   if (!expressionManager) {
-    console.warn('⚠️ expressionManager が存在しません');
+    if (DEBUG_MODE) {
+      console.warn('⚠️ expressionManager が存在しません', {
+        vrmVersion: vrm.meta?.metaVersion,
+        hasBlendShapeProxy: !!(vrm as any).blendShapeProxy
+      });
+    }
     return;
   }
 
   try {
-    // デバッグ: BlendShape値とサポートされる表情を確認（50%の確率でログ - 頻度を上げる）
-    if (Math.random() < 0.5) {
-      console.log('📊 BlendShape値:', {
-        eyeBlinkLeft: blendShapes.eyeBlinkLeft.toFixed(2),
-        eyeBlinkRight: blendShapes.eyeBlinkRight.toFixed(2),
-        mouthOpen: blendShapes.mouthOpen.toFixed(2),
-        mouthSmile: blendShapes.mouthSmile.toFixed(2)
-      });
-      
-      // 利用可能な表情名を確認
+    // デバッグモードでのみ詳細ログを出力
+    if (DEBUG_MODE) {
       const presetNames = expressionManager.expressionMap ? 
         Object.keys(expressionManager.expressionMap) : [];
-      console.log('📝 VRMがサポートする表情:', presetNames);
-      
-      // 詳細情報も追加
-      console.log('🔍 詳細デバッグ:', {
-        hasExpressionManager: !!vrm.expressionManager,
-        expressionMapKeys: vrm.expressionManager?.expressionMap ? Object.keys(vrm.expressionManager.expressionMap) : null,
-        vrmVersion: vrm.meta?.metaVersion,
-        allBlendShapes: blendShapes
-      });
-
-      // VRMのBlendShapeGroupも確認
-      if (vrm.blendShapeProxy && vrm.blendShapeProxy.blendShapeGroups) {
-        console.log('🎭 VRM BlendShapeGroups:', vrm.blendShapeProxy.blendShapeGroups.map(group => ({
-          name: group.name,
-          preset: group.preset,
-          binds: group.binds?.length || 0
-        })));
+      if (presetNames.length === 0) {
+        console.warn('⚠️ VRMモデルが表情BlendShapeに対応していません');
       }
     }
 
+    // ExpressionManagerを優先的に使用（VRM標準の方法）
+    // BlendShapeProxyはExpressionManagerで対応できない場合のみ使用
+    
     // まばたき（最も重要）
     const blinkValue = (blendShapes.eyeBlinkLeft + blendShapes.eyeBlinkRight) / 2;
+    const blinkLeftValue = Math.max(0, Math.min(1, blendShapes.eyeBlinkLeft));
+    const blinkRightValue = Math.max(0, Math.min(1, blendShapes.eyeBlinkRight));
     
-    // 方法1: ExpressionManagerを使用
+    // ExpressionManagerでまばたきを設定
     expressionManager.setValue('blink', blinkValue);
+    expressionManager.setValue('blinkLeft', blinkLeftValue);
+    expressionManager.setValue('blinkRight', blinkRightValue);
     
-    // 方法2: BlendShapeProxyを直接使用（より確実）
-    if (vrm.blendShapeProxy) {
-      // VRM 1.0のBlendShapeProxyを使用
-      const blinkLeftValue = Math.max(0, Math.min(1, blendShapes.eyeBlinkLeft));
-      const blinkRightValue = Math.max(0, Math.min(1, blendShapes.eyeBlinkRight));
-      
-      // まばたきのBlendShapeを直接設定
-      vrm.blendShapeProxy.setValue('blinkLeft', blinkLeftValue);
-      vrm.blendShapeProxy.setValue('blinkRight', blinkRightValue);
-      
-      // 口の開き
-      const mouthOpenValue = Math.max(0, Math.min(1, blendShapes.mouthOpen * 2));
-      vrm.blendShapeProxy.setValue('A', mouthOpenValue); // VRM 0.0形式
-      
-      // 笑顔
-      const smileValue = Math.max(0, Math.min(1, blendShapes.mouthSmile * 1.5));
-      vrm.blendShapeProxy.setValue('Joy', smileValue); // VRM 0.0形式
+    // BlendShapeProxyで追加のまばたき設定（ExpressionManagerで対応できない場合）
+    const blendShapeProxy = (vrm as any).blendShapeProxy;
+    if (blendShapeProxy) {
+      const blinkName = findBlendShapeName(vrm, ['blink', 'Blink', 'blinkLeft', 'Blink_L'], 'blink');
+      if (blinkName) {
+        blendShapeProxy.setValue(blinkName, blinkValue);
+      }
     }
-    
-    // 左右個別のまばたき（モデルが対応している場合）
-    expressionManager.setValue('blinkLeft', blendShapes.eyeBlinkLeft);
-    expressionManager.setValue('blinkRight', blendShapes.eyeBlinkRight);
 
     // 口の開き（「あ」の形）
-    // jawOpenは0-1の範囲で、0.3以上で口が開いていると判断
     const mouthOpenValue = Math.max(0, Math.min(1, blendShapes.mouthOpen * 2));
     expressionManager.setValue('aa', mouthOpenValue);
+    
+    // BlendShapeProxyで追加の口の開き設定
+    if (blendShapeProxy) {
+      const mouthName = findBlendShapeName(vrm, ['A', 'aa', 'a', 'mouthOpen', 'jawOpen'], 'mouthOpen');
+      if (mouthName) {
+        blendShapeProxy.setValue(mouthName, mouthOpenValue);
+      }
+    }
 
     // 笑顔
-    // mouthSmileが0.5以上で笑顔と判断
     const smileValue = Math.max(0, Math.min(1, blendShapes.mouthSmile * 1.5));
     expressionManager.setValue('happy', smileValue);
     
     // VRM 0.0互換性: 'happy'がない場合は'joy'を試す
     if (expressionManager.expressionMap && !expressionManager.expressionMap['happy']) {
       expressionManager.setValue('joy', smileValue);
+    }
+    
+    // BlendShapeProxyで追加の笑顔設定
+    if (blendShapeProxy) {
+      const smileName = findBlendShapeName(vrm, ['Joy', 'joy', 'happy', 'Happy', 'smile', 'Smile'], 'smile');
+      if (smileName) {
+        blendShapeProxy.setValue(smileName, smileValue);
+      }
     }
 
     // 驚き（眉が上がる + 口が開く）
@@ -142,11 +219,13 @@ export const applyFaceExpressionsToVRM = (
       ) / 2;
 
       // VRMのLookAtに適用（距離は1mに固定）
-      vrm.lookAt.target.set(
-        lookX * 0.5,  // 左右の視線（-0.5 〜 0.5）
-        lookY * 0.5,  // 上下の視線（-0.5 〜 0.5）
-        1             // 前方1m
-      );
+      if ((vrm.lookAt as any).target) {
+        (vrm.lookAt as any).target.set(
+          lookX * 0.5,  // 左右の視線（-0.5 〜 0.5）
+          lookY * 0.5,  // 上下の視線（-0.5 〜 0.5）
+          1             // 前方1m
+        );
+      }
     }
 
     // 眉を下げる（怒りや悲しみの表現）
@@ -163,7 +242,19 @@ export const applyFaceExpressionsToVRM = (
     }
 
   } catch (error) {
-    console.error('❌ VRM表情適用エラー:', error);
+    // エラーログを適切に出力
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('❌ VRM表情適用エラー:', {
+      message: errorMessage,
+      error,
+      vrmVersion: vrm.meta?.metaVersion,
+      hasExpressionManager: !!vrm.expressionManager
+    });
+    
+    // デバッグモードではスタックトレースも出力
+    if (DEBUG_MODE && error instanceof Error) {
+      console.error('スタックトレース:', error.stack);
+    }
   }
 };
 
@@ -191,8 +282,8 @@ export const resetVRMExpressions = (vrm: VRM): void => {
     });
 
     // LookAtもリセット（存在チェックを追加）
-    if (vrm.lookAt && vrm.lookAt.target) {
-      vrm.lookAt.target.set(0, 0, 1);
+    if (vrm.lookAt && (vrm.lookAt as any).target) {
+      (vrm.lookAt as any).target.set(0, 0, 1);
     }
   } catch (error) {
     console.error('❌ VRM表情リセットエラー:', error);

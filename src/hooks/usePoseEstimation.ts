@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import type { PoseLandmark } from '@/types/mediapipe';
 
-export interface PoseLandmark {
-  x: number;
-  y: number;
-  z: number;
-  visibility?: number;
-}
+// 型を再エクスポート（後方互換性のため）
+export type { PoseLandmark };
 
 interface PoseEstimationResult {
   landmarks: PoseLandmark[][];

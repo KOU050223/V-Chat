@@ -1,42 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import type { FaceLandmark, FaceBlendShapes } from '@/types/mediapipe';
 
-export interface FaceLandmark {
-  x: number;
-  y: number;
-  z: number;
-}
-
-export interface FaceBlendShapes {
-  // 目
-  eyeBlinkLeft: number;      // 左目の閉じ具合 (0-1)
-  eyeBlinkRight: number;     // 右目の閉じ具合 (0-1)
-  eyeLookUpLeft: number;     // 左目の上向き
-  eyeLookUpRight: number;    // 右目の上向き
-  eyeLookDownLeft: number;   // 左目の下向き
-  eyeLookDownRight: number;  // 右目の下向き
-  eyeLookInLeft: number;     // 左目の内向き
-  eyeLookInRight: number;    // 右目の内向き
-  eyeLookOutLeft: number;    // 左目の外向き
-  eyeLookOutRight: number;   // 右目の外向き
-  
-  // 口
-  mouthOpen: number;         // 口の開き具合 (0-1)
-  mouthSmile: number;        // 笑顔 (0-1)
-  mouthPucker: number;       // 口をすぼめる
-  mouthFunnel: number;       // 口を丸める
-  
-  // 眉
-  browInnerUp: number;       // 眉の上げ具合 (0-1)
-  browOuterUpLeft: number;   // 左眉の外側の上げ具合
-  browOuterUpRight: number;  // 右眉の外側の上げ具合
-  browDownLeft: number;      // 左眉を下げる
-  browDownRight: number;     // 右眉を下げる
-  
-  // その他
-  jawOpen: number;           // 顎の開き
-  cheekPuff: number;         // 頬を膨らませる
-}
+// 型を再エクスポート（後方互換性のため）
+export type { FaceLandmark, FaceBlendShapes };
 
 interface UseFaceEstimationReturn {
   faceLandmarks: FaceLandmark[] | null;
@@ -146,21 +113,10 @@ export const useFaceEstimation = (
           setFaceLandmarks(null);
         }
 
-        // BlendShapeを更新
+          // BlendShapeを更新
         if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
           const blendshapes = result.faceBlendshapes[0];
           const categories = blendshapes.categories;
-
-          // デバッグ: Face検出状況をログ（10%の確率）
-          if (Math.random() < 0.1) {
-            console.log('🎭 Face検出成功:', {
-              categoriesCount: categories.length,
-              firstFewCategories: categories.slice(0, 5).map(c => ({
-                name: c.categoryName,
-                score: c.score.toFixed(2)
-              }))
-            });
-          }
 
           // MediaPipeのBlendShapeカテゴリから値を抽出
           const getBlendShapeValue = (name: string): number => {
@@ -199,14 +155,6 @@ export const useFaceEstimation = (
             cheekPuff: getBlendShapeValue('cheekPuff')
           });
         } else {
-          // デバッグ: Face検出失敗のログ（10%の確率）
-          if (Math.random() < 0.1) {
-            console.warn('⚠️ Face検出失敗:', {
-              hasResult: !!result,
-              hasFaceBlendshapes: !!result.faceBlendshapes,
-              faceBlendshapesLength: result.faceBlendshapes?.length || 0
-            });
-          }
           setFaceBlendShapes(null);
         }
       } catch (err) {

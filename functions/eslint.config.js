@@ -8,7 +8,7 @@ const js = require("@eslint/js");
 const { FlatCompat } = require("@eslint/eslintrc");
 const path = require("node:path");
 
-const prettierConfig = require("eslint-config-prettier");
+const prettierConfig = require("eslint-config-prettier/flat");
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,

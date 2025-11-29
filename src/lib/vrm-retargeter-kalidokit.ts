@@ -64,8 +64,8 @@ const applySmoothRotation = (
 };
 
 /**
- * MediaPipeランドマークから頭の回転を直接計算
- * VRMの座標系に合わせて変換
+ * MediaPipeランドマークから頭の回転を計算
+ * より単純で安定した方法を使用
  */
 const applyHeadRotationFromLandmarks = (
   humanoid: any,
@@ -95,18 +95,16 @@ const applyHeadRotationFromLandmarks = (
 
   if (!nose3D || !leftShoulder3D || !rightShoulder3D) return;
 
-  // 肩の中点を計算（3D座標を使用）
+  // 肩の中点を計算
   const shoulderCenterX = (leftShoulder3D.x + rightShoulder3D.x) / 2;
   const shoulderCenterY = (leftShoulder3D.y + rightShoulder3D.y) / 2;
   const shoulderCenterZ = (leftShoulder3D.z + rightShoulder3D.z) / 2;
 
-  // 頭の方向ベクトル（鼻から肩の中点へ）
-  // MediaPipe座標系: X(左→右), Y(上→下), Z(奥→手前)
-  // VRM座標系: X(右→左), Y(下→上), Z(奥→手前)
-  // VRMシーンは180度回転しているため、X軸とZ軸を反転
-  const headDirX = -(nose3D.x - shoulderCenterX); // X軸反転（VRM座標系に合わせる）
-  const headDirY = -(nose3D.y - shoulderCenterY); // Y軸反転（MediaPipeは上→下、VRMは下→上）
-  const headDirZ = nose3D.z - shoulderCenterZ; // Z軸はそのまま
+  // 頭の方向ベクトルを計算（鼻から肩の中点への方向）
+  // MediaPipe座標系をVRM座標系に変換
+  const headDirX = -(nose3D.x - shoulderCenterX); // X軸反転
+  const headDirY = -(nose3D.y - shoulderCenterY); // Y軸反転
+  const headDirZ = nose3D.z - shoulderCenterZ;    // Z軸そのまま
 
   // ベクトルを正規化
   const length = Math.sqrt(headDirX * headDirX + headDirY * headDirY + headDirZ * headDirZ);
@@ -116,47 +114,47 @@ const applyHeadRotationFromLandmarks = (
   const normalizedY = headDirY / length;
   const normalizedZ = headDirZ / length;
 
-  // 頭の回転を計算
-  // Yaw（左右の回転）: X-Z平面での角度
-  // Pitch（上下の回転）: Y-Z平面での角度
-  // Roll（傾き）: 目の位置から計算
-  const yaw = Math.atan2(normalizedX, normalizedZ);
-  const pitch = Math.asin(-normalizedY);
+  // 頭の回転を計算（範囲を制限して不自然な角度を防ぐ）
+  // Yaw（左右の回転）: 最大±45度に制限
+  const yaw = Math.max(-Math.PI / 4, Math.min(Math.PI / 4, Math.atan2(normalizedX, normalizedZ)));
   
-  // ロール（左右の傾き）を目の位置から計算
+  // Pitch（上下の回転）: 最大±30度に制限
+  const pitch = Math.max(-Math.PI / 6, Math.min(Math.PI / 6, Math.asin(-normalizedY)));
+  
+  // Roll（傾き）: 目の位置から計算、最大±15度に制限
   let roll = 0;
   if (leftEye && rightEye) {
     const eyeDiffY = leftEye.y - rightEye.y;
     const eyeDiffX = leftEye.x - rightEye.x;
-    // MediaPipe座標系ではXが左→右なので、符号を反転
-    roll = Math.atan2(eyeDiffY, -eyeDiffX);
+    const calculatedRoll = Math.atan2(eyeDiffY, -eyeDiffX);
+    roll = Math.max(-Math.PI / 12, Math.min(Math.PI / 12, calculatedRoll));
   }
 
   // VRM座標系に合わせて回転を適用
-  // VRMのheadボーンはY軸が上向き、Z軸が前向き
   // Euler角の順序: XYZ (pitch, yaw, roll)
   const head = humanoid.getNormalizedBoneNode('head');
   if (head) {
-    // 座標系の変換: MediaPipeからVRMへ
     tempEuler.set(
-      pitch,      // Pitch（上下）: そのまま
-      -yaw,       // Yaw（左右）: 反転（VRM座標系に合わせる）
-      roll        // Roll（傾き）: そのまま
+      pitch,      // Pitch（上下）
+      -yaw,       // Yaw（左右）: 反転
+      roll        // Roll（傾き）
     );
     tempQuaternion.setFromEuler(tempEuler);
-    head.quaternion.slerp(tempQuaternion, SMOOTHING_FACTORS.head);
+    // スムージングを強めにして、急激な動きを防ぐ
+    head.quaternion.slerp(tempQuaternion, 0.2); // 0.3 → 0.2 に変更（より滑らかに）
   }
 
-  // 首のボーンにも軽く適用（頭の30%の動き）
+  // 首のボーンへの適用を大幅に減らす（頭の10%のみ）
+  // 首が不自然に動くのを防ぐため
   const neck = humanoid.getNormalizedBoneNode('neck');
   if (neck) {
     tempEuler.set(
-      pitch * 0.3,  // 頭の30%
-      -yaw * 0.3,   // 頭の30%、符号反転
-      roll * 0.3    // 頭の30%
+      pitch * 0.1,  // 頭の10%に減らす（30% → 10%）
+      -yaw * 0.1,   // 頭の10%
+      roll * 0.1    // 頭の10%
     );
     tempQuaternion.setFromEuler(tempEuler);
-    neck.quaternion.slerp(tempQuaternion, SMOOTHING_FACTORS.neck);
+    neck.quaternion.slerp(tempQuaternion, 0.3);
   }
 };
 
@@ -203,6 +201,30 @@ export const retargetPoseToVRMWithKalidokit = (
     }
 
     const humanoid = vrm.humanoid;
+
+    // デバッグ: riggedPoseの値を確認（開発環境のみ）
+    const DEBUG_MODE = process.env.NODE_ENV === 'development' && 
+      (typeof window !== 'undefined' && (window as any).__VRM_DEBUG__ === true);
+    
+    if (DEBUG_MODE && Math.random() < 0.05) { // 5%の確率でログ出力
+      console.log('🎯 Kalidokit riggedPose:', {
+        LeftUpperArm: riggedPose.LeftUpperArm ? {
+          x: riggedPose.LeftUpperArm.x?.toFixed(2),
+          y: riggedPose.LeftUpperArm.y?.toFixed(2),
+          z: riggedPose.LeftUpperArm.z?.toFixed(2)
+        } : null,
+        RightUpperArm: riggedPose.RightUpperArm ? {
+          x: riggedPose.RightUpperArm.x?.toFixed(2),
+          y: riggedPose.RightUpperArm.y?.toFixed(2),
+          z: riggedPose.RightUpperArm.z?.toFixed(2)
+        } : null,
+        Spine: riggedPose.Spine ? {
+          x: riggedPose.Spine.x?.toFixed(2),
+          y: riggedPose.Spine.y?.toFixed(2),
+          z: riggedPose.Spine.z?.toFixed(2)
+        } : null
+      });
+    }
 
     // 腰（Hips）の回転を完全に無効化（ビデオ会議用）
     // ビデオ会議では常にカメラを向いているため、Hipsの回転は不要

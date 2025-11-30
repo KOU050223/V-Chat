@@ -74,8 +74,11 @@ export default function BulletinPage() {
       const response = await fetch(`/api/bulletin/${postId}/like`, {
         method: 'POST',
         headers: {
-          'x-user-id': user.uid,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          userId: user.uid,
+        }),
       });
 
       const data = await response.json();

@@ -43,7 +43,10 @@ export function getAdminApp(): App {
       });
       console.log('Firebase Admin initialized with service account');
     } catch (error) {
-      console.error('Failed to initialize Firebase Admin with service account:', error);
+      console.error(
+        'Failed to initialize Firebase Admin with service account:',
+        error
+      );
       throw error;
     }
   } else {
@@ -77,12 +80,20 @@ export function getAdminAuth(): Auth {
   return getAuth(getAdminApp());
 }
 
+// 便利なエイリアス
+export const adminAuth = getAdminAuth();
+export const adminDb = getAdminFirestore();
+
 /**
  * 環境変数が正しく設定されているかチェック
  * ビルド時のエラーを防ぐため、ランタイムでのみチェックを行う
  */
 export function validateAdminConfig(): { valid: boolean; missing: string[] } {
-  const required = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
+  const required = [
+    'FIREBASE_PROJECT_ID',
+    'FIREBASE_CLIENT_EMAIL',
+    'FIREBASE_PRIVATE_KEY',
+  ];
   const missing: string[] = [];
 
   for (const key of required) {

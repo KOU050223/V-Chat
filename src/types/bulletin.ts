@@ -25,6 +25,7 @@ export interface BulletinPost {
   roomId?: string; // 作成されたルームID
   likes: string[]; // いいねしたユーザーIDの配列
   tags?: string[]; // タグ
+  replyCount?: number; // 返信数（Firestoreから取得時に追加）
   isBookmarked?: boolean; // ブックマーク済みか（クライアント側で管理）
   createdAt: Date;
   updatedAt: Date;
@@ -38,6 +39,7 @@ export interface BulletinReply {
   authorId: string;
   authorName: string;
   authorPhoto?: string;
+  isEdited?: boolean; // 編集されたかどうか
   createdAt: Date;
   updatedAt: Date;
 }

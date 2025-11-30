@@ -1,19 +1,11 @@
 /**
  * 掲示板API - いいね機能
- * POST /api/bulletin/[postId]/like - いいね追加/削除
+ * POST /api/bulletin/[postId]/like - いいねをつける/外す
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebaseConfig';
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  arrayUnion,
-  arrayRemove,
-  increment,
-  Timestamp,
-} from 'firebase/firestore';
+import { getAdminFirestore } from '@/lib/firebase-admin';
+import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { BulletinApiResponse, BulletinPost } from '@/types/bulletin';
 
 interface RouteContext {
@@ -22,22 +14,27 @@ interface RouteContext {
   }>;
 }
 
-// POST: いいね追加/削除
+// POST: いいねをつける/外す
 export async function POST(request: NextRequest, context: RouteContext) {
   try {
-    if (!db) {
-      throw new Error('Firestore is not initialized');
+    const db = getAdminFirestore();
+    const { postId } = await context.params;
+    const body = await request.json();
+
+    // 認証確認
+    if (!body.userId) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: 'ユーザー認証が必要です',
+      };
+      return NextResponse.json(response, { status: 401 });
     }
 
-    const { postId } = await context.params;
+    const userId = body.userId;
+    const docRef = db.collection('bulletin_posts').doc(postId);
+    const docSnap = await docRef.get();
 
-    // 認証情報の取得
-    const userId = request.headers.get('x-user-id') || 'anonymous';
-
-    const docRef = doc(db, 'bulletin_posts', postId);
-    const docSnap = await getDoc(docRef);
-
-    if (!docSnap.exists()) {
+    if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: '投稿が見つかりません',
@@ -45,29 +42,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json(response, { status: 404 });
     }
 
-    const data = docSnap.data();
-    const likes = data.likes || [];
+    const postData = docSnap.data()!;
+    const likes: string[] = postData.likes || [];
     const isLiked = likes.includes(userId);
 
-    // いいね切り替え
+    // いいねの追加/削除
     if (isLiked) {
       // いいね解除
-      await updateDoc(docRef, {
-        likes: arrayRemove(userId),
-        likesCount: increment(-1),
+      await docRef.update({
+        likes: FieldValue.arrayRemove(userId),
+        likesCount: FieldValue.increment(-1),
         updatedAt: Timestamp.now(),
       });
     } else {
       // いいね追加
-      await updateDoc(docRef, {
-        likes: arrayUnion(userId),
-        likesCount: increment(1),
+      await docRef.update({
+        likes: FieldValue.arrayUnion(userId),
+        likesCount: FieldValue.increment(1),
         updatedAt: Timestamp.now(),
       });
     }
 
     // 更新後のデータを取得
-    const updatedDocSnap = await getDoc(docRef);
+    const updatedDocSnap = await docRef.get();
     const updatedData = updatedDocSnap.data()!;
 
     const updatedPost: BulletinPost = {
@@ -87,12 +84,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       updatedAt: updatedData.updatedAt?.toDate() || new Date(),
     };
 
-    const message = isLiked ? 'いいねを解除しました' : 'いいねしました';
-
     const response: BulletinApiResponse<BulletinPost> = {
       success: true,
       data: updatedPost,
-      message,
+      message: isLiked ? 'いいねを解除しました' : 'いいねしました',
     };
 
     return NextResponse.json(response);

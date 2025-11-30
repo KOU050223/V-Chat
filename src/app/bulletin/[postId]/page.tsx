@@ -22,6 +22,8 @@ import {
   Loader2,
   Plus,
   Share2,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { BulletinPost, BulletinReply } from '@/types/bulletin';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,6 +49,7 @@ function PostDetailContent({ postId }: { postId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   console.log(
     'PostDetailContent レンダリング。replies:',
@@ -117,8 +120,11 @@ function PostDetailContent({ postId }: { postId: string }) {
       const response = await fetch(`/api/bulletin/${postId}/like`, {
         method: 'POST',
         headers: {
-          'x-user-id': user.uid,
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          userId: user.uid,
+        }),
       });
 
       const data = await response.json();
@@ -166,6 +172,47 @@ function PostDetailContent({ postId }: { postId: string }) {
 
     // 返信リストを更新
     await fetchReplies();
+  };
+
+  // 投稿編集
+  const handleEdit = () => {
+    router.push(`/bulletin/${postId}/edit`);
+  };
+
+  // 投稿削除
+  const handleDelete = async () => {
+    if (!user || !post) return;
+
+    const confirmDelete = window.confirm(
+      '本当にこの投稿を削除しますか？\nこの操作は取り消せません。'
+    );
+
+    if (!confirmDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      const response = await fetch(`/api/bulletin/${postId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-user-id': user.uid,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '投稿の削除に失敗しました');
+      }
+
+      alert('投稿を削除しました');
+      router.push('/bulletin');
+    } catch (err) {
+      console.error('投稿削除エラー:', err);
+      alert(err instanceof Error ? err.message : '投稿の削除に失敗しました');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // ルーム作成
@@ -401,6 +448,31 @@ function PostDetailContent({ postId }: { postId: string }) {
               </div>
             </div>
 
+            {/* 編集・削除ボタン（作者のみ） */}
+            {isAuthor && (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEdit}
+                  className="gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  編集
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  className="gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {isDeleting ? '削除中...' : '削除'}
+                </Button>
+              </div>
+            )}
+
             {/* ルーム関連ボタン */}
             <div className="flex gap-2">
               {post.roomId ? (
@@ -447,7 +519,11 @@ function PostDetailContent({ postId }: { postId: string }) {
 
           {/* 返信リスト */}
           <div className="px-6">
-            <ReplyList replies={replies} />
+            <ReplyList
+              replies={replies}
+              postId={postId}
+              onUpdate={fetchReplies}
+            />
           </div>
         </Card>
       </div>

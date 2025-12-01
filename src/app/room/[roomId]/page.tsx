@@ -459,14 +459,14 @@ export default function ChatRoom() {
 
       console.log("Leaving room via Cloud Functions:", roomId);
 
-      // Firebase Cloud Functionsでルームを終了
+      // Firebase Cloud Functionsでルームから退出
       const functions = getFunctions(app, "us-central1");
-      const endRoomFunction = httpsCallable<
+      const leaveRoomFunction = httpsCallable<
         { roomId: string },
         { success: boolean }
-      >(functions, "endRoom");
+      >(functions, "leaveRoom");
 
-      await endRoomFunction({
+      await leaveRoomFunction({
         roomId: roomId,
       });
 

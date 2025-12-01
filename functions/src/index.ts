@@ -379,6 +379,81 @@ export const generateLivekitToken = onCall(async (request) => {
 });
 
 /**
+ * ルーム退出処理
+ * 参加者リストから削除し、誰もいなくなったら終了する
+ */
+export const leaveRoom = onCall(async (request) => {
+  // 認証チェック
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "認証が必要です");
+  }
+
+  try {
+    // request.dataのバリデーション
+    if (!request.data || typeof request.data !== "object") {
+      throw new HttpsError("invalid-argument", "無効なリクエストデータです");
+    }
+
+    const { roomId } = request.data as { roomId?: unknown };
+    const userId = request.auth.uid;
+
+    // roomIdのバリデーション
+    if (!roomId || typeof roomId !== "string" || roomId.trim() === "") {
+      throw new HttpsError("invalid-argument", "roomIdが必要です");
+    }
+
+    const roomRef = db.collection("rooms").doc(roomId);
+
+    await db.runTransaction(async (tx) => {
+      const roomDoc = await tx.get(roomRef);
+
+      if (!roomDoc.exists) {
+        throw new HttpsError("not-found", "ルームが見つかりません");
+      }
+
+      const roomData = roomDoc.data();
+      if (!roomData) {
+        throw new HttpsError("internal", "ルームデータの取得に失敗しました");
+      }
+
+      const participants = Array.isArray(roomData.participants)
+        ? (roomData.participants as string[])
+        : [];
+
+      // 参加していない場合は何もしない（成功扱い）
+      if (!participants.includes(userId)) {
+        return;
+      }
+
+      // 参加者リストから削除
+      const newParticipants = participants.filter((p) => p !== userId);
+
+      if (newParticipants.length === 0) {
+        // 誰もいなくなったら終了
+        tx.update(roomRef, {
+          participants: newParticipants,
+          status: "ended",
+          endedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // まだ人がいる場合はリスト更新のみ
+        tx.update(roomRef, {
+          participants: newParticipants,
+        });
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    logger.error("Error leaving room:", error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", "ルームからの退出に失敗しました");
+  }
+});
+
+/**
  * ルーム終了処理
  */
 export const endRoom = onCall(async (request) => {

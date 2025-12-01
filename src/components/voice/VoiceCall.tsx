@@ -7,10 +7,11 @@ import {
   useLocalParticipant,
   useRoomContext,
   useConnectionState,
+  useMediaDeviceSelect,
 } from "@livekit/components-react";
-import { ConnectionState, LocalAudioTrack } from "livekit-client";
+import { ConnectionState, RoomEvent, LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
-import { Mic, MicOff } from "lucide-react";
+import { Mic, MicOff, Settings, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -24,19 +25,97 @@ interface VoiceCallProps {
   serverMemberCount?: number;
 }
 
+// デバイス選択用コンポーネント
+function DeviceSettings({ onClose }: { onClose: () => void }) {
+  const {
+    devices: audioInputDevices,
+    activeDeviceId: activeAudioInputDeviceId,
+    setActiveMediaDevice: setActiveAudioInputDevice,
+  } = useMediaDeviceSelect({ kind: "audioinput" });
+
+  const {
+    devices: audioOutputDevices,
+    activeDeviceId: activeAudioOutputDeviceId,
+    setActiveMediaDevice: setActiveAudioOutputDevice,
+  } = useMediaDeviceSelect({ kind: "audiooutput" });
+
+  return (
+    <div className="absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4 z-50">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-white font-semibold">オーディオ設定</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+        >
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label
+            htmlFor="audio-input-select"
+            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+          >
+            マイク
+          </label>
+          <select
+            id="audio-input-select"
+            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+            value={activeAudioInputDeviceId}
+            onChange={(e) => setActiveAudioInputDevice(e.target.value)}
+          >
+            {audioInputDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `マイク ${device.deviceId.slice(0, 5)}...`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="audio-output-select"
+            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+          >
+            スピーカー
+          </label>
+          <select
+            id="audio-output-select"
+            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+            value={activeAudioOutputDeviceId}
+            onChange={(e) => setActiveAudioOutputDevice(e.target.value)}
+          >
+            {audioOutputDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `スピーカー ${device.deviceId.slice(0, 5)}...`}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 内部コンポーネント: 実際の通話UIとロジックを担当
 function VoiceCallContent({
   onLeave,
   onStateChange,
+  serverMemberCount,
 }: {
   onLeave?: () => void;
   onStateChange?: (state: VoiceCallState) => void;
+  serverMemberCount?: number;
 }) {
   const room = useRoomContext();
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
     useLocalParticipant();
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
+  const [showSettings, setShowSettings] = useState(false);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -146,6 +225,23 @@ function VoiceCallContent({
 
   return (
     <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
+      {/* 設定メニュー */}
+      {showSettings && (
+        <DeviceSettings onClose={() => setShowSettings(false)} />
+      )}
+
+      {/* 設定ボタン */}
+      <Button
+        onClick={() => setShowSettings(!showSettings)}
+        variant="outline"
+        size="icon"
+        className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white ${
+          showSettings ? "bg-gray-800 text-white ring-2 ring-blue-500" : ""
+        }`}
+      >
+        <Settings className="w-5 h-5" />
+      </Button>
+
       {/* マイクボタン */}
       <Button
         onClick={toggleMute}
@@ -202,6 +298,7 @@ export default function VoiceCall({
   participantName,
   onLeave,
   onStateChange,
+  serverMemberCount,
 }: VoiceCallProps) {
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -266,7 +363,11 @@ export default function VoiceCall({
         console.error("LiveKit Room Error:", err);
       }}
     >
-      <VoiceCallContent onLeave={onLeave} onStateChange={onStateChange} />
+      <VoiceCallContent
+        onLeave={onLeave}
+        onStateChange={onStateChange}
+        serverMemberCount={serverMemberCount}
+      />
       <RoomAudioRenderer />
     </LiveKitRoom>
   );

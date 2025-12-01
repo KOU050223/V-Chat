@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -37,6 +37,7 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isExiting, setIsExiting] = useState(false); // 退出処理中のローディング状態
   const [showChat, setShowChat] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -350,7 +351,7 @@ export default function ChatRoom() {
     });
   };
 
-  const handleVoiceCallStateChange = (state: VoiceCallState) => {
+  const handleVoiceCallStateChange = useCallback((state: VoiceCallState) => {
     console.log("=== VOICE CALL STATE CHANGE DEBUG ===");
     console.log("State:", state);
     console.log("State participants:", state.participants);
@@ -358,16 +359,23 @@ export default function ChatRoom() {
       "State participants count:",
       state.participants ? state.participants.length : 0
     );
-    console.log("Current roomInfo:", roomInfo);
 
     setVoiceCallState(state);
 
     // 参加者数も更新（より正確に、最低1人として）
-    if (roomInfo) {
+    setRoomInfo((prev: RoomDisplayInfo | null) => {
+      if (!prev) return null;
+
       const rawMemberCount =
         state.actualParticipantCount ||
         (state.participants ? state.participants.length + 1 : 1);
       const newMemberCount = Math.max(rawMemberCount, 1); // 最低1人
+
+      // 値が変わっていない場合は更新しない（再レンダリング防止）
+      if (prev.members === newMemberCount) {
+        return prev;
+      }
+
       console.log(
         "Updating room members to:",
         newMemberCount,
@@ -376,26 +384,12 @@ export default function ChatRoom() {
         ")"
       );
 
-      setRoomInfo((prev: RoomDisplayInfo | null) =>
-        prev
-          ? {
-              ...prev,
-              members: newMemberCount,
-            }
-          : null
-      );
-    }
-  };
-
-  const handleMicTest = () => {
-    // 新しいウィンドウでマイクテストページを開く
-    window.open(
-      "/mic-test",
-      "_blank",
-      "width=500,height=700,scrollbars=no,resizable=yes"
-    );
-    setShowSettings(false);
-  };
+      return {
+        ...prev,
+        members: newMemberCount,
+      };
+    });
+  }, []);
 
   const handleToggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -448,7 +442,7 @@ export default function ChatRoom() {
   };
 
   // ルームから退出する処理（Firebase Cloud Functions版）
-  const leaveRoom = async () => {
+  const leaveRoom = useCallback(async () => {
     try {
       // 参加済みの場合のみ退出処理を実行
       const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
@@ -482,9 +476,11 @@ export default function ChatRoom() {
       );
       console.error("Error leaving room:", message);
     }
-  };
+  }, [roomId]);
 
   const handleExitConfirm = async () => {
+    if (isExiting) return;
+    setIsExiting(true);
     setShowExitConfirm(false);
 
     try {
@@ -498,6 +494,9 @@ export default function ChatRoom() {
       console.error("Error during exit process:", error);
       // エラーが発生してもダッシュボードに移動
       router.push("/dashboard");
+    } finally {
+      // 遷移するのでfalseに戻す必要はないかもしれないが、念のため
+      // setIsExiting(false);
     }
   };
 
@@ -505,7 +504,9 @@ export default function ChatRoom() {
     setShowExitConfirm(false);
   };
 
-  const handleVoiceCallLeave = async () => {
+  const handleVoiceCallLeave = useCallback(async () => {
+    if (isExiting) return;
+    setIsExiting(true);
     console.log("Voice call leave requested");
     try {
       // 退出処理が完了するまで待つ
@@ -521,7 +522,28 @@ export default function ChatRoom() {
       // エラーが発生してもダッシュボードに移動
       router.push("/dashboard");
     }
-  };
+  }, [leaveRoom, router, isExiting]);
+
+  const participantName = useMemo(() => {
+    const userId = user?.uid || nextAuthSession?.user?.id || "anonymous";
+    const userName =
+      user?.displayName || nextAuthSession?.user?.name || "ゲスト";
+
+    if (typeof window === "undefined") return userName;
+
+    const stableUserIdKey = `stable-user-id-${userId}`;
+    let stableUserId = sessionStorage.getItem(stableUserIdKey);
+    if (!stableUserId) {
+      stableUserId = `${userId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem(stableUserIdKey, stableUserId);
+    }
+    return `${userName}-${stableUserId.split("-").slice(-2).join("-")}`;
+  }, [
+    user?.uid,
+    nextAuthSession?.user?.id,
+    user?.displayName,
+    nextAuthSession?.user?.name,
+  ]);
 
   if (isLoading) {
     return (
@@ -534,21 +556,24 @@ export default function ChatRoom() {
     );
   }
 
+  // 退出処理中のローディング画面
+  if (isExiting) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-gray-300">退出処理中...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col">
       {/* ヘッダー */}
       <div className="bg-gray-800 border-b border-gray-700 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button
-              onClick={handleExitClick}
-              variant="outline"
-              size="sm"
-              className="flex items-center bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600"
-            >
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              退出
-            </Button>
             <div>
               <h1 className="text-xl font-bold text-white">{roomInfo?.name}</h1>
               <p className="text-sm text-gray-400">{roomInfo?.description}</p>
@@ -568,43 +593,6 @@ export default function ChatRoom() {
               <MessageCircle className="w-4 h-4 mr-2" />
               チャット
             </Button>
-            <div className="relative">
-              <Button
-                onClick={() => setShowSettings(!showSettings)}
-                variant="outline"
-                size="sm"
-                className="flex items-center bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600"
-              >
-                <Settings className="w-4 h-4" />
-              </Button>
-              {showSettings && (
-                <div className="absolute right-0 top-full mt-2 w-64 bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50">
-                  <div className="p-4">
-                    <h3 className="text-white font-semibold mb-3">設定</h3>
-                    <div className="space-y-2">
-                      <Button
-                        onClick={handleMicTest}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600"
-                      >
-                        <Mic className="w-4 h-4 mr-2" />
-                        マイクテスト
-                      </Button>
-                      <Button
-                        onClick={handleToggleFullscreen}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600"
-                      >
-                        <Monitor className="w-4 h-4 mr-2" />
-                        全画面表示
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
             <div className="relative">
               <Button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -741,16 +729,7 @@ export default function ChatRoom() {
       {/* 音声通話コンポーネント（実際に動作） */}
       <VoiceCall
         roomId={roomId}
-        participantName={(() => {
-          // 安定したparticipantNameを取得
-          const stableUserIdKey = `stable-user-id-${user?.uid || nextAuthSession?.user?.id || "anonymous"}`;
-          let stableUserId = sessionStorage.getItem(stableUserIdKey);
-          if (!stableUserId) {
-            stableUserId = `${user?.uid || nextAuthSession?.user?.id || "anonymous"}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            sessionStorage.setItem(stableUserIdKey, stableUserId);
-          }
-          return `${user?.displayName || nextAuthSession?.user?.name || "ゲスト"}-${stableUserId.split("-").slice(-2).join("-")}`;
-        })()}
+        participantName={participantName}
         onLeave={handleVoiceCallLeave}
         onStateChange={handleVoiceCallStateChange}
         serverMemberCount={roomInfo?.members}

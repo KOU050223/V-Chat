@@ -17,6 +17,19 @@ const compat = new FlatCompat({
 });
 
 module.exports = defineConfig([
+  ...fixupConfigRules(
+    compat.config({
+      extends: [
+        "eslint:recommended",
+        "plugin:import/errors",
+        "plugin:import/warnings",
+        "plugin:import/typescript",
+        "google",
+        "plugin:@typescript-eslint/recommended",
+      ],
+    })
+  ),
+
   {
     languageOptions: {
       globals: {
@@ -34,20 +47,6 @@ module.exports = defineConfig([
         tsconfigRootDir: __dirname,
       },
     },
-
-    // 既存の extends 設定
-    extends: fixupConfigRules(
-      compat.config({
-        extends: [
-          "eslint:recommended",
-          "plugin:import/errors",
-          "plugin:import/warnings",
-          "plugin:import/typescript",
-          "google",
-          "plugin:@typescript-eslint/recommended",
-        ],
-      })
-    ),
 
     plugins: {
       "@typescript-eslint": fixupPluginRules(typescriptEslint),

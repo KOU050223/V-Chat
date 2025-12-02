@@ -10,9 +10,8 @@ service cloud.firestore {
 
     // ルームのルール
     match /rooms/{roomId} {
-      // 読み取り：参加者のみ
-      allow read: if isAuthenticated()
-                  && request.auth.uid in resource.data.participants;
+      // 読み取り：認証済みユーザーなら誰でも読める（参加前の確認のため）
+      allow read: if isAuthenticated();
 
       // 作成・更新・削除：Cloud Functionのみ（Admin SDKを使用）
       allow create: if false;

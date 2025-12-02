@@ -202,6 +202,7 @@ function VoiceCallContent({
     useLocalParticipant();
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -274,6 +275,9 @@ function VoiceCallContent({
       updateAudioLevel();
     } catch (error) {
       console.error("Audio monitoring setup failed:", error);
+      setDisconnectError(
+        "音声監視の設定に失敗しました。もう一度お試しください。"
+      );
     }
 
     return () => {
@@ -296,8 +300,16 @@ function VoiceCallContent({
 
   // 退出処理
   const handleDisconnect = useCallback(async () => {
-    await room.disconnect();
-    onLeave?.();
+    try {
+      setDisconnectError(null);
+      await room.disconnect();
+      onLeave?.();
+    } catch (error) {
+      console.error("Failed to disconnect from LiveKit room:", error);
+      setDisconnectError(
+        "退室処理中にエラーが発生しました。もう一度お試しください。"
+      );
+    }
   }, [room, onLeave]);
 
   // UIレンダリング
@@ -318,6 +330,13 @@ function VoiceCallContent({
       <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
         <ParticipantGrid />
       </div>
+
+      {/* エラーメッセージ */}
+      {disconnectError && (
+        <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          {disconnectError}
+        </div>
+      )}
 
       {/* コントロールバー */}
       <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
@@ -359,13 +378,13 @@ function VoiceCallContent({
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">
           <div className="flex items-end gap-1 h-8 mb-1">
-            {[...Array(5)].map((_, i) => (
+            {[0, 1, 2, 3, 4].map((barIndex) => (
               <div
-                key={i}
+                key={`audio-bar-${barIndex}`}
                 className="w-1.5 bg-green-500 rounded-full transition-all duration-75"
                 style={{
                   height: isMicrophoneEnabled
-                    ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + i * 0.2)))}%`
+                    ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + barIndex * 0.2)))}%`
                     : "10%",
                   opacity: isMicrophoneEnabled ? 1 : 0.3,
                 }}
@@ -460,6 +479,7 @@ export default function VoiceCall({
         }}
         onError={(err) => {
           console.error("LiveKit Room Error:", err);
+          setError("接続中にエラーが発生しました。再度お試しください。");
         }}
         className="h-full w-full"
       >

@@ -80,10 +80,11 @@ export interface JoinRoomRequest {
 
 /**
  * ルーム参加のレスポンス
+ * @note API レスポンスは変換済みのドメイン型（Room）を返す
  */
 export interface JoinRoomResponse {
   success: boolean;
-  room: RoomDoc;
+  room: Room;
   message?: string;
 }
 
@@ -128,19 +129,46 @@ export interface RoomDisplayInfo {
 
 /**
  * RoomDoc を Room に変換するヘルパー関数
+ * @param doc Firestore から取得したルームドキュメント
+ * @returns UI 用の Room オブジェクト
+ * @throws {Error} doc または doc.createdAt が不正な場合
  */
 export function roomDocToRoom(doc: RoomDoc): Room {
+  if (!doc) {
+    throw new Error("RoomDoc is required");
+  }
+
+  if (!doc.createdAt || typeof doc.createdAt.toDate !== "function") {
+    throw new Error("RoomDoc.createdAt must be a valid Firestore Timestamp");
+  }
+
   return {
     ...doc,
     createdAt: doc.createdAt.toDate(),
-    endedAt: doc.endedAt ? doc.endedAt.toDate() : null,
+    endedAt:
+      doc.endedAt && typeof doc.endedAt.toDate === "function"
+        ? doc.endedAt.toDate()
+        : null,
   };
 }
 
 /**
  * ChatMessageDoc を ChatMessage に変換するヘルパー関数
+ * @param doc Firestore から取得したメッセージドキュメント
+ * @returns UI 用の ChatMessage オブジェクト
+ * @throws {Error} doc または doc.timestamp が不正な場合
  */
 export function chatMessageDocToChatMessage(doc: ChatMessageDoc): ChatMessage {
+  if (!doc) {
+    throw new Error("ChatMessageDoc is required");
+  }
+
+  if (!doc.timestamp || typeof doc.timestamp.toDate !== "function") {
+    throw new Error(
+      "ChatMessageDoc.timestamp must be a valid Firestore Timestamp"
+    );
+  }
+
   return {
     ...doc,
     timestamp: doc.timestamp.toDate(),

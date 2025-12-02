@@ -17,7 +17,6 @@ const compat = new FlatCompat({
 });
 
 module.exports = defineConfig([
-  // 既存の extends 設定をスプレッド演算子で展開
   ...fixupConfigRules(
     compat.config({
       extends: [

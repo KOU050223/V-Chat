@@ -1,23 +1,29 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Image from 'next/image';
-import { useVRoidModels } from '@/hooks/useVRoidModels';
-import { VRoidCharacterModel } from '@/lib/vroid';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
+import { useState } from "react";
+import Image from "next/image";
+import { useVRoidModels } from "@/hooks/useVRoidModels";
+import { VRoidCharacterModel } from "@/lib/vroid";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
   DialogTitle,
-  DialogTrigger 
-} from '@/components/ui/dialog';
-import { Heart, Download, Search, RefreshCw } from 'lucide-react';
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Heart, Download, Search, RefreshCw } from "lucide-react";
 
 interface VModelSelectorProps {
   onModelSelect?: (model: VRoidCharacterModel | null) => void;
@@ -39,28 +45,30 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     clearError,
   } = useVRoidModels({ enableMyModels: false }); // マイモデル取得を無効化
 
-  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState("");
   const [searchResults, setSearchResults] = useState<VRoidCharacterModel[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [downloadingModels, setDownloadingModels] = useState<Set<string>>(new Set());
+  const [downloadingModels, setDownloadingModels] = useState<Set<string>>(
+    new Set()
+  );
 
   const handleDownload = async (modelId: string) => {
-    setDownloadingModels(prev => new Set(prev).add(modelId));
+    setDownloadingModels((prev) => new Set(prev).add(modelId));
     try {
       const downloadUrl = await getDownloadLicense(modelId);
-      
+
       // ダウンロードリンクを作成してクリック
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = `vroid-model-${modelId}.vrm`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (error: any) {
-      console.error('ダウンロードエラー:', error);
+      console.error("ダウンロードエラー:", error);
       alert(error.message);
     } finally {
-      setDownloadingModels(prev => {
+      setDownloadingModels((prev) => {
         const newSet = new Set(prev);
         newSet.delete(modelId);
         return newSet;
@@ -72,7 +80,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     try {
       await toggleHeart(modelId, isHearted);
     } catch (error: any) {
-      console.error('いいね切り替えエラー:', error);
+      console.error("いいね切り替えエラー:", error);
       alert(error.message);
     }
   };
@@ -82,9 +90,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
       <Card>
         <CardHeader>
           <CardTitle>V体選択</CardTitle>
-          <CardDescription>
-            VRoidアカウントの連携が必要です
-          </CardDescription>
+          <CardDescription>VRoidアカウントの連携が必要です</CardDescription>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-600">
@@ -96,11 +102,12 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
   }
 
   // エラー表示を改善
-  if (error && (
-    error.includes('OAuth認証エラー') || 
-    error.includes('アクセス権限がありません') ||
-    error.includes('OAUTH_FORBIDDEN')
-  )) {
+  if (
+    error &&
+    (error.includes("OAuth認証エラー") ||
+      error.includes("アクセス権限がありません") ||
+      error.includes("OAUTH_FORBIDDEN"))
+  ) {
     return (
       <Card>
         <CardHeader>
@@ -112,33 +119,49 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
         <CardContent>
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <h4 className="text-sm font-medium text-red-800 mb-2">権限エラーの詳細</h4>
-              <p className="text-sm text-red-700 whitespace-pre-line">{error}</p>
+              <h4 className="text-sm font-medium text-red-800 mb-2">
+                権限エラーの詳細
+              </h4>
+              <p className="text-sm text-red-700 whitespace-pre-line">
+                {error}
+              </p>
             </div>
-            
+
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">対処方法</h4>
+              <h4 className="text-sm font-medium text-blue-800 mb-2">
+                対処方法
+              </h4>
               <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
                 <li>VRoid Hub Developer Consoleでアプリケーション設定を確認</li>
-                <li>リダイレクトURI: <code className="bg-blue-100 px-1 rounded">http://localhost:3000/api/auth/callback/vroid</code></li>
+                <li>
+                  リダイレクトURI:{" "}
+                  <code className="bg-blue-100 px-1 rounded">
+                    http://localhost:3000/api/auth/callback/vroid
+                  </code>
+                </li>
                 <li>必要に応じてアプリケーション審査を申請</li>
                 <li>現在は「いいねしたモデル」と「検索」機能が利用可能です</li>
               </ol>
             </div>
 
             <div className="flex space-x-2">
-              <Button 
-                onClick={refresh} 
-                variant="outline" 
+              <Button
+                onClick={refresh}
+                variant="outline"
                 size="sm"
                 disabled={loading}
               >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 再試行
               </Button>
-              <Button 
-                onClick={() => window.open('https://hub.vroid.com/oauth/applications', '_blank')} 
-                variant="outline" 
+              <Button
+                onClick={() =>
+                  window.open(
+                    "https://hub.vroid.com/oauth/applications",
+                    "_blank"
+                  )
+                }
+                variant="outline"
                 size="sm"
               >
                 Developer Console
@@ -151,8 +174,8 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
   }
 
   // マイモデルが取得できない場合の判定
-  const hasMyModelsPermission = !error || !error.includes('投稿モデル一覧の取得権限がありません');
-
+  const hasMyModelsPermission =
+    !error || !error.includes("投稿モデル一覧の取得権限がありません");
 
   const handleSearch = async () => {
     if (!searchKeyword.trim()) return;
@@ -162,7 +185,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
       const results = await searchModels(searchKeyword);
       setSearchResults(results);
     } catch (error: any) {
-      console.error('検索エラー:', error);
+      console.error("検索エラー:", error);
     } finally {
       setSearchLoading(false);
     }
@@ -177,7 +200,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     <Dialog>
       <DialogTrigger asChild>
         <Button className="w-full">
-          {selectedModel ? 'V体を変更' : 'V体を選択'}
+          {selectedModel ? "V体を変更" : "V体を選択"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
@@ -191,9 +214,9 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
             <p className="text-sm">{error}</p>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={clearError}
               className="mt-2"
             >
@@ -203,48 +226,55 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
         )}
 
         <div className="overflow-y-auto">
-          <Tabs defaultValue={hasMyModelsPermission ? "my-models" : "liked-models"} className="space-y-4">
+          <Tabs
+            defaultValue={hasMyModelsPermission ? "my-models" : "liked-models"}
+            className="space-y-4"
+          >
             <div className="flex items-center justify-between">
-              <TabsList className={`grid w-full max-w-md ${hasMyModelsPermission ? 'grid-cols-3' : 'grid-cols-2'}`}>
+              <TabsList
+                className={`grid w-full max-w-md ${hasMyModelsPermission ? "grid-cols-3" : "grid-cols-2"}`}
+              >
                 {hasMyModelsPermission && (
                   <TabsTrigger value="my-models">マイモデル</TabsTrigger>
                 )}
                 <TabsTrigger value="liked-models">いいね</TabsTrigger>
                 <TabsTrigger value="search">検索</TabsTrigger>
               </TabsList>
-              
+
               <Button
                 variant="outline"
                 size="sm"
                 onClick={refresh}
                 disabled={loading}
               >
-                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+                />
                 更新
               </Button>
             </div>
 
             {hasMyModelsPermission && (
               <TabsContent value="my-models" className="space-y-4">
-              <div className="text-sm text-gray-600">
-                あなたが投稿したモデル ({myModels.length}件)
-              </div>
-              {loading ? (
-                <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-2 text-sm text-gray-600">読み込み中...</p>
+                <div className="text-sm text-gray-600">
+                  あなたが投稿したモデル ({myModels.length}件)
                 </div>
-              ) : (
-                <VModelGrid 
-                  models={myModels}
-                  selectedModel={selectedModel}
-                  onSelect={handleModelSelect}
-                  onDownload={handleDownload}
-                  onToggleHeart={handleToggleHeart}
-                  downloadingModels={downloadingModels}
-                />
-              )}
-            </TabsContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="mt-2 text-sm text-gray-600">読み込み中...</p>
+                  </div>
+                ) : (
+                  <VModelGrid
+                    models={myModels}
+                    selectedModel={selectedModel}
+                    onSelect={handleModelSelect}
+                    onDownload={handleDownload}
+                    onToggleHeart={handleToggleHeart}
+                    downloadingModels={downloadingModels}
+                  />
+                )}
+              </TabsContent>
             )}
 
             <TabsContent value="liked-models" className="space-y-4">
@@ -257,7 +287,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                   <p className="mt-2 text-sm text-gray-600">読み込み中...</p>
                 </div>
               ) : (
-                <VModelGrid 
+                <VModelGrid
                   models={likedModels}
                   selectedModel={selectedModel}
                   onSelect={handleModelSelect}
@@ -274,9 +304,9 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                   placeholder="モデルを検索..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 />
-                <Button 
+                <Button
                   onClick={handleSearch}
                   disabled={searchLoading || !searchKeyword.trim()}
                 >
@@ -284,7 +314,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                   検索
                 </Button>
               </div>
-              
+
               {searchLoading ? (
                 <div className="text-center py-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
@@ -295,7 +325,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                   <div className="text-sm text-gray-600">
                     検索結果 ({searchResults.length}件)
                   </div>
-                  <VModelGrid 
+                  <VModelGrid
                     models={searchResults}
                     selectedModel={selectedModel}
                     onSelect={handleModelSelect}
@@ -304,10 +334,12 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
                     downloadingModels={downloadingModels}
                   />
                 </>
-              ) : searchKeyword && (
-                <div className="text-center py-8 text-gray-500">
-                  検索結果が見つかりませんでした
-                </div>
+              ) : (
+                searchKeyword && (
+                  <div className="text-center py-8 text-gray-500">
+                    検索結果が見つかりませんでした
+                  </div>
+                )
               )}
             </TabsContent>
           </Tabs>
@@ -326,13 +358,13 @@ interface VModelGridProps {
   downloadingModels: Set<string>;
 }
 
-function VModelGrid({ 
-  models, 
-  selectedModel, 
-  onSelect, 
-  onDownload, 
+function VModelGrid({
+  models,
+  selectedModel,
+  onSelect,
+  onDownload,
   onToggleHeart,
-  downloadingModels 
+  downloadingModels,
 }: VModelGridProps) {
   if (models.length === 0) {
     return (
@@ -368,22 +400,24 @@ interface VModelCardProps {
   isDownloading: boolean;
 }
 
-function VModelCard({ 
-  model, 
-  isSelected, 
-  onSelect, 
-  onDownload, 
+function VModelCard({
+  model,
+  isSelected,
+  onSelect,
+  onDownload,
   onToggleHeart,
-  isDownloading 
+  isDownloading,
 }: VModelCardProps) {
   return (
-    <Card className={`cursor-pointer transition-all ${
-      isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:shadow-md'
-    }`}>
+    <Card
+      className={`cursor-pointer transition-all ${
+        isSelected ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
+      }`}
+    >
       <div className="relative">
         <Image
           src={model.portrait_image.sq300.url}
-          alt={model.name || 'VRoidモデル'}
+          alt={model.name || "VRoidモデル"}
           width={300}
           height={300}
           className="w-full h-48 object-cover rounded-t-lg"
@@ -406,18 +440,18 @@ function VModelCard({
           )}
         </div>
       </div>
-      
+
       <CardContent className="p-4">
         <div className="space-y-2">
           <h3 className="font-medium text-sm line-clamp-2">
-            {model.name || '無題のモデル'}
+            {model.name || "無題のモデル"}
           </h3>
-          
+
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span>❤️ {model.heart_count}</span>
             <span>📥 {model.download_count}</span>
           </div>
-          
+
           <div className="flex space-x-1">
             <Button
               size="sm"
@@ -425,9 +459,9 @@ function VModelCard({
               className="flex-1"
               onClick={onSelect}
             >
-              {isSelected ? '選択中' : '選択'}
+              {isSelected ? "選択中" : "選択"}
             </Button>
-            
+
             {model.is_downloadable && (
               <Button
                 size="sm"
@@ -445,7 +479,7 @@ function VModelCard({
                 )}
               </Button>
             )}
-            
+
             <Button
               size="sm"
               variant="outline"
@@ -454,10 +488,10 @@ function VModelCard({
                 onToggleHeart(model.id, model.is_hearted);
               }}
             >
-              <Heart 
+              <Heart
                 className={`h-4 w-4 ${
-                  model.is_hearted ? 'fill-red-500 text-red-500' : ''
-                }`} 
+                  model.is_hearted ? "fill-red-500 text-red-500" : ""
+                }`}
               />
             </Button>
           </div>

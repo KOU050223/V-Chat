@@ -24,7 +24,7 @@ export interface Message {
   roomId: string;
   userId: string;
   content: string;
-  type: 'text' | 'image' | 'file';
+  type: "text" | "image" | "file";
   createdAt: Date;
   updatedAt: Date;
 }

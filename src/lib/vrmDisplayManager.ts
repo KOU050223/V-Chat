@@ -1,5 +1,5 @@
-import { VRMCacheManager } from '@/lib/vrmCache';
-import { VRoidAPI } from '@/lib/vroid';
+import { VRMCacheManager } from "@/lib/vrmCache";
+import { VRoidAPI } from "@/lib/vroid";
 
 /**
  * VRM表示のための統合管理クラス
@@ -25,17 +25,20 @@ export class VRMDisplayManager {
    * @param modelId VRoidモデルID
    * @param options 表示オプション
    */
-  async getVRMForDisplay(modelId: string, options: {
-    useCache?: boolean;
-    cacheIfNew?: boolean;
-    quality?: 'high' | 'medium' | 'low';
-  } = {}): Promise<{
+  async getVRMForDisplay(
+    modelId: string,
+    options: {
+      useCache?: boolean;
+      cacheIfNew?: boolean;
+      quality?: "high" | "medium" | "low";
+    } = {}
+  ): Promise<{
     url?: string;
     blob?: Blob;
     fromCache: boolean;
     cacheKey: string;
   }> {
-    const { useCache = true, cacheIfNew = true, quality = 'medium' } = options;
+    const { useCache = true, cacheIfNew = true, quality = "medium" } = options;
     const cacheKey = `${modelId}_${quality}`;
 
     try {
@@ -43,40 +46,41 @@ export class VRMDisplayManager {
       if (useCache) {
         const cachedUrl = await this.vrmCache.get(cacheKey);
         if (cachedUrl) {
-          console.log('🎯 VRM found in cache:', modelId);
+          console.log("🎯 VRM found in cache:", modelId);
           return {
             url: cachedUrl,
             fromCache: true,
-            cacheKey
+            cacheKey,
           };
         }
       }
 
       // 2. URL直接取得を試行
-      console.log('🌐 Getting VRM download URL:', modelId);
-      const licenseResponse = await this.vroidApi.getCharacterModelDownloadLicense(modelId);
-      
+      console.log("🌐 Getting VRM download URL:", modelId);
+      const licenseResponse =
+        await this.vroidApi.getCharacterModelDownloadLicense(modelId);
+
       if (!licenseResponse.data?.url) {
-        throw new Error('Download URL not available');
+        throw new Error("Download URL not available");
       }
 
       const downloadUrl = licenseResponse.data.url;
-      
+
       // 3. URL直接読み込みで十分な場合はそのまま返す
       if (!cacheIfNew) {
         return {
           url: downloadUrl,
           fromCache: false,
-          cacheKey
+          cacheKey,
         };
       }
 
       // 4. キャッシュする場合はBlobを取得
-      console.log('📥 Fetching VRM for caching:', modelId);
+      console.log("📥 Fetching VRM for caching:", modelId);
       const response = await fetch(downloadUrl, {
         headers: {
-          'Accept': 'application/octet-stream',
-        }
+          Accept: "application/octet-stream",
+        },
       });
 
       if (!response.ok) {
@@ -84,24 +88,23 @@ export class VRMDisplayManager {
       }
 
       const blob = await response.blob();
-      
+
       // 5. キャッシュに保存（非同期）
       if (cacheIfNew) {
         try {
           await this.vrmCache.set(cacheKey, `Model ${modelId}`, blob);
         } catch (error: any) {
-          console.warn('Failed to cache VRM:', error);
+          console.warn("Failed to cache VRM:", error);
         }
       }
 
       return {
         blob,
         fromCache: false,
-        cacheKey
+        cacheKey,
       };
-
     } catch (error) {
-      console.error('Failed to get VRM for display:', error);
+      console.error("Failed to get VRM for display:", error);
       throw error;
     }
   }
@@ -111,29 +114,29 @@ export class VRMDisplayManager {
    */
   async downloadVRM(modelId: string, modelName?: string): Promise<void> {
     try {
-      const result = await this.getVRMForDisplay(modelId, { 
-        useCache: true, 
-        cacheIfNew: true 
+      const result = await this.getVRMForDisplay(modelId, {
+        useCache: true,
+        cacheIfNew: true,
       });
 
       if (result.blob) {
         // ダウンロードトリガー
         const url = URL.createObjectURL(result.blob);
-        const a = document.createElement('a');
+        const a = document.createElement("a");
         a.href = url;
         a.download = `${modelName || modelId}.vrm`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
-        console.log('✅ VRM download completed:', modelId);
+
+        console.log("✅ VRM download completed:", modelId);
       } else if (result.url) {
         // URL直接ダウンロード
-        window.open(result.url, '_blank');
+        window.open(result.url, "_blank");
       }
     } catch (error) {
-      console.error('Failed to download VRM:', error);
+      console.error("Failed to download VRM:", error);
       throw error;
     }
   }

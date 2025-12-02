@@ -1,4 +1,4 @@
-export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+export type LogLevel = "error" | "warn" | "info" | "debug";
 
 export interface LogEntry {
   timestamp: string;
@@ -11,7 +11,7 @@ export interface LogEntry {
 class Logger {
   private logs: LogEntry[] = [];
   private maxLogs: number = 100; // 1000 → 100 に削減
-  private isDevelopment: boolean = process.env.NODE_ENV === 'development';
+  private isDevelopment: boolean = process.env.NODE_ENV === "development";
 
   constructor() {
     // console.logのオーバーライドを無効化（パフォーマンス最適化）
@@ -36,7 +36,7 @@ class Logger {
       error: console.error.bind(console),
       warn: console.warn.bind(console),
       info: console.info.bind(console),
-      debug: console.debug.bind(console)
+      debug: console.debug.bind(console),
     };
 
     // console.logをオーバーライド（安全な実装）
@@ -48,7 +48,7 @@ class Logger {
         // ログファイルに記録（エラーが発生してもアプリを止めない）
         setTimeout(() => {
           try {
-            this.log('info', this.formatMessage(args));
+            this.log("info", this.formatMessage(args));
           } catch (logError) {
             // ログ記録エラーは無視
           }
@@ -64,7 +64,7 @@ class Logger {
         originalConsole.error(...args);
         setTimeout(() => {
           try {
-            this.log('error', this.formatMessage(args));
+            this.log("error", this.formatMessage(args));
           } catch (logError) {
             // ログ記録エラーは無視
           }
@@ -79,7 +79,7 @@ class Logger {
         originalConsole.warn(...args);
         setTimeout(() => {
           try {
-            this.log('warn', this.formatMessage(args));
+            this.log("warn", this.formatMessage(args));
           } catch (logError) {
             // ログ記録エラーは無視
           }
@@ -94,7 +94,7 @@ class Logger {
         originalConsole.info(...args);
         setTimeout(() => {
           try {
-            this.log('info', this.formatMessage(args));
+            this.log("info", this.formatMessage(args));
           } catch (logError) {
             // ログ記録エラーは無視
           }
@@ -109,7 +109,7 @@ class Logger {
         originalConsole.debug(...args);
         setTimeout(() => {
           try {
-            this.log('debug', this.formatMessage(args));
+            this.log("debug", this.formatMessage(args));
           } catch (logError) {
             // ログ記録エラーは無視
           }
@@ -121,30 +121,32 @@ class Logger {
   }
 
   private formatMessage(args: any[]): string {
-    return args.map(arg => {
-      if (typeof arg === 'object' && arg !== null) {
-        try {
-          // 循環参照を検出して安全にシリアライズ
-          return JSON.stringify(arg, this.circularReplacer(), 2);
-        } catch (err) {
-          // JSON.stringify が失敗した場合の代替処理
-          if (arg instanceof Error) {
-            return `Error: ${arg.name}: ${arg.message}`;
+    return args
+      .map((arg) => {
+        if (typeof arg === "object" && arg !== null) {
+          try {
+            // 循環参照を検出して安全にシリアライズ
+            return JSON.stringify(arg, this.circularReplacer(), 2);
+          } catch (err) {
+            // JSON.stringify が失敗した場合の代替処理
+            if (arg instanceof Error) {
+              return `Error: ${arg.name}: ${arg.message}`;
+            }
+            return `[Object: ${arg.constructor?.name || "Unknown"}]`;
           }
-          return `[Object: ${arg.constructor?.name || 'Unknown'}]`;
         }
-      }
-      return String(arg);
-    }).join(' ');
+        return String(arg);
+      })
+      .join(" ");
   }
 
   // 循環参照を処理するためのreplacer関数
   private circularReplacer() {
     const seen = new WeakSet();
     return (key: string, value: any) => {
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === "object" && value !== null) {
         if (seen.has(value)) {
-          return '[Circular Reference]';
+          return "[Circular Reference]";
         }
         seen.add(value);
       }
@@ -154,14 +156,23 @@ class Logger {
 
   private log(level: LogLevel, message: string, data?: any, source?: string) {
     // 重複ログのフィルタリング
-    const isDuplicate = this.logs.length > 0 &&
+    const isDuplicate =
+      this.logs.length > 0 &&
       this.logs[this.logs.length - 1].message === message &&
       this.logs[this.logs.length - 1].level === level;
 
     // VRM警告の重複を特別に処理
-    const isVrmWarning = message.includes('Curves of LookAtDegreeMap defined in VRM 0.0 are not supported');
+    const isVrmWarning = message.includes(
+      "Curves of LookAtDegreeMap defined in VRM 0.0 are not supported"
+    );
 
-    if (isDuplicate || (isVrmWarning && this.logs.some(log => log.message.includes('Curves of LookAtDegreeMap')))) {
+    if (
+      isDuplicate ||
+      (isVrmWarning &&
+        this.logs.some((log) =>
+          log.message.includes("Curves of LookAtDegreeMap")
+        ))
+    ) {
       return; // 重複ログは記録しない
     }
 
@@ -170,7 +181,7 @@ class Logger {
       level,
       message,
       data,
-      source
+      source,
     };
 
     this.logs.push(entry);
@@ -196,32 +207,35 @@ class Logger {
   }
 
   public getLogsByLevel(level: LogLevel): LogEntry[] {
-    return this.logs.filter(log => log.level === level);
+    return this.logs.filter((log) => log.level === level);
   }
 
   public clearLogs(): void {
     this.logs = [];
-    if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.removeItem('vchat-logs');
+    if (typeof window !== "undefined" && window.localStorage) {
+      localStorage.removeItem("vchat-logs");
     }
   }
 
   public exportLogs(): string {
-    return this.logs.map(log =>
-      `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}${log.data ? '\n' + JSON.stringify(log.data, null, 2) : ''}`
-    ).join('\n');
+    return this.logs
+      .map(
+        (log) =>
+          `[${log.timestamp}] [${log.level.toUpperCase()}] ${log.message}${log.data ? "\n" + JSON.stringify(log.data, null, 2) : ""}`
+      )
+      .join("\n");
   }
 
   public downloadLogs(): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const logContent = this.exportLogs();
-    const blob = new Blob([logContent], { type: 'text/plain' });
+    const blob = new Blob([logContent], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
 
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `vchat-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    a.download = `vchat-logs-${new Date().toISOString().slice(0, 19).replace(/:/g, "-")}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -230,17 +244,22 @@ class Logger {
 
   // フィルタリング機能
   public getLogsAfter(timestamp: string): LogEntry[] {
-    return this.logs.filter(log => log.timestamp > timestamp);
+    return this.logs.filter((log) => log.timestamp > timestamp);
   }
 
   public getLogsBySource(source: string): LogEntry[] {
-    return this.logs.filter(log => log.source === source);
+    return this.logs.filter((log) => log.source === source);
   }
 
   // 統計情報
   public getLogStats(): Record<LogLevel, number> {
-    const stats: Record<LogLevel, number> = { error: 0, warn: 0, info: 0, debug: 0 };
-    this.logs.forEach(log => {
+    const stats: Record<LogLevel, number> = {
+      error: 0,
+      warn: 0,
+      info: 0,
+      debug: 0,
+    };
+    this.logs.forEach((log) => {
       stats[log.level]++;
     });
     return stats;
@@ -251,9 +270,9 @@ class Logger {
 const logger = new Logger();
 
 // ログ復元（ページリロード時）
-if (typeof window !== 'undefined' && window.localStorage) {
+if (typeof window !== "undefined" && window.localStorage) {
   try {
-    const savedLogs = localStorage.getItem('vchat-logs');
+    const savedLogs = localStorage.getItem("vchat-logs");
     if (savedLogs) {
       const parsedLogs = JSON.parse(savedLogs);
       if (Array.isArray(parsedLogs)) {

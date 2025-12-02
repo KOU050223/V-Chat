@@ -3,10 +3,10 @@
  * Kalidokitを使用してMediaPipeのランドマークをVRMに適用する
  */
 
-import * as Kalidokit from 'kalidokit';
-import * as THREE from 'three';
-import type { VRM } from '@pixiv/three-vrm';
-import type { PoseLandmark } from '../hooks/usePoseEstimation';
+import * as Kalidokit from "kalidokit";
+import * as THREE from "three";
+import type { VRM } from "@pixiv/three-vrm";
+import type { PoseLandmark } from "../hooks/usePoseEstimation";
 
 /**
  * オブジェクトプーリング用の再利用可能なオブジェクト
@@ -28,9 +28,9 @@ const applySmoothRotation = (
   // VRMシーンの180度回転を考慮してY軸を反転
   tempEuler.set(
     targetRotation.x || 0,
-    -(targetRotation.y || 0),  // Y軸反転（VRMシーンの180度回転を考慮）
+    -(targetRotation.y || 0), // Y軸反転（VRMシーンの180度回転を考慮）
     targetRotation.z || 0,
-    'XYZ'
+    "XYZ"
   );
   tempQuaternion.setFromEuler(tempEuler);
 
@@ -71,7 +71,9 @@ const applyHeadRotationFromLandmarks = (
   const headDirZ = nose.z - shoulderCenterZ;
 
   // ベクトルを正規化
-  const length = Math.sqrt(headDirX * headDirX + headDirY * headDirY + headDirZ * headDirZ);
+  const length = Math.sqrt(
+    headDirX * headDirX + headDirY * headDirY + headDirZ * headDirZ
+  );
   if (length < 0.01) return;
 
   const normalizedX = headDirX / length;
@@ -90,7 +92,7 @@ const applyHeadRotationFromLandmarks = (
   }
 
   // 頭のボーンに適用
-  const head = humanoid.getNormalizedBoneNode('head');
+  const head = humanoid.getNormalizedBoneNode("head");
   if (head) {
     tempEuler.set(pitch, yaw, roll);
     tempQuaternion.setFromEuler(tempEuler);
@@ -98,7 +100,7 @@ const applyHeadRotationFromLandmarks = (
   }
 
   // 首のボーンにも軽く適用
-  const neck = humanoid.getNormalizedBoneNode('neck');
+  const neck = humanoid.getNormalizedBoneNode("neck");
   if (neck) {
     tempEuler.set(pitch * 0.3, yaw * 0.3, roll * 0.3); // 頭の30%
     tempQuaternion.setFromEuler(tempEuler);
@@ -120,29 +122,33 @@ export const retargetPoseToVRMWithKalidokit = (
 
   try {
     // MediaPipeのランドマークをKalidokitの形式に変換
-    const poseLandmarks = landmarks.map(landmark => ({
+    const poseLandmarks = landmarks.map((landmark) => ({
       x: landmark.x,
       y: landmark.y,
       z: landmark.z,
-      visibility: landmark.visibility
+      visibility: landmark.visibility,
     }));
 
     // worldLandmarksも変換（3D空間座標）
     const worldLandmarksFormatted = worldLandmarks
-      ? worldLandmarks.map(landmark => ({
+      ? worldLandmarks.map((landmark) => ({
           x: landmark.x,
           y: landmark.y,
           z: landmark.z,
-          visibility: landmark.visibility
+          visibility: landmark.visibility,
         }))
       : poseLandmarks;
 
     // Kalidokitでポーズを解析
     // worldLandmarksを使用することで正確な3D回転を計算
-    const riggedPose = Kalidokit.Pose.solve(poseLandmarks, worldLandmarksFormatted, {
-      runtime: 'mediapipe',
-      enableLegs: true
-    });
+    const riggedPose = Kalidokit.Pose.solve(
+      poseLandmarks,
+      worldLandmarksFormatted,
+      {
+        runtime: "mediapipe",
+        enableLegs: true,
+      }
+    );
 
     if (!riggedPose) {
       return;
@@ -165,18 +171,18 @@ export const retargetPoseToVRMWithKalidokit = (
 
     // 背骨（Spine）の回転 - 体の傾きを主に表現
     if (riggedPose.Spine) {
-      const spine = humanoid.getNormalizedBoneNode('spine');
+      const spine = humanoid.getNormalizedBoneNode("spine");
       if (spine) {
         applySmoothRotation(spine, riggedPose.Spine, 0.25); // 0.3 → 0.25 より滑らかに
       }
 
       // 上部背骨（Chest）にも補助的な動きを追加
-      const chest = humanoid.getNormalizedBoneNode('chest');
+      const chest = humanoid.getNormalizedBoneNode("chest");
       if (chest) {
         const chestRotation = {
           x: (riggedPose.Spine.x || 0) * 0.5,
           y: (riggedPose.Spine.y || 0) * 0.5,
-          z: (riggedPose.Spine.z || 0) * 0.5
+          z: (riggedPose.Spine.z || 0) * 0.5,
         };
         applySmoothRotation(chest, chestRotation, 0.25);
       }
@@ -195,14 +201,14 @@ export const retargetPoseToVRMWithKalidokit = (
 
     // 左腕（応答性と精度を向上）
     if (riggedPose.LeftUpperArm) {
-      const leftUpperArm = humanoid.getNormalizedBoneNode('leftUpperArm');
+      const leftUpperArm = humanoid.getNormalizedBoneNode("leftUpperArm");
       if (leftUpperArm) {
         applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.2); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.LeftLowerArm) {
-      const leftLowerArm = humanoid.getNormalizedBoneNode('leftLowerArm');
+      const leftLowerArm = humanoid.getNormalizedBoneNode("leftLowerArm");
       if (leftLowerArm) {
         applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.2); // 0.3 → 0.2
       }
@@ -210,14 +216,14 @@ export const retargetPoseToVRMWithKalidokit = (
 
     // 右腕（応答性と精度を向上）
     if (riggedPose.RightUpperArm) {
-      const rightUpperArm = humanoid.getNormalizedBoneNode('rightUpperArm');
+      const rightUpperArm = humanoid.getNormalizedBoneNode("rightUpperArm");
       if (rightUpperArm) {
         applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.2); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.RightLowerArm) {
-      const rightLowerArm = humanoid.getNormalizedBoneNode('rightLowerArm');
+      const rightLowerArm = humanoid.getNormalizedBoneNode("rightLowerArm");
       if (rightLowerArm) {
         applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.2); // 0.3 → 0.2
       }
@@ -226,35 +232,33 @@ export const retargetPoseToVRMWithKalidokit = (
     // 脚の動きは最小限に（ビデオ会議用 - 座位想定）
     // スムージングを非常に強くして急激な動きを抑制
     if (riggedPose.LeftUpperLeg) {
-      const leftUpperLeg = humanoid.getNormalizedBoneNode('leftUpperLeg');
+      const leftUpperLeg = humanoid.getNormalizedBoneNode("leftUpperLeg");
       if (leftUpperLeg) {
         applySmoothRotation(leftUpperLeg, riggedPose.LeftUpperLeg, 0.9); // 0.3 → 0.9 超安定化
       }
     }
 
     if (riggedPose.LeftLowerLeg) {
-      const leftLowerLeg = humanoid.getNormalizedBoneNode('leftLowerLeg');
+      const leftLowerLeg = humanoid.getNormalizedBoneNode("leftLowerLeg");
       if (leftLowerLeg) {
         applySmoothRotation(leftLowerLeg, riggedPose.LeftLowerLeg, 0.9); // 0.3 → 0.9
       }
     }
 
     if (riggedPose.RightUpperLeg) {
-      const rightUpperLeg = humanoid.getNormalizedBoneNode('rightUpperLeg');
+      const rightUpperLeg = humanoid.getNormalizedBoneNode("rightUpperLeg");
       if (rightUpperLeg) {
         applySmoothRotation(rightUpperLeg, riggedPose.RightUpperLeg, 0.9); // 0.3 → 0.9
       }
     }
 
     if (riggedPose.RightLowerLeg) {
-      const rightLowerLeg = humanoid.getNormalizedBoneNode('rightLowerLeg');
+      const rightLowerLeg = humanoid.getNormalizedBoneNode("rightLowerLeg");
       if (rightLowerLeg) {
         applySmoothRotation(rightLowerLeg, riggedPose.RightLowerLeg, 0.9); // 0.3 → 0.9
       }
     }
-
   } catch (error) {
-    console.error('❌ Kalidokitでのリターゲッティングエラー:', error);
+    console.error("❌ Kalidokitでのリターゲッティングエラー:", error);
   }
 };
-

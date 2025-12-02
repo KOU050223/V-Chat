@@ -20,13 +20,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "V-Chat - 3Dアバターチャット",
-  description: "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",
+  description:
+    "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",
   icons: {
     icon: "/v-chat_icon.png",
     shortcut: "/v-chat_icon.png",
     apple: "/v-chat_icon.png",
   },
-  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {
@@ -50,9 +50,7 @@ export default function RootLayout({
             <SessionProvider>
               <AuthProvider>
                 <VModelProvider>
-                  <GrowthBookProvider>
-                    {children}
-                  </GrowthBookProvider>
+                  <GrowthBookProvider>{children}</GrowthBookProvider>
                 </VModelProvider>
               </AuthProvider>
             </SessionProvider>

@@ -2,11 +2,52 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { getFirestore, doc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import { app } from "./firebaseConfig";
 
+/**
+ * マッチングの状態を表すインターフェース
+ */
 export interface MatchingState {
   status: "idle" | "waiting" | "matched" | "error";
   roomId?: string;
   partnerId?: string;
   error?: string;
+}
+
+interface FindMatchResponse {
+  status: "matched" | "waiting";
+  roomId?: string;
+  partnerId?: string;
+  message?: string;
+}
+
+/**
+ * findMatch関数のレスポンスを検証するタイプガード
+ */
+function isValidFindMatchResponse(data: unknown): data is FindMatchResponse {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  // statusフィールドの検証
+  if (obj.status !== "matched" && obj.status !== "waiting") {
+    return false;
+  }
+
+  // オプショナルフィールドの検証
+  if (obj.roomId !== undefined && typeof obj.roomId !== "string") {
+    return false;
+  }
+
+  if (obj.partnerId !== undefined && typeof obj.partnerId !== "string") {
+    return false;
+  }
+
+  if (obj.message !== undefined && typeof obj.message !== "string") {
+    return false;
+  }
+
+  return true;
 }
 
 export class MatchingService {
@@ -29,12 +70,15 @@ export class MatchingService {
       // 1. findMatch関数を呼び出す
       const findMatch = httpsCallable(this.functions, "findMatch");
       const result = await findMatch();
-      const data = result.data as {
-        status: "matched" | "waiting";
-        roomId?: string;
-        partnerId?: string;
-        message?: string;
-      };
+
+      // レスポンスのランタイムバリデーション
+      if (!isValidFindMatchResponse(result.data)) {
+        throw new Error(
+          "findMatch関数から予期しないレスポンス形式が返されました"
+        );
+      }
+
+      const data = result.data;
 
       if (data.status === "matched") {
         // 即座にマッチングした場合
@@ -89,10 +133,7 @@ export class MatchingService {
           // 他のクライアントとの競合を避けるため、一旦放置するか、
           // ルーム入室後に削除するなどの処理が必要。
           // ここでは監視を終了するのみ。
-          if (this.unsubscribe) {
-            this.unsubscribe();
-            this.unsubscribe = null;
-          }
+          this.cleanup();
         }
       });
     } catch (error: unknown) {
@@ -109,19 +150,31 @@ export class MatchingService {
   }
 
   /**
-   * マッチングをキャンセルする
+   * Firestoreの監視を停止する
    */
-  async cancelMatching(): Promise<void> {
+  private cleanup(): void {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+  }
+
+  /**
+   * マッチングをキャンセルする
+   */
+  async cancelMatching(): Promise<void> {
+    this.cleanup(); // 監視を停止
 
     try {
       const cancelMatch = httpsCallable(this.functions, "cancelMatch");
       await cancelMatch();
     } catch (error) {
       console.error("Cancel matching error:", error);
+      throw new Error(
+        error instanceof Error
+          ? `マッチングのキャンセルに失敗しました: ${error.message}`
+          : "マッチングのキャンセルに失敗しました"
+      );
     }
   }
 }

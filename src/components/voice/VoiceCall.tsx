@@ -13,15 +13,9 @@ import {
   ParticipantLoop,
   useIsSpeaking,
 } from "@livekit/components-react";
-import {
-  ConnectionState,
-  RoomEvent,
-  LocalAudioTrack,
-  Participant,
-  Track,
-} from "livekit-client";
+import { ConnectionState, LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X, User as UserIcon } from "lucide-react";
+import { Mic, MicOff, Settings, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -213,6 +207,17 @@ function VoiceCallContent({
     // 参加者数はMapのサイズから取得
     const participantCount = room.remoteParticipants.size + 1; // 自分を含める
 
+    // サーバー側の参加者数との不整合を検出（開発環境でログ出力）
+    if (
+      serverMemberCount !== undefined &&
+      serverMemberCount !== participantCount &&
+      process.env.NODE_ENV === "development"
+    ) {
+      console.warn(
+        `参加者数の不整合を検出: サーバー=${serverMemberCount}, クライアント=${participantCount}`
+      );
+    }
+
     onStateChange?.({
       isConnected,
       isMuted: !isMicrophoneEnabled,
@@ -224,6 +229,7 @@ function VoiceCallContent({
     isMicrophoneEnabled,
     room.remoteParticipants,
     onStateChange,
+    serverMemberCount,
   ]);
 
   // 音声レベル監視ロジック
@@ -303,6 +309,7 @@ function VoiceCallContent({
     try {
       setDisconnectError(null);
       await room.disconnect();
+      // 正常に退出した場合、親コンポーネントに通知
       onLeave?.();
     } catch (error) {
       console.error("Failed to disconnect from LiveKit room:", error);

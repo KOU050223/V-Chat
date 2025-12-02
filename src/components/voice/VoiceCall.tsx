@@ -8,10 +8,20 @@ import {
   useRoomContext,
   useConnectionState,
   useMediaDeviceSelect,
+  useParticipants,
+  useParticipantContext,
+  ParticipantLoop,
+  useIsSpeaking,
 } from "@livekit/components-react";
-import { ConnectionState, RoomEvent, LocalAudioTrack } from "livekit-client";
+import {
+  ConnectionState,
+  RoomEvent,
+  LocalAudioTrack,
+  Participant,
+  Track,
+} from "livekit-client";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X } from "lucide-react";
+import { Mic, MicOff, Settings, X, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -23,6 +33,7 @@ interface VoiceCallProps {
   onLeave?: () => void;
   onStateChange?: (state: VoiceCallState) => void;
   serverMemberCount?: number;
+  className?: string; // スタイル調整用
 }
 
 // デバイス選択用コンポーネント
@@ -96,6 +107,81 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
           </select>
         </div>
       </div>
+    </div>
+  );
+}
+
+// 参加者個別のタイルコンポーネント
+function ParticipantTile() {
+  const participant = useParticipantContext();
+  const isSpeaking = useIsSpeaking(participant);
+
+  if (!participant) return null;
+
+  // 名前からイニシャルを取得
+  const getInitials = (name: string) => {
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // 表示名（ID部分は隠す）
+  const displayName =
+    participant.identity.split("-")[0] || participant.identity;
+  const isMicrophoneEnabled = participant.isMicrophoneEnabled;
+
+  return (
+    <div className="relative flex flex-col items-center justify-center p-4">
+      <div
+        className={`relative w-24 h-24 rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${
+          isSpeaking
+            ? "ring-4 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+            : "ring-2 ring-gray-700"
+        } ${
+          participant.isLocal
+            ? "bg-gradient-to-br from-blue-600 to-purple-600"
+            : "bg-gray-700"
+        }`}
+      >
+        <span className="text-2xl font-bold text-white">
+          {getInitials(displayName)}
+        </span>
+
+        {/* ミュートアイコン */}
+        {!isMicrophoneEnabled && (
+          <div className="absolute bottom-0 right-0 bg-red-500 rounded-full p-1.5 border-2 border-gray-900">
+            <MicOff className="w-4 h-4 text-white" />
+          </div>
+        )}
+      </div>
+
+      <div className="text-center">
+        <p className="text-white font-medium truncate max-w-[120px]">
+          {displayName} {participant.isLocal && "(あなた)"}
+        </p>
+        <p className="text-xs text-gray-400 mt-1 h-4">
+          {isSpeaking ? "話しています..." : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// 参加者グリッド表示コンポーネント
+function ParticipantGrid() {
+  const participants = useParticipants();
+
+  return (
+    <div className="w-full max-w-4xl mx-auto p-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 justify-items-center">
+        <ParticipantLoop participants={participants}>
+          <ParticipantTile />
+        </ParticipantLoop>
+      </div>
+
+      {participants.length === 0 && (
+        <div className="text-center text-gray-500 py-12">
+          参加者を待機しています...
+        </div>
+      )}
     </div>
   );
 }
@@ -217,78 +303,89 @@ function VoiceCallContent({
   // UIレンダリング
   if (connectionState !== ConnectionState.Connected) {
     return (
-      <div className="flex items-center justify-center p-4">
-        <div className="animate-pulse text-yellow-400">接続中...</div>
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+        <div className="animate-pulse text-yellow-400">
+          LiveKitサーバーに接続中...
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
-      {/* 設定メニュー */}
-      {showSettings && (
-        <DeviceSettings onClose={() => setShowSettings(false)} />
-      )}
-
-      {/* 設定ボタン */}
-      <Button
-        onClick={() => setShowSettings(!showSettings)}
-        variant="outline"
-        size="icon"
-        className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white ${
-          showSettings ? "bg-gray-800 text-white ring-2 ring-blue-500" : ""
-        }`}
-      >
-        <Settings className="w-5 h-5" />
-      </Button>
-
-      {/* マイクボタン */}
-      <Button
-        onClick={toggleMute}
-        variant={isMicrophoneEnabled ? "default" : "destructive"}
-        size="lg"
-        className={`rounded-full w-16 h-16 flex items-center justify-center transition-all duration-300 ${
-          isMicrophoneEnabled
-            ? "bg-blue-600 hover:bg-blue-700 shadow-[0_0_15px_rgba(37,99,235,0.5)]"
-            : "bg-red-600 hover:bg-red-700"
-        }`}
-      >
-        {isMicrophoneEnabled ? (
-          <Mic className="w-8 h-8" />
-        ) : (
-          <MicOff className="w-8 h-8" />
-        )}
-      </Button>
-
-      {/* オーディオビジュアライザー（簡易版） */}
-      <div className="flex flex-col items-center justify-center w-32">
-        <div className="flex items-end gap-1 h-8 mb-1">
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={i}
-              className="w-1.5 bg-green-500 rounded-full transition-all duration-75"
-              style={{
-                height: isMicrophoneEnabled
-                  ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + i * 0.2)))}%`
-                  : "10%",
-                opacity: isMicrophoneEnabled ? 1 : 0.3,
-              }}
-            />
-          ))}
-        </div>
-        <span className="text-xs text-gray-400 font-mono">
-          {isMicrophoneEnabled ? "ON AIR" : "MUTED"}
-        </span>
+    <div className="flex flex-col h-full w-full relative">
+      {/* メインエリア：参加者グリッド */}
+      <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
+        <ParticipantGrid />
       </div>
 
-      {/* 退出ボタン */}
-      <Button
-        onClick={handleDisconnect}
-        variant="outline"
-        className="ml-4 border-red-500/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
-      >
-        退出
-      </Button>
+      {/* コントロールバー */}
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
+        {/* 設定メニュー */}
+        {showSettings && (
+          <DeviceSettings onClose={() => setShowSettings(false)} />
+        )}
+
+        {/* 設定ボタン */}
+        <Button
+          onClick={() => setShowSettings(!showSettings)}
+          variant="outline"
+          size="icon"
+          className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white ${
+            showSettings ? "bg-gray-800 text-white ring-2 ring-blue-500" : ""
+          }`}
+        >
+          <Settings className="w-5 h-5" />
+        </Button>
+
+        {/* マイクボタン */}
+        <Button
+          onClick={toggleMute}
+          variant={isMicrophoneEnabled ? "default" : "destructive"}
+          size="lg"
+          className={`rounded-full w-16 h-16 flex items-center justify-center transition-all duration-300 ${
+            isMicrophoneEnabled
+              ? "bg-blue-600 hover:bg-blue-700 shadow-[0_0_15px_rgba(37,99,235,0.5)]"
+              : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
+          {isMicrophoneEnabled ? (
+            <Mic className="w-8 h-8" />
+          ) : (
+            <MicOff className="w-8 h-8" />
+          )}
+        </Button>
+
+        {/* オーディオビジュアライザー（簡易版） */}
+        <div className="flex flex-col items-center justify-center w-32">
+          <div className="flex items-end gap-1 h-8 mb-1">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="w-1.5 bg-green-500 rounded-full transition-all duration-75"
+                style={{
+                  height: isMicrophoneEnabled
+                    ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + i * 0.2)))}%`
+                    : "10%",
+                  opacity: isMicrophoneEnabled ? 1 : 0.3,
+                }}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-gray-400 font-mono">
+            {isMicrophoneEnabled ? "ON AIR" : "MUTED"}
+          </span>
+        </div>
+
+        {/* 退出ボタン */}
+        <Button
+          onClick={handleDisconnect}
+          variant="outline"
+          className="ml-4 border-red-500/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+        >
+          退出
+        </Button>
+      </div>
     </div>
   );
 }
@@ -299,6 +396,7 @@ export default function VoiceCall({
   onLeave,
   onStateChange,
   serverMemberCount,
+  className,
 }: VoiceCallProps) {
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -341,34 +439,37 @@ export default function VoiceCall({
 
   if (!token) {
     return (
-      <div className="flex items-center justify-center p-8">
+      <div className="flex items-center justify-center p-8 h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
   return (
-    <LiveKitRoom
-      video={false}
-      audio={true}
-      token={token}
-      serverUrl={livekitUrl}
-      connect={true}
-      data-lk-theme="default"
-      onDisconnected={() => {
-        console.log("Disconnected from room");
-        onLeave?.();
-      }}
-      onError={(err) => {
-        console.error("LiveKit Room Error:", err);
-      }}
-    >
-      <VoiceCallContent
-        onLeave={onLeave}
-        onStateChange={onStateChange}
-        serverMemberCount={serverMemberCount}
-      />
-      <RoomAudioRenderer />
-    </LiveKitRoom>
+    <div className={`w-full h-full ${className || ""}`}>
+      <LiveKitRoom
+        video={false}
+        audio={true}
+        token={token}
+        serverUrl={livekitUrl}
+        connect={true}
+        data-lk-theme="default"
+        onDisconnected={() => {
+          console.log("Disconnected from room");
+          onLeave?.();
+        }}
+        onError={(err) => {
+          console.error("LiveKit Room Error:", err);
+        }}
+        className="h-full w-full"
+      >
+        <VoiceCallContent
+          onLeave={onLeave}
+          onStateChange={onStateChange}
+          serverMemberCount={serverMemberCount}
+        />
+        <RoomAudioRenderer />
+      </LiveKitRoom>
+    </div>
   );
 }

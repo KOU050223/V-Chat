@@ -634,41 +634,18 @@ export default function ChatRoom() {
 
       {/* メインコンテンツ */}
       <div className="flex-1 flex">
-        {/* 音声通話メインエリア */}
-        <div className={`flex-1 flex flex-col ${showChat ? "mr-80" : ""}`}>
-          <div className="flex-1 flex items-center justify-center p-8">
-            <div className="text-center">
-              <div
-                className={`w-32 h-32 rounded-full flex items-center justify-center mx-auto mb-6 ${
-                  voiceCallState.isConnected
-                    ? "bg-gradient-to-br from-blue-500 to-purple-600"
-                    : "bg-gray-700"
-                }`}
-              >
-                <Mic
-                  className={`w-16 h-16 ${voiceCallState.isConnected ? "text-white" : "text-gray-400"}`}
-                />
-              </div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {voiceCallState.isConnected ? "音声通話中" : "接続中..."}
-              </h2>
-              <p className="text-gray-400 mb-6">
-                {voiceCallState.isConnected
-                  ? "マイクをクリックしてミュート/ミュート解除"
-                  : "LiveKitサーバーに接続しています..."}
-              </p>
-
-              {/* 接続状態表示 */}
-              {!voiceCallState.isConnected && (
-                <div className="mt-8">
-                  <div className="inline-flex items-center px-4 py-2 rounded-full bg-yellow-900 text-yellow-200">
-                    <div className="w-2 h-2 bg-yellow-400 rounded-full mr-2 animate-pulse"></div>
-                    接続中...
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* 音声通話メインエリア（参加者グリッド） */}
+        <div
+          className={`flex-1 flex flex-col ${showChat ? "mr-80" : ""} relative`}
+        >
+          <VoiceCall
+            roomId={roomId}
+            participantName={participantName}
+            onLeave={handleVoiceCallLeave}
+            onStateChange={handleVoiceCallStateChange}
+            serverMemberCount={roomInfo?.members}
+            className="flex-1"
+          />
         </div>
 
         {/* チャットサイドパネル */}
@@ -725,15 +702,6 @@ export default function ChatRoom() {
           </div>
         )}
       </div>
-
-      {/* 音声通話コンポーネント（実際に動作） */}
-      <VoiceCall
-        roomId={roomId}
-        participantName={participantName}
-        onLeave={handleVoiceCallLeave}
-        onStateChange={handleVoiceCallStateChange}
-        serverMemberCount={roomInfo?.members}
-      />
 
       {/* 退出確認ダイアログ */}
       {showExitConfirm && (

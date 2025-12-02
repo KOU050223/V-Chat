@@ -2,19 +2,18 @@
  * ルーム機能の型定義
  */
 
+import { Timestamp } from "firebase/firestore";
+
 /**
  * ルームのステータス
  */
 export type RoomStatus = "waiting" | "active" | "ended";
 
 /**
- * Firestore Timestampの型定義
+ * Firestore Timestamp の型エイリアス
+ * @note Firebase SDK の Timestamp 型を使用
  */
-export interface FirestoreTimestamp {
-  seconds: number;
-  nanoseconds: number;
-  toDate(): Date;
-}
+export type FirestoreTimestamp = Timestamp;
 
 /**
  * ルームドキュメントの構造

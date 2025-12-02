@@ -2,16 +2,16 @@
  * 投稿詳細ページ
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect, use, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar } from '@/components/ui/avatar';
-import { ReplyForm } from '@/components/bulletin/ReplyForm';
-import { ReplyList } from '@/components/bulletin/ReplyList';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
+import { ReplyForm } from "@/components/bulletin/ReplyForm";
+import { ReplyList } from "@/components/bulletin/ReplyList";
 import {
   ArrowLeft,
   Heart,
@@ -24,21 +24,20 @@ import {
   Share2,
   Edit,
   Trash2,
-} from 'lucide-react';
-import { BulletinPost, BulletinReply } from '@/types/bulletin';
-import { useAuth } from '@/contexts/AuthContext';
-import { handleError } from '@/lib/utils';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { BulletinPost, BulletinReply } from "@/types/bulletin";
+import { useAuth } from "@/contexts/AuthContext";
+import { handleError } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface PageProps {
-  params: Promise<{
+  params: {
     postId: string;
-  }>;
+  };
 }
 
 export default function PostDetailPage({ params }: PageProps) {
-  const resolvedParams = use(params);
-  return <PostDetailContent postId={resolvedParams.postId} />;
+  return <PostDetailContent postId={params.postId} />;
 }
 
 function PostDetailContent({ postId }: { postId: string }) {
@@ -51,13 +50,6 @@ function PostDetailContent({ postId }: { postId: string }) {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  console.log(
-    'PostDetailContent レンダリング。replies:',
-    replies,
-    'length:',
-    replies.length
-  );
-
   // 投稿取得
   const fetchPost = useCallback(async () => {
     setLoading(true);
@@ -68,7 +60,7 @@ function PostDetailContent({ postId }: { postId: string }) {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '投稿の取得に失敗しました');
+        throw new Error(data.error || "投稿の取得に失敗しました");
       }
 
       setPost({
@@ -77,7 +69,7 @@ function PostDetailContent({ postId }: { postId: string }) {
         updatedAt: new Date(data.data.updatedAt),
       });
     } catch (err) {
-      setError(handleError('投稿取得エラー', err));
+      setError(handleError("投稿取得エラー", err));
     } finally {
       setLoading(false);
     }
@@ -86,15 +78,10 @@ function PostDetailContent({ postId }: { postId: string }) {
   // 返信取得
   const fetchReplies = useCallback(async () => {
     try {
-      console.log('返信を取得します。postId:', postId);
       const response = await fetch(`/api/bulletin/${postId}/replies`);
-      console.log('返信取得レスポンスステータス:', response.status);
-
       const data = await response.json();
-      console.log('返信取得レスポンスデータ:', data);
 
       if (data.success) {
-        console.log('返信データ:', data.data);
         const repliesWithDates = data.data.map(
           (reply: Record<string, unknown>) => ({
             ...reply,
@@ -102,13 +89,10 @@ function PostDetailContent({ postId }: { postId: string }) {
             updatedAt: new Date(reply.updatedAt as string),
           })
         );
-        console.log('日付変換後の返信データ:', repliesWithDates);
         setReplies(repliesWithDates);
-      } else {
-        console.error('返信取得が失敗しました:', data.error);
       }
     } catch (err) {
-      console.error(handleError('返信取得エラー', err));
+      console.error(handleError("返信取得エラー", err));
     }
   }, [postId]);
 
@@ -117,20 +101,21 @@ function PostDetailContent({ postId }: { postId: string }) {
     if (!user || !post) return;
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(`/api/bulletin/${postId}/like`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          userId: user.uid,
-        }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'いいねに失敗しました');
+        throw new Error(data.error || "いいねに失敗しました");
       }
 
       setPost((prev) =>
@@ -143,23 +128,23 @@ function PostDetailContent({ postId }: { postId: string }) {
           : null
       );
     } catch {
-      console.error('いいね処理に失敗しました');
+      console.error("いいね処理に失敗しました");
     }
   };
 
   // 返信投稿
   const handleReplySubmit = async (content: string) => {
-    if (!user) throw new Error('ログインが必要です');
+    if (!user) throw new Error("ログインが必要です");
 
     const response = await fetch(`/api/bulletin/${postId}/replies`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         content,
         userId: user.uid,
-        userName: user.displayName || 'ユーザー',
+        userName: user.displayName || "ユーザー",
         userPhoto: user.photoURL || undefined,
       }),
     });
@@ -167,7 +152,7 @@ function PostDetailContent({ postId }: { postId: string }) {
     const data = await response.json();
 
     if (!data.success) {
-      throw new Error(data.error || '返信の投稿に失敗しました');
+      throw new Error(data.error || "返信の投稿に失敗しました");
     }
 
     // 返信リストを更新
@@ -184,7 +169,7 @@ function PostDetailContent({ postId }: { postId: string }) {
     if (!user || !post) return;
 
     const confirmDelete = window.confirm(
-      '本当にこの投稿を削除しますか？\nこの操作は取り消せません。'
+      "本当にこの投稿を削除しますか？\nこの操作は取り消せません。"
     );
 
     if (!confirmDelete) return;
@@ -193,23 +178,23 @@ function PostDetailContent({ postId }: { postId: string }) {
 
     try {
       const response = await fetch(`/api/bulletin/${postId}`, {
-        method: 'DELETE',
+        method: "DELETE",
         headers: {
-          'x-user-id': user.uid,
+          "x-user-id": user.uid,
         },
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '投稿の削除に失敗しました');
+        throw new Error(data.error || "投稿の削除に失敗しました");
       }
 
-      alert('投稿を削除しました');
-      router.push('/bulletin');
+      alert("投稿を削除しました");
+      router.push("/bulletin");
     } catch (err) {
-      console.error('投稿削除エラー:', err);
-      alert(err instanceof Error ? err.message : '投稿の削除に失敗しました');
+      console.error("投稿削除エラー:", err);
+      alert(err instanceof Error ? err.message : "投稿の削除に失敗しました");
     } finally {
       setIsDeleting(false);
     }
@@ -223,16 +208,16 @@ function PostDetailContent({ postId }: { postId: string }) {
 
     try {
       const response = await fetch(`/api/bulletin/${postId}/create-room`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'x-user-id': user.uid,
+          "x-user-id": user.uid,
         },
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'ルームの作成に失敗しました');
+        throw new Error(data.error || "ルームの作成に失敗しました");
       }
 
       // 投稿を更新
@@ -249,7 +234,7 @@ function PostDetailContent({ postId }: { postId: string }) {
       // ルームページに遷移
       router.push(`/room/${data.data.roomId}`);
     } catch (err) {
-      alert(handleError('ルーム作成エラー', err));
+      alert(handleError("ルーム作成エラー", err));
     } finally {
       setIsCreatingRoom(false);
     }
@@ -266,12 +251,12 @@ function PostDetailContent({ postId }: { postId: string }) {
           url,
         });
       } catch {
-        console.log('シェアがキャンセルされました');
+        console.log("シェアがキャンセルされました");
       }
     } else {
       // フォールバック: クリップボードにコピー
       await navigator.clipboard.writeText(url);
-      alert('URLをクリップボードにコピーしました');
+      alert("URLをクリップボードにコピーしました");
     }
   };
 
@@ -281,25 +266,25 @@ function PostDetailContent({ postId }: { postId: string }) {
   }, [postId, fetchPost, fetchReplies]);
 
   const formatDate = (date: Date) => {
-    return new Date(date).toLocaleString('ja-JP', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(date).toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      雑談: 'bg-blue-100 text-blue-800 border-blue-200',
-      ゲーム: 'bg-purple-100 text-purple-800 border-purple-200',
-      趣味: 'bg-green-100 text-green-800 border-green-200',
-      技術: 'bg-orange-100 text-orange-800 border-orange-200',
-      イベント: 'bg-pink-100 text-pink-800 border-pink-200',
-      その他: 'bg-gray-100 text-gray-800 border-gray-200',
+      雑談: "bg-blue-100 text-blue-800 border-blue-200",
+      ゲーム: "bg-purple-100 text-purple-800 border-purple-200",
+      趣味: "bg-green-100 text-green-800 border-green-200",
+      技術: "bg-orange-100 text-orange-800 border-orange-200",
+      イベント: "bg-pink-100 text-pink-800 border-pink-200",
+      その他: "bg-gray-100 text-gray-800 border-gray-200",
     };
-    return colors[category as keyof typeof colors] || colors['その他'];
+    return colors[category as keyof typeof colors] || colors["その他"];
   };
 
   if (loading) {
@@ -316,9 +301,9 @@ function PostDetailContent({ postId }: { postId: string }) {
         <div className="max-w-4xl mx-auto pt-20">
           <Card className="p-8 text-center">
             <p className="text-destructive mb-4">
-              {error || '投稿が見つかりません'}
+              {error || "投稿が見つかりません"}
             </p>
-            <Button onClick={() => router.push('/bulletin')}>
+            <Button onClick={() => router.push("/bulletin")}>
               掲示板に戻る
             </Button>
           </Card>
@@ -338,7 +323,7 @@ function PostDetailContent({ postId }: { postId: string }) {
         {/* 戻るボタン */}
         <Button
           variant="ghost"
-          onClick={() => router.push('/bulletin')}
+          onClick={() => router.push("/bulletin")}
           className="gap-2 mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -408,13 +393,13 @@ function PostDetailContent({ postId }: { postId: string }) {
               <Button
                 variant="ghost"
                 className={cn(
-                  'gap-2',
-                  isLiked && 'text-red-500 hover:text-red-600'
+                  "gap-2",
+                  isLiked && "text-red-500 hover:text-red-600"
                 )}
                 onClick={handleLike}
                 disabled={!user}
               >
-                <Heart className={cn('w-5 h-5', isLiked && 'fill-current')} />
+                <Heart className={cn("w-5 h-5", isLiked && "fill-current")} />
                 <span className="font-medium">{post.likes.length}</span>
               </Button>
 
@@ -429,8 +414,8 @@ function PostDetailContent({ postId }: { postId: string }) {
                 <Users className="w-5 h-5 text-muted-foreground" />
                 <span
                   className={cn(
-                    'font-medium',
-                    isFull ? 'text-red-500' : 'text-primary'
+                    "font-medium",
+                    isFull ? "text-red-500" : "text-primary"
                   )}
                 >
                   {post.currentParticipants}/{post.maxParticipants}
@@ -468,7 +453,7 @@ function PostDetailContent({ postId }: { postId: string }) {
                   className="gap-2 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
                 >
                   <Trash2 className="w-4 h-4" />
-                  {isDeleting ? '削除中...' : '削除'}
+                  {isDeleting ? "削除中..." : "削除"}
                 </Button>
               </div>
             )}
@@ -490,7 +475,7 @@ function PostDetailContent({ postId }: { postId: string }) {
                   className="gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  {isCreatingRoom ? 'ルーム作成中...' : 'ルームを作成'}
+                  {isCreatingRoom ? "ルーム作成中..." : "ルームを作成"}
                 </Button>
               ) : null}
             </div>
@@ -504,7 +489,7 @@ function PostDetailContent({ postId }: { postId: string }) {
             <div className="flex items-center gap-3">
               <MessageCircle className="w-5 h-5 text-primary" />
               <h2 className="text-lg font-bold">
-                返信{' '}
+                返信{" "}
                 <span className="text-muted-foreground">
                   ({replies.length})
                 </span>
@@ -514,7 +499,7 @@ function PostDetailContent({ postId }: { postId: string }) {
 
           {/* 返信フォーム */}
           <div className="px-6 py-4 border-b border-border">
-            <ReplyForm postId={postId} onSubmit={handleReplySubmit} />
+            <ReplyForm onSubmit={handleReplySubmit} />
           </div>
 
           {/* 返信リスト */}

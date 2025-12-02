@@ -4,13 +4,15 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateRequest } from "@/lib/auth-helpers";
 import { bulletinStore } from "@/lib/bulletinStore";
 import { BulletinApiResponse, BulletinPost } from "@/types/bulletin";
+import { adminDb } from "@/lib/firebase-admin";
 
 interface RouteContext {
-  params: Promise<{
+  params: {
     postId: string;
-  }>;
+  };
 }
 
 interface BulletinCreateRoomData {
@@ -19,9 +21,20 @@ interface BulletinCreateRoomData {
 }
 
 // POST: ルーム作成
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    const { postId } = await context.params;
+    const { postId } = params;
+
+    // 認証確認（NextAuth または Firebase ID トークン）
+    const authResult = await authenticateRequest(request);
+    if (!authResult.authenticated || !authResult.userId) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: authResult.error || "認証が必要です",
+      };
+      return NextResponse.json(response, { status: 401 });
+    }
+    const userId = authResult.userId;
 
     // 投稿の存在確認
     const post = bulletinStore.getPostById(postId);
@@ -32,9 +45,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
       };
       return NextResponse.json(response, { status: 404 });
     }
-
-    // 認証情報の取得
-    const userId = request.headers.get("x-user-id") || "anonymous";
 
     // 投稿者確認
     if (post.authorId !== userId) {
@@ -61,7 +71,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     // ルームID生成（実際のマッチングシステムと連携する）
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // 投稿にルームIDを設定
+    // 投稿にルームIDを設定（インメモリストア）
     const updatedPost = bulletinStore.setPostRoom(postId, roomId);
 
     if (!updatedPost) {
@@ -70,6 +80,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
         error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
+    }
+
+    // Firestoreにも永続化
+    try {
+      await adminDb.collection("bulletin_posts").doc(postId).update({
+        roomId,
+        updatedAt: new Date(),
+      });
+    } catch (firestoreError) {
+      console.error("Firestore更新エラー:", firestoreError);
+      // Firestoreへの保存が失敗しても、インメモリストアは更新済みなので続行
+      // 本番環境ではこのエラーを適切に処理する必要がある
     }
 
     const response: BulletinApiResponse<BulletinCreateRoomData> = {

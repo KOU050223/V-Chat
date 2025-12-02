@@ -2,36 +2,36 @@
  * 返信編集・削除API
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb } from '@/lib/firebase-admin';
-import { BulletinApiResponse } from '@/types/bulletin';
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateRequest } from "@/lib/auth-helpers";
+import { adminDb } from "@/lib/firebase-admin";
+import { BulletinApiResponse } from "@/types/bulletin";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ postId: string; replyId: string }> }
+  { params }: { params: { postId: string; replyId: string } }
 ) {
   try {
-    const { postId, replyId } = await params;
-    const userId = request.headers.get('x-user-id');
-
-    if (!userId) {
+    // 認証確認（NextAuth または Firebase ID トークン）
+    const authResult = await authenticateRequest(request);
+    if (!authResult.authenticated || !authResult.userId) {
       return NextResponse.json(
-        { success: false, error: '認証が必要です' },
+        { success: false, error: authResult.error || "認証が必要です" },
         { status: 401 }
       );
     }
+    const userId = authResult.userId;
 
-    // ユーザー認証
-    await adminAuth.getUser(userId);
+    const { postId, replyId } = params;
 
     // 返信の存在確認と権限チェック
-    const replyRef = adminDb.collection('bulletin_replies').doc(replyId);
+    const replyRef = adminDb.collection("bulletin_replies").doc(replyId);
 
     const replyDoc = await replyRef.get();
 
     if (!replyDoc.exists) {
       return NextResponse.json(
-        { success: false, error: '返信が見つかりません' },
+        { success: false, error: "返信が見つかりません" },
         { status: 404 }
       );
     }
@@ -41,7 +41,7 @@ export async function PATCH(
     // 返信が指定された投稿に属しているか確認
     if (reply?.postId !== postId) {
       return NextResponse.json(
-        { success: false, error: '返信が見つかりません' },
+        { success: false, error: "返信が見つかりません" },
         { status: 404 }
       );
     }
@@ -49,7 +49,7 @@ export async function PATCH(
     // 作者確認
     if (reply?.authorId !== userId) {
       return NextResponse.json(
-        { success: false, error: '返信を編集する権限がありません' },
+        { success: false, error: "返信を編集する権限がありません" },
         { status: 403 }
       );
     }
@@ -58,9 +58,9 @@ export async function PATCH(
     const body = await request.json();
     const { content } = body;
 
-    if (!content || typeof content !== 'string' || !content.trim()) {
+    if (!content || typeof content !== "string" || !content.trim()) {
       return NextResponse.json(
-        { success: false, error: '内容を入力してください' },
+        { success: false, error: "内容を入力してください" },
         { status: 400 }
       );
     }
@@ -90,9 +90,9 @@ export async function PATCH(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('返信更新エラー:', error);
+    console.error("返信更新エラー:", error);
     return NextResponse.json(
-      { success: false, error: '返信の更新に失敗しました' },
+      { success: false, error: "返信の更新に失敗しました" },
       { status: 500 }
     );
   }
@@ -100,33 +100,31 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ postId: string; replyId: string }> }
+  { params }: { params: { postId: string; replyId: string } }
 ) {
   try {
-    const { postId, replyId } = await params;
-    console.log('DELETE 返信 - postId:', postId, 'replyId:', replyId);
-
-    const userId = request.headers.get('x-user-id');
-    console.log('DELETE 返信 - userId:', userId);
-
-    if (!userId) {
+    // 認証確認（NextAuth または Firebase ID トークン）
+    const authResult = await authenticateRequest(request);
+    if (!authResult.authenticated || !authResult.userId) {
       return NextResponse.json(
-        { success: false, error: '認証が必要です' },
+        { success: false, error: authResult.error || "認証が必要です" },
         { status: 401 }
       );
     }
+    const userId = authResult.userId;
 
-    // ユーザー認証
-    await adminAuth.getUser(userId);
+    const { postId, replyId } = params;
+    console.log("DELETE 返信 - postId:", postId, "replyId:", replyId);
+    console.log("DELETE 返信 - userId:", userId);
 
     // 返信の存在確認と権限チェック
-    const replyRef = adminDb.collection('bulletin_replies').doc(replyId);
+    const replyRef = adminDb.collection("bulletin_replies").doc(replyId);
 
     const replyDoc = await replyRef.get();
 
     if (!replyDoc.exists) {
       return NextResponse.json(
-        { success: false, error: '返信が見つかりません' },
+        { success: false, error: "返信が見つかりません" },
         { status: 404 }
       );
     }
@@ -136,7 +134,7 @@ export async function DELETE(
     // 返信が指定された投稿に属しているか確認
     if (reply?.postId !== postId) {
       return NextResponse.json(
-        { success: false, error: '返信が見つかりません' },
+        { success: false, error: "返信が見つかりません" },
         { status: 404 }
       );
     }
@@ -144,7 +142,7 @@ export async function DELETE(
     // 作者確認
     if (reply?.authorId !== userId) {
       return NextResponse.json(
-        { success: false, error: '返信を削除する権限がありません' },
+        { success: false, error: "返信を削除する権限がありません" },
         { status: 403 }
       );
     }
@@ -159,9 +157,9 @@ export async function DELETE(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('返信削除エラー:', error);
+    console.error("返信削除エラー:", error);
     return NextResponse.json(
-      { success: false, error: '返信の削除に失敗しました' },
+      { success: false, error: "返信の削除に失敗しました" },
       { status: 500 }
     );
   }

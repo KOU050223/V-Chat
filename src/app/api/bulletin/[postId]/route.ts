@@ -5,33 +5,34 @@
  * DELETE /api/bulletin/[postId] - 投稿削除
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getAdminFirestore } from '@/lib/firebase-admin';
-import { Timestamp } from 'firebase-admin/firestore';
+import { NextRequest, NextResponse } from "next/server";
+import { authenticateRequest } from "@/lib/auth-helpers";
+import { getAdminFirestore } from "@/lib/firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 import {
   BulletinApiResponse,
   BulletinPost,
   UpdatePostRequest,
-} from '@/types/bulletin';
+} from "@/types/bulletin";
 
 interface RouteContext {
-  params: Promise<{
+  params: {
     postId: string;
-  }>;
+  };
 }
 
 // GET: 投稿詳細取得
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const db = getAdminFirestore();
-    const { postId } = await context.params;
-    const docRef = db.collection('bulletin_posts').doc(postId);
+    const { postId } = params;
+    const docRef = db.collection("bulletin_posts").doc(postId);
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿が見つかりません',
+        error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
     }
@@ -61,20 +62,31 @@ export async function GET(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('投稿詳細取得エラー:', error);
+    console.error("投稿詳細取得エラー:", error);
     const response: BulletinApiResponse = {
       success: false,
-      error: '投稿の取得に失敗しました',
+      error: "投稿の取得に失敗しました",
     };
     return NextResponse.json(response, { status: 500 });
   }
 }
 
 // PATCH: 投稿更新
-export async function PATCH(request: NextRequest, context: RouteContext) {
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
+    // 認証確認（NextAuth または Firebase ID トークン）
+    const authResult = await authenticateRequest(request);
+    if (!authResult.authenticated || !authResult.userId) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: authResult.error || "認証が必要です",
+      };
+      return NextResponse.json(response, { status: 401 });
+    }
+    const userId = authResult.userId;
+
     const db = getAdminFirestore();
-    const { postId } = await context.params;
+    const { postId } = params;
     const body: UpdatePostRequest = await request.json();
 
     // バリデーション
@@ -84,20 +96,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     ) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '募集人数は2〜10人の範囲で指定してください',
+        error: "募集人数は2〜10人の範囲で指定してください",
       };
       return NextResponse.json(response, { status: 400 });
     }
-
-    // 認証情報の取得
-    const userId = request.headers.get('x-user-id') || 'anonymous';
-    const docRef = db.collection('bulletin_posts').doc(postId);
+    const docRef = db.collection("bulletin_posts").doc(postId);
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿が見つかりません',
+        error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
     }
@@ -108,7 +117,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (postData.authorId !== userId) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿を更新する権限がありません',
+        error: "投稿を更新する権限がありません",
       };
       return NextResponse.json(response, { status: 403 });
     }
@@ -125,11 +134,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       updatedAt: Timestamp.now(),
     };
 
-    if (body.title) updateData.title = body.title;
-    if (body.content) updateData.content = body.content;
-    if (body.category) updateData.category = body.category;
-    if (body.maxParticipants) updateData.maxParticipants = body.maxParticipants;
-    if (body.tags) updateData.tags = body.tags;
+    if (body.title !== undefined) updateData.title = body.title;
+    if (body.content !== undefined) updateData.content = body.content;
+    if (body.category !== undefined) updateData.category = body.category;
+    if (body.maxParticipants !== undefined)
+      updateData.maxParticipants = body.maxParticipants;
+    if (body.tags !== undefined) updateData.tags = body.tags;
 
     // Firestoreを更新
     await docRef.update(updateData);
@@ -158,35 +168,43 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const response: BulletinApiResponse<BulletinPost> = {
       success: true,
       data: updatedPost,
-      message: '投稿を更新しました',
+      message: "投稿を更新しました",
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('投稿更新エラー:', error);
+    console.error("投稿更新エラー:", error);
     const response: BulletinApiResponse = {
       success: false,
-      error: '投稿の更新に失敗しました',
+      error: "投稿の更新に失敗しました",
     };
     return NextResponse.json(response, { status: 500 });
   }
 }
 
 // DELETE: 投稿削除
-export async function DELETE(request: NextRequest, context: RouteContext) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const db = getAdminFirestore();
-    const { postId } = await context.params;
+    // 認証確認（NextAuth または Firebase ID トークン）
+    const authResult = await authenticateRequest(request);
+    if (!authResult.authenticated || !authResult.userId) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: authResult.error || "認証が必要です",
+      };
+      return NextResponse.json(response, { status: 401 });
+    }
+    const userId = authResult.userId;
 
-    // 認証情報の取得
-    const userId = request.headers.get('x-user-id') || 'anonymous';
-    const docRef = db.collection('bulletin_posts').doc(postId);
+    const db = getAdminFirestore();
+    const { postId } = params;
+    const docRef = db.collection("bulletin_posts").doc(postId);
     const docSnap = await docRef.get();
 
     if (!docSnap.exists) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿が見つかりません',
+        error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
     }
@@ -197,7 +215,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (postData.authorId !== userId) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿を削除する権限がありません',
+        error: "投稿を削除する権限がありません",
       };
       return NextResponse.json(response, { status: 403 });
     }
@@ -207,15 +225,15 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     const response: BulletinApiResponse = {
       success: true,
-      message: '投稿を削除しました',
+      message: "投稿を削除しました",
     };
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('投稿削除エラー:', error);
+    console.error("投稿削除エラー:", error);
     const response: BulletinApiResponse = {
       success: false,
-      error: '投稿の削除に失敗しました',
+      error: "投稿の削除に失敗しました",
     };
     return NextResponse.json(response, { status: 500 });
   }

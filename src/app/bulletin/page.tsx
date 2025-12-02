@@ -2,24 +2,24 @@
  * 掲示板一覧ページ
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { PostCard } from '@/components/bulletin/PostCard';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Plus, Search, Filter, Loader2, ArrowLeft } from 'lucide-react';
-import { BulletinPost, SortOrder } from '@/types/bulletin';
-import { useAuth } from '@/contexts/AuthContext';
-import { handleError } from '@/lib/utils';
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { PostCard } from "@/components/bulletin/PostCard";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Search, Filter, Loader2, ArrowLeft } from "lucide-react";
+import { BulletinPost, SortOrder } from "@/types/bulletin";
+import { useAuth } from "@/contexts/AuthContext";
+import { handleError } from "@/lib/utils";
 
 const sortOrders: { value: SortOrder; label: string }[] = [
-  { value: 'newest', label: '新着順' },
-  { value: 'popular', label: '人気順' },
-  { value: 'participants', label: '募集中' },
+  { value: "newest", label: "新着順" },
+  { value: "popular", label: "人気順" },
+  { value: "participants", label: "募集中" },
 ];
 
 export default function BulletinPage() {
@@ -30,8 +30,8 @@ export default function BulletinPage() {
   const [error, setError] = useState<string | null>(null);
 
   // フィルター状態
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [showFilters, setShowFilters] = useState(false);
 
   // 投稿取得
@@ -41,14 +41,14 @@ export default function BulletinPage() {
 
     try {
       const params = new URLSearchParams();
-      if (searchQuery) params.append('search', searchQuery);
-      params.append('sortOrder', sortOrder);
+      if (searchQuery) params.append("search", searchQuery);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/bulletin?${params.toString()}`);
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '投稿の取得に失敗しました');
+        throw new Error(data.error || "投稿の取得に失敗しました");
       }
 
       // Date型に変換
@@ -60,7 +60,7 @@ export default function BulletinPage() {
 
       setPosts(postsWithDates);
     } catch (err) {
-      setError(handleError('投稿取得エラー', err));
+      setError(handleError("投稿取得エラー", err));
     } finally {
       setLoading(false);
     }
@@ -71,20 +71,21 @@ export default function BulletinPage() {
     if (!user) return;
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(`/api/bulletin/${postId}/like`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          userId: user.uid,
-        }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'いいねに失敗しました');
+        throw new Error(data.error || "いいねに失敗しました");
       }
 
       // 投稿を更新
@@ -100,23 +101,18 @@ export default function BulletinPage() {
         )
       );
     } catch (err) {
-      console.error(handleError('いいねエラー', err));
+      console.error(handleError("いいねエラー", err));
     }
   };
 
-  // 初回読み込み
-  useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
-
-  // フィルター変更時に再読み込み
+  // 初回読み込みとフィルター変更時の再読み込み（300msデバウンス）
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchPosts();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchQuery, sortOrder, fetchPosts]);
+  }, [fetchPosts]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
@@ -125,7 +121,7 @@ export default function BulletinPage() {
         <div className="mb-8">
           <Button
             variant="ghost"
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push("/dashboard")}
             className="mb-4"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -141,7 +137,7 @@ export default function BulletinPage() {
               </p>
             </div>
             <Button
-              onClick={() => router.push('/bulletin/create')}
+              onClick={() => router.push("/bulletin/create")}
               className="gap-2 shadow-lg"
             >
               <Plus className="w-5 h-5" />
@@ -185,7 +181,7 @@ export default function BulletinPage() {
                       <Badge
                         key={order.value}
                         variant={
-                          sortOrder === order.value ? 'default' : 'outline'
+                          sortOrder === order.value ? "default" : "outline"
                         }
                         className="cursor-pointer"
                         onClick={() => setSortOrder(order.value)}
@@ -214,10 +210,10 @@ export default function BulletinPage() {
           <Card className="p-8 text-center">
             <p className="text-muted-foreground mb-4">
               {searchQuery
-                ? '条件に一致する投稿が見つかりません'
-                : 'まだ投稿がありません'}
+                ? "条件に一致する投稿が見つかりません"
+                : "まだ投稿がありません"}
             </p>
-            <Button onClick={() => router.push('/bulletin/create')}>
+            <Button onClick={() => router.push("/bulletin/create")}>
               最初の投稿を作成
             </Button>
           </Card>

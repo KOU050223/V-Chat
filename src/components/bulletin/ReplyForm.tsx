@@ -2,23 +2,22 @@
  * 返信フォームコンポーネント - Twitter風デザイン
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Avatar } from '@/components/ui/avatar';
-import { Loader2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
+import { Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ReplyFormProps {
-  postId: string;
   onSubmit: (content: string) => Promise<void>;
   className?: string;
 }
 
 export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
   const { user } = useAuth();
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,9 +30,9 @@ export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
 
     try {
       await onSubmit(content);
-      setContent('');
+      setContent("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : '返信の投稿に失敗しました');
+      setError(err instanceof Error ? err.message : "返信の投稿に失敗しました");
     } finally {
       setIsSubmitting(false);
     }
@@ -48,7 +47,7 @@ export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
           </p>
           <Button
             variant="outline"
-            onClick={() => (window.location.href = '/login')}
+            onClick={() => (window.location.href = "/login")}
           >
             ログイン
           </Button>
@@ -66,12 +65,12 @@ export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
             {user.photoURL ? (
               <img
                 src={user.photoURL}
-                alt={user.displayName || 'User'}
+                alt={user.displayName || "User"}
                 className="w-full h-full object-cover rounded-full"
               />
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white font-bold rounded-full">
-                {(user.displayName || 'U')[0]}
+                {(user.displayName || "U")[0]}
               </div>
             )}
           </Avatar>
@@ -115,7 +114,7 @@ export function ReplyForm({ onSubmit, className }: ReplyFormProps) {
                     投稿中...
                   </>
                 ) : (
-                  '返信'
+                  "返信"
                 )}
               </Button>
             </div>

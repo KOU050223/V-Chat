@@ -19,6 +19,19 @@ const db = admin.firestore();
 // グローバル設定: コスト管理のため最大インスタンス数を制限
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 
+/**
+ * 短いルームIDを生成（8文字の英数字）
+ * 暗号学的に安全なランダムバイトを使用
+ * エントロピー: 36^8 ≈ 2^41 (約2.8兆通り)
+ */
+function generateRoomShortId(): string {
+  // 6バイトのランダムデータを生成（エントロピー向上）
+  const randomBytes = crypto.randomBytes(6);
+  // バイト列を整数に変換してbase36変換、最初の8文字を取得
+  const randomValue = randomBytes.readUIntBE(0, 6);
+  return randomValue.toString(36).substring(0, 8).toUpperCase();
+}
+
 // LiveKit環境変数の定義
 const livekitApiKey = defineString("LIVEKIT_API_KEY");
 const livekitApiSecret = defineString("LIVEKIT_API_SECRET");
@@ -50,16 +63,6 @@ export const createRoom = onCall(async (request) => {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       throw new HttpsError("invalid-argument", "ルーム名が必要です");
     }
-    // 短いルームIDを生成（8文字の英数字）
-    // 暗号学的に安全なランダムバイトを使用
-    // エントロピー: 36^8 ≈ 2^41 (約2.8兆通り) → コリジョン確率を大幅に削減
-    const generateShortId = () => {
-      // 6バイトのランダムデータを生成（エントロピー向上）
-      const randomBytes = crypto.randomBytes(6);
-      // バイト列を整数に変換してbase36変換、最初の8文字を取得
-      const randomValue = randomBytes.readUIntBE(0, 6);
-      return randomValue.toString(36).substring(0, 8).toUpperCase();
-    };
 
     let attempts = 0;
     const maxAttempts = 5;
@@ -69,7 +72,7 @@ export const createRoom = onCall(async (request) => {
 
     // アトミックな作成処理（競合を回避）
     while (attempts < maxAttempts && !createdSuccessfully) {
-      roomId = generateShortId();
+      roomId = generateRoomShortId();
       livekitRoomId = `livekit_${roomId}_${Date.now()}`;
 
       const roomDataToSave = {
@@ -579,7 +582,7 @@ export const findMatch = onCall(async (request) => {
         }
 
         // ルームを作成
-        const roomId = crypto.randomBytes(6).readUIntBE(0, 6).toString(36).substring(0, 8).toUpperCase();
+        const roomId = generateRoomShortId();
         const livekitRoomId = `livekit_${roomId}_${Date.now()}`;
 
         const roomData = {

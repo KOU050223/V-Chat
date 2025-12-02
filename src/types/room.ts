@@ -88,7 +88,7 @@ export interface JoinRoomResponse {
 }
 
 /**
- * チャットメッセージの構造
+ * チャットメッセージの構造（UI用）
  */
 export interface ChatMessage {
   /** メッセージID */
@@ -101,6 +101,13 @@ export interface ChatMessage {
   content: string;
   /** 送信時刻 */
   timestamp: Date;
+}
+
+/**
+ * Firestoreのチャットメッセージドキュメント型
+ */
+export interface ChatMessageDoc extends Omit<ChatMessage, "timestamp"> {
+  timestamp: FirestoreTimestamp;
 }
 
 /**
@@ -117,4 +124,25 @@ export interface RoomDisplayInfo {
   isPrivate: boolean;
   /** 現在の参加人数 */
   members: number;
+}
+
+/**
+ * RoomDoc を Room に変換するヘルパー関数
+ */
+export function roomDocToRoom(doc: RoomDoc): Room {
+  return {
+    ...doc,
+    createdAt: doc.createdAt.toDate(),
+    endedAt: doc.endedAt ? doc.endedAt.toDate() : null,
+  };
+}
+
+/**
+ * ChatMessageDoc を ChatMessage に変換するヘルパー関数
+ */
+export function chatMessageDocToChatMessage(doc: ChatMessageDoc): ChatMessage {
+  return {
+    ...doc,
+    timestamp: doc.timestamp.toDate(),
+  };
 }

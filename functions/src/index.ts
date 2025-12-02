@@ -27,9 +27,9 @@ setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 function generateRoomShortId(): string {
   // 6バイトのランダムデータを生成（エントロピー向上）
   const randomBytes = crypto.randomBytes(6);
-  // バイト列を整数に変換してbase36変換、最初の8文字を取得
+  // バイト列を整数に変換してbase36変換、8文字にパディング
   const randomValue = randomBytes.readUIntBE(0, 6);
-  return randomValue.toString(36).substring(0, 8).toUpperCase();
+  return randomValue.toString(36).padStart(8, '0').substring(0, 8).toUpperCase();
 }
 
 // LiveKit環境変数の定義
@@ -537,21 +537,16 @@ export const findMatch = onCall(async (request) => {
   }
 
   const userId = request.auth.uid;
-  const db = admin.firestore();
   const queueRef = db.collection("matching_queue");
 
   try {
     // 1. 既に待機中のユーザーを探す（自分以外）
-    // 古い待機ユーザー（例: 5分以上経過）は除外するクエリなどが望ましいが、
-    // ここではシンプルに created_at でソートして古い順に取得
+    // status="waiting"のユーザーのみを対象にすることで、
+    // 既にマッチング済みのユーザーを除外し、競合を防ぐ
     const snapshot = await queueRef
+      .where("status", "==", "waiting")
       .where("userId", "!=", userId)
-      .orderBy("userId") // whereとorderByのフィールドが異なると複合インデックスが必要になるため、一旦userIdでソート（実際はランダム性が欲しい）
-      // Firestoreの制約: 不等号フィルタを使用したフィールドで最初の並べ替えを行う必要がある
-      // そのため、単純なクエリでは「自分以外」かつ「古い順」は難しい。
-      // ここでは「自分以外」を優先し、クライアント側またはメモリ上でフィルタリングするか、
-      // 別のステータス管理を行う。
-      // 簡易実装として、limit(10)で取得してメモリ上で選ぶ。
+      .orderBy("userId") // 不等号フィルタを使用したフィールドで並べ替えが必要
       .limit(10)
       .get();
 
@@ -600,25 +595,18 @@ export const findMatch = onCall(async (request) => {
         // ルーム保存
         tx.set(db.collection("rooms").doc(roomId), roomData);
 
-        // 待機列からパートナーを削除
-        tx.delete(partnerDocRef);
-
-        // 自分も待機列に居たら削除（念のため）
-        tx.delete(queueRef.doc(userId));
-
-        // パートナーへの通知（FirestoreのUserドキュメントなどを更新して通知する仕組みが必要だが、
-        // ここでは待機列ドキュメントに結果を書き込む方式を採用する手もある。
-        // しかし、待機列ドキュメントを削除してしまうと通知できない。
-        // 解決策: 待機列ドキュメントを削除せず、status="matched" に更新し、roomIdを含める。
-        // クライアントはそれを監視してルームに遷移する。）
-
-        // 訂正: パートナーのドキュメントを更新して通知
-        // deleteではなくupdate
+        // パートナーのドキュメントをstatus="matched"に更新
+        // パートナーはドキュメントを監視して通知を受け取り、ルームに遷移する
+        // 更新することで競合状態を防ぎ、他のマッチング試行から除外される
         tx.update(partnerDocRef, {
           status: "matched",
           roomId,
           matchedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // 自分のドキュメントは削除
+        // このトランザクションの戻り値で直接roomIdを受け取るため、監視不要
+        tx.delete(queueRef.doc(userId));
 
         return {
           status: "matched",

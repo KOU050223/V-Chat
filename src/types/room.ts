@@ -29,7 +29,7 @@ export interface Room {
   /** プライベートルームかどうか */
   isPrivate: boolean;
   /** ルーム作成者のユーザーID */
-  creatorId: string;
+  createdBy: string;
   /** 参加メンバーのユーザーID配列 */
   members: string[];
   /** 最大参加人数 */
@@ -112,7 +112,7 @@ export interface RoomDisplayInfo {
   /** ルーム名 */
   name: string;
   /** ルームの説明 */
-  description: string;
+  description?: string;
   /** プライベートルームかどうか */
   isPrivate: boolean;
   /** 現在の参加人数 */

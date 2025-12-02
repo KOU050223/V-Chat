@@ -3,9 +3,9 @@
  * POST /api/bulletin/[postId]/create-room - 投稿からルームを作成
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { bulletinStore } from '@/lib/bulletinStore';
-import { BulletinApiResponse, BulletinPost } from '@/types/bulletin';
+import { NextRequest, NextResponse } from "next/server";
+import { bulletinStore } from "@/lib/bulletinStore";
+import { BulletinApiResponse, BulletinPost } from "@/types/bulletin";
 
 interface RouteContext {
   params: Promise<{
@@ -13,7 +13,7 @@ interface RouteContext {
   }>;
 }
 
-interface CreateRoomResponse {
+interface BulletinCreateRoomData {
   roomId: string;
   post: BulletinPost;
 }
@@ -28,32 +28,32 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!post) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿が見つかりません',
+        error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
     }
 
     // 認証情報の取得
-    const userId = request.headers.get('x-user-id') || 'anonymous';
+    const userId = request.headers.get("x-user-id") || "anonymous";
 
     // 投稿者確認
     if (post.authorId !== userId) {
       const response: BulletinApiResponse = {
         success: false,
-        error: 'ルームを作成する権限がありません',
+        error: "ルームを作成する権限がありません",
       };
       return NextResponse.json(response, { status: 403 });
     }
 
     // すでにルームが作成されている場合
     if (post.roomId) {
-      const response: BulletinApiResponse<CreateRoomResponse> = {
+      const response: BulletinApiResponse<BulletinCreateRoomData> = {
         success: true,
         data: {
           roomId: post.roomId,
           post,
         },
-        message: 'すでにルームが作成されています',
+        message: "すでにルームが作成されています",
       };
       return NextResponse.json(response);
     }
@@ -67,26 +67,26 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (!updatedPost) {
       const response: BulletinApiResponse = {
         success: false,
-        error: '投稿が見つかりません',
+        error: "投稿が見つかりません",
       };
       return NextResponse.json(response, { status: 404 });
     }
 
-    const response: BulletinApiResponse<CreateRoomResponse> = {
+    const response: BulletinApiResponse<BulletinCreateRoomData> = {
       success: true,
       data: {
         roomId,
         post: updatedPost,
       },
-      message: 'ルームを作成しました',
+      message: "ルームを作成しました",
     };
 
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
-    console.error('ルーム作成エラー:', error);
+    console.error("ルーム作成エラー:", error);
     const response: BulletinApiResponse = {
       success: false,
-      error: 'ルームの作成に失敗しました',
+      error: "ルームの作成に失敗しました",
     };
     return NextResponse.json(response, { status: 500 });
   }

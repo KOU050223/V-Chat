@@ -76,6 +76,7 @@ npm run lint:fix
 
 ### V体管理システム
 - [V体管理システム](./docs/vmodel-system.md) - VRoid Web API統合とV体管理の詳細
+- [LiveKit 3Dアバターシステム](./docs/livekit-avatar-system.md) - **[NEW]** リアルタイムモーション同期のアーキテクチャ
 
 ### 設定・その他
 - [Firebase設定ガイド](./docs/Firebase設定.md) - Firebase 認証の設定方法

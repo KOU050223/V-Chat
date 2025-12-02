@@ -8,10 +8,7 @@ import {
   Send,
   Users,
   MessageCircle,
-  Mic,
-  Settings,
   MoreVertical,
-  Monitor,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import VoiceCall from "@/components/voice/VoiceCall";
@@ -352,13 +349,15 @@ export default function ChatRoom() {
   };
 
   const handleVoiceCallStateChange = useCallback((state: VoiceCallState) => {
-    console.log("=== VOICE CALL STATE CHANGE DEBUG ===");
-    console.log("State:", state);
-    console.log("State participants:", state.participants);
-    console.log(
-      "State participants count:",
-      state.participants ? state.participants.length : 0
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log("=== VOICE CALL STATE CHANGE DEBUG ===");
+      console.log("State:", state);
+      console.log("State participants:", state.participants);
+      console.log(
+        "State participants count:",
+        state.participants ? state.participants.length : 0
+      );
+    }
 
     setVoiceCallState(state);
 
@@ -375,14 +374,15 @@ export default function ChatRoom() {
       if (prev.members === newMemberCount) {
         return prev;
       }
-
-      console.log(
-        "Updating room members to:",
-        newMemberCount,
-        "(raw:",
-        rawMemberCount,
-        ")"
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          "Updating room members to:",
+          newMemberCount,
+          "(raw:",
+          rawMemberCount,
+          ")"
+        );
+      }
 
       return {
         ...prev,
@@ -405,7 +405,7 @@ export default function ChatRoom() {
   };
 
   const handleResetRoom = async () => {
-    // if (process.env.NODE_ENV !== 'development') return; // 開発用に一時的にコメントアウト
+    if (process.env.NODE_ENV !== "development") return; // 本番環境では実行しない
 
     try {
       const response = await fetch(`/api/rooms/${roomId}/reset`, {

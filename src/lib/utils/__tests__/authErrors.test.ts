@@ -111,4 +111,35 @@ describe("getAuthErrorMessage", () => {
       expect(result).toBe("メールアドレスまたはパスワードが正しくありません");
     });
   });
+  describe("開発環境でのログ出力", () => {
+    const consoleErrorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    afterEach(() => {
+      consoleErrorSpy.mockClear();
+      vi.unstubAllEnvs();
+    });
+
+    afterAll(() => {
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("開発環境では未知のエラーがconsole.errorに出力される", () => {
+      vi.stubEnv("NODE_ENV", "development");
+      const error = "Unknown error";
+      getAuthErrorMessage(error);
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "Unhandled auth error:",
+        error
+      );
+    });
+
+    it("本番環境では未知のエラーがconsole.errorに出力されない", () => {
+      vi.stubEnv("NODE_ENV", "production");
+      const error = "Unknown error";
+      getAuthErrorMessage(error);
+      expect(consoleErrorSpy).not.toHaveBeenCalled();
+    });
+  });
 });

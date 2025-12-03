@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,10 +10,10 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
-export default function ProtectedRoute({ 
-  children, 
-  requireAuth = true, 
-  redirectTo = '/login' 
+export default function ProtectedRoute({
+  children,
+  requireAuth = true,
+  redirectTo = "/login",
 }: ProtectedRouteProps) {
   const { user, nextAuthSession, loading } = useAuth();
   const router = useRouter();
@@ -21,22 +21,29 @@ export default function ProtectedRoute({
   // Firebase または NextAuth のいずれかで認証されているかチェック
   const isAuthenticated = user || nextAuthSession;
 
-  console.log('ProtectedRoute check:', {
+  console.log("ProtectedRoute check:", {
     requireAuth,
     isAuthenticated,
-    user: user ? 'Firebase user' : 'No Firebase user',
-    nextAuthSession: nextAuthSession ? 'NextAuth session' : 'No NextAuth session',
-    loading
+    user: user ? "Firebase user" : "No Firebase user",
+    nextAuthSession: nextAuthSession
+      ? "NextAuth session"
+      : "No NextAuth session",
+    loading,
   });
 
   useEffect(() => {
     if (!loading) {
       if (requireAuth && !isAuthenticated) {
-        console.log('Authentication required but not found, redirecting to:', redirectTo);
+        console.log(
+          "Authentication required but not found, redirecting to:",
+          redirectTo
+        );
         router.push(redirectTo);
       } else if (!requireAuth && isAuthenticated) {
-        console.log('User authenticated but page does not require auth, redirecting to dashboard');
-        router.push('/dashboard');
+        console.log(
+          "User authenticated but page does not require auth, redirecting to dashboard"
+        );
+        router.push("/dashboard");
       }
     }
   }, [isAuthenticated, loading, requireAuth, redirectTo, router]);

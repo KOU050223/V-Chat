@@ -2,7 +2,7 @@
  * 音声通話機能の型定義
  */
 
-import type { RemoteParticipant } from 'livekit-client';
+import type { RemoteParticipant } from "livekit-client";
 
 /**
  * 音声通話の状態

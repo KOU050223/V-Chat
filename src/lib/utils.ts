@@ -1,5 +1,5 @@
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -67,27 +67,27 @@ export function handleError(context: string, error: unknown): string {
 export function handleFirebaseFunctionError(
   context: string,
   error: unknown,
-  defaultMessage: string = 'エラーが発生しました'
+  defaultMessage: string = "エラーが発生しました"
 ): string {
   logError(context, error);
 
   // Firebase Functions のエラーコードマッピング
   const errorMessages: Record<string, string> = {
-    'functions/not-found': 'ルームが見つかりません',
-    'functions/resource-exhausted': 'ルームが満員です',
-    'functions/failed-precondition': 'このルームは利用できません',
-    'functions/unauthenticated': '認証が必要です',
-    'functions/permission-denied': 'このルームへの参加権限がありません',
-    'functions/invalid-argument': '無効なリクエストです',
-    'functions/internal': 'サーバーエラーが発生しました',
+    "functions/not-found": "ルームが見つかりません",
+    "functions/resource-exhausted": "ルームが満員です",
+    "functions/failed-precondition": "このルームは利用できません",
+    "functions/unauthenticated": "認証が必要です",
+    "functions/permission-denied": "このルームへの参加権限がありません",
+    "functions/invalid-argument": "無効なリクエストです",
+    "functions/internal": "サーバーエラーが発生しました",
   };
 
   // error が code プロパティを持つオブジェクトかチェック
   if (
     error &&
-    typeof error === 'object' &&
-    'code' in error &&
-    typeof error.code === 'string'
+    typeof error === "object" &&
+    "code" in error &&
+    typeof error.code === "string"
   ) {
     return errorMessages[error.code] || defaultMessage;
   }

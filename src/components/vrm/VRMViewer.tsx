@@ -1,7 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { VRM, VRMLoaderPlugin, VRMUtils, VRMHumanBoneName } from '@pixiv/three-vrm';
-import * as THREE from 'three';
+import { useEffect, useRef, useState } from "react";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  VRM,
+  VRMLoaderPlugin,
+  VRMUtils,
+  VRMHumanBoneName,
+} from "@pixiv/three-vrm";
+import * as THREE from "three";
 
 interface VRMViewerProps {
   vrmUrl: string;
@@ -16,13 +21,13 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
   onVRMLoaded,
   position = [0, 0, 0],
   rotation = [0, 0, 0],
-  scale = [1, 1, 1]
+  scale = [1, 1, 1],
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const [vrm, setVrm] = useState<VRM | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // vrmのrefも保持（クリーンアップ用）
   const vrmRef = useRef<VRM | null>(null);
 
@@ -60,7 +65,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
             },
             undefined,
             (error) => {
-              console.error('GLTF loading error:', error);
+              console.error("GLTF loading error:", error);
               reject(error);
             }
           );
@@ -70,9 +75,11 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         const vrmInstance = gltf.userData.vrm as VRM;
 
         if (!vrmInstance) {
-          console.error('VRM instance not found in userData.vrm');
-          console.log('Available userData keys:', Object.keys(gltf.userData));
-          throw new Error(`VRMインスタンスの生成に失敗しました。userData.vrm が見つかりません。利用可能なキー: ${Object.keys(gltf.userData).join(', ')}`);
+          console.error("VRM instance not found in userData.vrm");
+          console.log("Available userData keys:", Object.keys(gltf.userData));
+          throw new Error(
+            `VRMインスタンスの生成に失敗しました。userData.vrm が見つかりません。利用可能なキー: ${Object.keys(gltf.userData).join(", ")}`
+          );
         }
 
         // パフォーマンス最適化
@@ -100,19 +107,19 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
         vrmRef.current = vrmInstance; // クリーンアップ用にrefにも保存
         setIsLoading(false);
         onVRMLoadedRef.current?.(vrmInstance);
-
       } catch (err) {
         if (!isMounted) return; // エラー時にアンマウント済みの場合は処理しない
 
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        console.error('VRM読み込みエラー:', errorMessage);
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
+        console.error("VRM読み込みエラー:", errorMessage);
 
         // 循環参照を避けてエラー情報を安全に記録
         if (err instanceof Error) {
-          console.error('Error details:', {
+          console.error("Error details:", {
             name: err.name,
             message: err.message,
-            stack: err.stack
+            stack: err.stack,
           });
         }
 
@@ -125,7 +132,7 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
 
     return () => {
       isMounted = false; // クリーンアップ時にフラグを設定
-      
+
       // VRMリソースのクリーンアップ（メモリリーク防止）
       if (vrmRef.current) {
         // すべてのジオメトリ、マテリアル、テクスチャを破棄
@@ -144,15 +151,16 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
             } else {
               if (child.material.map) child.material.map.dispose();
               if (child.material.normalMap) child.material.normalMap.dispose();
-              if (child.material.emissiveMap) child.material.emissiveMap.dispose();
+              if (child.material.emissiveMap)
+                child.material.emissiveMap.dispose();
               child.material.dispose();
             }
           }
         });
-        
+
         // VRMUtils.deepDisposeを使用して完全にクリーンアップ
         VRMUtils.deepDispose(vrmRef.current.scene);
-        
+
         vrmRef.current = null;
       }
     };
@@ -160,9 +168,14 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
 
   // エラーが発生した場合の表示
   if (error) {
-    console.error('VRMエラー:', error);
+    console.error("VRMエラー:", error);
     return (
-      <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
+      <group
+        ref={groupRef}
+        position={position}
+        rotation={rotation}
+        scale={scale}
+      >
         <mesh>
           <boxGeometry args={[1, 2, 0.5]} />
           <meshStandardMaterial color="red" />
@@ -174,7 +187,12 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
   // VRMが読み込まれていない場合の表示
   if (!vrm) {
     return (
-      <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
+      <group
+        ref={groupRef}
+        position={position}
+        rotation={rotation}
+        scale={scale}
+      >
         <mesh>
           <boxGeometry args={[1, 2, 0.5]} />
           <meshStandardMaterial color={isLoading ? "yellow" : "gray"} />
@@ -189,4 +207,3 @@ export const VRMViewer: React.FC<VRMViewerProps> = ({
     </group>
   );
 };
-

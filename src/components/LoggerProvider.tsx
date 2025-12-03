@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import logger from '../lib/logger';
+import { useEffect } from "react";
+import logger from "../lib/logger";
 
 interface LoggerProviderProps {
   children: React.ReactNode;
@@ -14,19 +14,22 @@ export const LoggerProvider: React.FC<LoggerProviderProps> = ({ children }) => {
 
     // グローバルエラーハンドラーを設定
     const handleUnhandledError = (event: ErrorEvent) => {
-      console.error('Unhandled error:', event.error);
+      console.error("Unhandled error:", event.error);
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
-      console.error('Unhandled promise rejection:', event.reason);
+      console.error("Unhandled promise rejection:", event.reason);
     };
 
-    window.addEventListener('error', handleUnhandledError);
-    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    window.addEventListener("error", handleUnhandledError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
 
     return () => {
-      window.removeEventListener('error', handleUnhandledError);
-      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      window.removeEventListener("error", handleUnhandledError);
+      window.removeEventListener(
+        "unhandledrejection",
+        handleUnhandledRejection
+      );
     };
   }, []);
 

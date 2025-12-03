@@ -1,11 +1,17 @@
-'use client';
+"use client";
 
-import { useFeature } from '@growthbook/growthbook-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
-import { Bug, Code, Database, Mic, TestTube } from 'lucide-react';
+import { useFeature } from "@growthbook/growthbook-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { Bug, Code, Database, Mic, TestTube } from "lucide-react";
 
 interface DebugPanelProps {
   className?: string;
@@ -13,10 +19,10 @@ interface DebugPanelProps {
 
 export default function DebugPanel({ className }: DebugPanelProps) {
   // 開発環境かどうかを判定
-  const isDev = process.env.NODE_ENV === 'development';
+  const isDev = process.env.NODE_ENV === "development";
 
   // Feature Flagでデバッグパネルの表示を制御
-  const showDebugPanel = useFeature('debug-panel').on;
+  const showDebugPanel = useFeature("debug-panel").on;
 
   // 開発環境でない場合は何も表示しない
   if (!isDev && !showDebugPanel) {
@@ -25,33 +31,33 @@ export default function DebugPanel({ className }: DebugPanelProps) {
 
   const debugLinks = [
     {
-      href: '/debug/session-info',
-      title: 'セッション情報',
-      description: 'Firebase/NextAuth セッション詳細',
+      href: "/debug/session-info",
+      title: "セッション情報",
+      description: "Firebase/NextAuth セッション詳細",
       icon: Database,
-      variant: 'secondary' as const
+      variant: "secondary" as const,
     },
     {
-      href: '/debug/vrm-model',
-      title: 'VRMモデル',
-      description: 'VRMモデルのテストとデバッグ',
+      href: "/debug/vrm-model",
+      title: "VRMモデル",
+      description: "VRMモデルのテストとデバッグ",
       icon: TestTube,
-      variant: 'secondary' as const
+      variant: "secondary" as const,
     },
     {
-      href: '/mic-test',
-      title: 'マイクテスト',
-      description: 'マイク/カメラ機能のテスト',
+      href: "/mic-test",
+      title: "マイクテスト",
+      description: "マイク/カメラ機能のテスト",
       icon: Mic,
-      variant: 'secondary' as const
+      variant: "secondary" as const,
     },
     {
-      href: '/test',
-      title: 'テストページ',
-      description: '機能テスト用ページ',
+      href: "/test",
+      title: "テストページ",
+      description: "機能テスト用ページ",
       icon: Code,
-      variant: 'secondary' as const
-    }
+      variant: "secondary" as const,
+    },
   ];
 
   return (
@@ -61,12 +67,10 @@ export default function DebugPanel({ className }: DebugPanelProps) {
           <Bug className="h-5 w-5 text-orange-500" />
           <CardTitle className="text-orange-700">デバッグツール</CardTitle>
           <Badge variant="outline" className="text-xs">
-            {isDev ? 'DEV' : 'FEATURE FLAG'}
+            {isDev ? "DEV" : "FEATURE FLAG"}
           </Badge>
         </div>
-        <CardDescription>
-          開発者向けデバッグ機能とテストツール
-        </CardDescription>
+        <CardDescription>開発者向けデバッグ機能とテストツール</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

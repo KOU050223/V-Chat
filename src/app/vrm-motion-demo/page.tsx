@@ -1,14 +1,17 @@
-'use client';
+"use client";
 
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { VRMViewer } from '../../components/vrm/VRMViewer';
-import { MotionSyncUI, useMotionSync } from '../../components/vrm/MotionSyncViewer';
-import { CameraPreview } from '../../components/vrm/CameraPreview';
-import { useFrame } from '@react-three/fiber';
-import { retargetPoseToVRM } from '../../lib/vrm-retargeter';
-import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
-import { useState, useEffect } from 'react';
+import { Canvas } from "@react-three/fiber";
+import { OrbitControls } from "@react-three/drei";
+import { VRMViewer } from "../../components/vrm/VRMViewer";
+import {
+  MotionSyncUI,
+  useMotionSync,
+} from "../../components/vrm/MotionSyncViewer";
+import { CameraPreview } from "../../components/vrm/CameraPreview";
+import { useFrame } from "@react-three/fiber";
+import { retargetPoseToVRM } from "../../lib/vrm-retargeter";
+import { retargetPoseToVRMWithKalidokit } from "../../lib/vrm-retargeter-kalidokit";
+import { useState, useEffect } from "react";
 
 // Canvas内でモーション同期を行うコンポーネント
 const MotionSyncRenderer: React.FC<{
@@ -49,9 +52,8 @@ const MotionSyncRenderer: React.FC<{
 
       // VRMの更新
       vrm.update(delta);
-
     } catch (err) {
-      console.error('フレーム更新エラー:', err);
+      console.error("フレーム更新エラー:", err);
     }
   });
 
@@ -67,7 +69,7 @@ const MotionSyncRenderer: React.FC<{
   );
 };
 
-MotionSyncRenderer.displayName = 'MotionSyncRenderer';
+MotionSyncRenderer.displayName = "MotionSyncRenderer";
 
 export default function VRMMotionDemoPage() {
   // モーション同期の状態を管理
@@ -75,7 +77,7 @@ export default function VRMMotionDemoPage() {
 
   // Kalidokit使用フラグ（デフォルトはKalidokit）
   const [useKalidokit, setUseKalidokit] = useState(true);
-  
+
   // ローディング状態
   const [isVRMLoading, setIsVRMLoading] = useState(true);
 
@@ -86,8 +88,12 @@ export default function VRMMotionDemoPage() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-gray-900 bg-opacity-90">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-            <h2 className="text-white text-2xl font-bold mb-2">VRMモデルを読み込み中...</h2>
-            <p className="text-gray-400 text-sm">初回読み込みには時間がかかる場合があります</p>
+            <h2 className="text-white text-2xl font-bold mb-2">
+              VRMモデルを読み込み中...
+            </h2>
+            <p className="text-gray-400 text-sm">
+              初回読み込みには時間がかかる場合があります
+            </p>
           </div>
         </div>
       )}
@@ -105,8 +111,8 @@ export default function VRMMotionDemoPage() {
             onClick={() => setUseKalidokit(false)}
             className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
               !useKalidokit
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? "bg-blue-600 text-white"
+                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
             }`}
           >
             自前実装
@@ -115,8 +121,8 @@ export default function VRMMotionDemoPage() {
             onClick={() => setUseKalidokit(true)}
             className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
               useKalidokit
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                ? "bg-green-600 text-white"
+                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
             }`}
           >
             Kalidokit
@@ -127,36 +133,33 @@ export default function VRMMotionDemoPage() {
       <Canvas
         camera={{
           position: [0, 1.5, 3],
-          fov: 50
+          fov: 50,
         }}
-        style={{ width: '100%', height: '100%' }}
+        style={{ width: "100%", height: "100%" }}
         gl={{
-          antialias: true,  // 品質維持のため有効
-          powerPreference: 'high-performance',
-          alpha: false  // 透明度不要
+          antialias: true, // 品質維持のため有効
+          powerPreference: "high-performance",
+          alpha: false, // 透明度不要
         }}
-        dpr={typeof window !== 'undefined' && window.devicePixelRatio > 2 ? 2 : (typeof window !== 'undefined' ? window.devicePixelRatio : 1)}
+        dpr={
+          typeof window !== "undefined" && window.devicePixelRatio > 2
+            ? 2
+            : typeof window !== "undefined"
+              ? window.devicePixelRatio
+              : 1
+        }
       >
         {/* 環境光（強度を上げて補完） */}
         <ambientLight intensity={0.8} />
 
         {/* メインの方向光 */}
-        <directionalLight
-          position={[5, 5, 5]}
-          intensity={1.2}
-        />
+        <directionalLight position={[5, 5, 5]} intensity={1.2} />
 
         {/* 補助ライト（右側） */}
-        <directionalLight
-          position={[-3, 3, 2]}
-          intensity={0.5}
-        />
+        <directionalLight position={[-3, 3, 2]} intensity={0.5} />
 
         {/* 補助ライト（後ろ） */}
-        <directionalLight
-          position={[0, 3, -5]}
-          intensity={0.3}
-        />
+        <directionalLight position={[0, 3, -5]} intensity={0.3} />
 
         {/* Environmentを削除（重い読み込みを回避） */}
 

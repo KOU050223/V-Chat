@@ -1,5 +1,5 @@
-import RoomManager from '@/components/matching/RoomManager';
+import RoomManager from "@/components/matching/RoomManager";
 
 export default function MatchingPage() {
-    return <RoomManager />;
+  return <RoomManager />;
 }

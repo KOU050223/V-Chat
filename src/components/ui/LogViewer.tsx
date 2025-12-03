@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import logger, { type LogEntry, type LogLevel } from '../../lib/logger';
+import React, { useState, useEffect } from "react";
+import logger, { type LogEntry, type LogLevel } from "../../lib/logger";
 
 interface LogViewerProps {
   isVisible: boolean;
@@ -10,7 +10,9 @@ interface LogViewerProps {
 
 export const LogViewer: React.FC<LogViewerProps> = ({ isVisible, onClose }) => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [filter, setFilter] = useState<'all' | 'error' | 'warn' | 'info' | 'debug'>('all');
+  const [filter, setFilter] = useState<
+    "all" | "error" | "warn" | "info" | "debug"
+  >("all");
   const [autoScroll, setAutoScroll] = useState(true);
 
   useEffect(() => {
@@ -29,32 +31,43 @@ export const LogViewer: React.FC<LogViewerProps> = ({ isVisible, onClose }) => {
 
   useEffect(() => {
     if (autoScroll && isVisible) {
-      const logContainer = document.getElementById('log-container');
+      const logContainer = document.getElementById("log-container");
       if (logContainer) {
         logContainer.scrollTop = logContainer.scrollHeight;
       }
     }
   }, [logs, autoScroll, isVisible]);
 
-  const filteredLogs = filter === 'all' ? logs : logs.filter(log => log.level === filter);
+  const filteredLogs =
+    filter === "all" ? logs : logs.filter((log) => log.level === filter);
 
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'error': return 'text-red-500';
-      case 'warn': return 'text-yellow-500';
-      case 'info': return 'text-blue-500';
-      case 'debug': return 'text-gray-500';
-      default: return 'text-gray-300';
+      case "error":
+        return "text-red-500";
+      case "warn":
+        return "text-yellow-500";
+      case "info":
+        return "text-blue-500";
+      case "debug":
+        return "text-gray-500";
+      default:
+        return "text-gray-300";
     }
   };
 
   const getLevelBg = (level: string) => {
     switch (level) {
-      case 'error': return 'bg-red-500/10';
-      case 'warn': return 'bg-yellow-500/10';
-      case 'info': return 'bg-blue-500/10';
-      case 'debug': return 'bg-gray-500/10';
-      default: return 'bg-gray-300/10';
+      case "error":
+        return "bg-red-500/10";
+      case "warn":
+        return "bg-yellow-500/10";
+      case "info":
+        return "bg-blue-500/10";
+      case "debug":
+        return "bg-gray-500/10";
+      default:
+        return "bg-gray-300/10";
     }
   };
 
@@ -88,19 +101,23 @@ export const LogViewer: React.FC<LogViewerProps> = ({ isVisible, onClose }) => {
         {/* コントロール */}
         <div className="flex items-center justify-between p-4 border-b border-gray-700">
           <div className="flex gap-2">
-            {(['all', 'error', 'warn', 'info', 'debug'] as const).map(level => (
-              <button
-                key={level}
-                onClick={() => setFilter(level)}
-                className={`px-3 py-1 rounded text-sm ${
-                  filter === level
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                {level === 'all' ? 'All' : level.charAt(0).toUpperCase() + level.slice(1)}
-              </button>
-            ))}
+            {(["all", "error", "warn", "info", "debug"] as const).map(
+              (level) => (
+                <button
+                  key={level}
+                  onClick={() => setFilter(level)}
+                  className={`px-3 py-1 rounded text-sm ${
+                    filter === level
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  }`}
+                >
+                  {level === "all"
+                    ? "All"
+                    : level.charAt(0).toUpperCase() + level.slice(1)}
+                </button>
+              )
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -145,25 +162,27 @@ export const LogViewer: React.FC<LogViewerProps> = ({ isVisible, onClose }) => {
               >
                 <div className="flex items-start gap-2">
                   <span className="text-gray-400 text-xs whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleTimeString('ja-JP', {
+                    {new Date(log.timestamp).toLocaleTimeString("ja-JP", {
                       hour12: false,
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      fractionalSecondDigits: 3
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                      fractionalSecondDigits: 3,
                     })}
                   </span>
-                  <span className={`text-xs font-bold uppercase ${getLevelColor(log.level)} w-12`}>
+                  <span
+                    className={`text-xs font-bold uppercase ${getLevelColor(log.level)} w-12`}
+                  >
                     {log.level}
                   </span>
-                  <span className="flex-1 break-words">
-                    {log.message}
-                  </span>
+                  <span className="flex-1 break-words">{log.message}</span>
                 </div>
                 {log.data && (
                   <div className="mt-1 ml-20 text-gray-400 text-xs">
                     <pre className="whitespace-pre-wrap">
-                      {typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}
+                      {typeof log.data === "string"
+                        ? log.data
+                        : JSON.stringify(log.data, null, 2)}
                     </pre>
                   </div>
                 )}

@@ -1,5 +1,5 @@
-import { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
-import * as THREE from 'three';
+import { VRM, VRMHumanBoneName } from "@pixiv/three-vrm";
+import * as THREE from "three";
 
 interface PoseLandmark {
   x: number;
@@ -47,7 +47,7 @@ export const POSE_LANDMARKS = {
   LEFT_HEEL: 29,
   RIGHT_HEEL: 30,
   LEFT_FOOT_INDEX: 31,
-  RIGHT_FOOT_INDEX: 32
+  RIGHT_FOOT_INDEX: 32,
 } as const;
 
 /**
@@ -70,9 +70,9 @@ const calculateDirectionVector = (
   // MediaPipe: X(0→1: 左→右), Y(0→1: 上→下), Z(負→正: 奥→手前)
   // VRM(回転後): X(負→正: 右→左), Y(負→正: 下→上), Z(負→正: 奥→手前)
   return new THREE.Vector3(
-    (to.x - from.x),  // シーン回転により、そのまま使用（左右は反転済み）
+    to.x - from.x, // シーン回転により、そのまま使用（左右は反転済み）
     -(to.y - from.y), // MediaPipeの上下を反転（下が正→上が正）
-    -(to.z - from.z)  // シーン回転により、Z軸も反転
+    -(to.z - from.z) // シーン回転により、Z軸も反転
   ).normalize();
 };
 
@@ -100,7 +100,7 @@ const calculateRotationQuaternion = (
 const applyUpperBodyRotations = (vrm: VRM, landmarks: PoseLandmark[]) => {
   const humanoid = vrm.humanoid;
   if (!humanoid) {
-    console.warn('⚠️ VRM humanoidが見つかりません');
+    console.warn("⚠️ VRM humanoidが見つかりません");
     return;
   }
 
@@ -119,9 +119,9 @@ const applyUpperBodyRotations = (vrm: VRM, landmarks: PoseLandmark[]) => {
 
   // デバッグログ（稀に出力）
   if (Math.random() < 0.01) {
-    console.log('🦾 肩の方向ベクトル:', {
+    console.log("🦾 肩の方向ベクトル:", {
       left: leftShoulderDirection?.toArray(),
-      right: rightShoulderDirection?.toArray()
+      right: rightShoulderDirection?.toArray(),
     });
   }
 
@@ -132,45 +132,55 @@ const applyUpperBodyRotations = (vrm: VRM, landmarks: PoseLandmark[]) => {
       // VRM Tポーズでの左腕の方向（横向き、やや下向き）
       // ローカル座標系: 左腕は-X方向（左向き）
       const baseVector = new THREE.Vector3(-1, -0.3, 0).normalize();
-      const rotation = calculateRotationQuaternion(baseVector, leftShoulderDirection, 0.5);
+      const rotation = calculateRotationQuaternion(
+        baseVector,
+        leftShoulderDirection,
+        0.5
+      );
 
       // スムーズな補間で適用
       leftUpperArm.quaternion.slerp(rotation, 0.3);
 
       if (Math.random() < 0.01) {
-        console.log('🦾 左腕回転適用:', {
+        console.log("🦾 左腕回転適用:", {
           direction: leftShoulderDirection.toArray(),
-          rotation: rotation.toArray()
+          rotation: rotation.toArray(),
         });
       }
     } else {
       if (Math.random() < 0.01) {
-        console.warn('⚠️ 左上腕のボーンが見つかりません');
+        console.warn("⚠️ 左上腕のボーンが見つかりません");
       }
     }
   }
 
   // 右上腕の回転
   if (rightShoulderDirection) {
-    const rightUpperArm = humanoid.getRawBoneNode(VRMHumanBoneName.RightUpperArm);
+    const rightUpperArm = humanoid.getRawBoneNode(
+      VRMHumanBoneName.RightUpperArm
+    );
     if (rightUpperArm) {
       // VRM Tポーズでの右腕の方向（横向き、やや下向き）
       // ローカル座標系: 右腕は+X方向（右向き）
       const baseVector = new THREE.Vector3(1, -0.3, 0).normalize();
-      const rotation = calculateRotationQuaternion(baseVector, rightShoulderDirection, 0.5);
+      const rotation = calculateRotationQuaternion(
+        baseVector,
+        rightShoulderDirection,
+        0.5
+      );
 
       // スムーズな補間で適用
       rightUpperArm.quaternion.slerp(rotation, 0.3);
 
       if (Math.random() < 0.01) {
-        console.log('🦾 右腕回転適用:', {
+        console.log("🦾 右腕回転適用:", {
           direction: rightShoulderDirection.toArray(),
-          rotation: rotation.toArray()
+          rotation: rotation.toArray(),
         });
       }
     } else {
       if (Math.random() < 0.01) {
-        console.warn('⚠️ 右上腕のボーンが見つかりません');
+        console.warn("⚠️ 右上腕のボーンが見つかりません");
       }
     }
   }
@@ -228,20 +238,24 @@ const applyHeadRotation = (vrm: VRM, landmarks: PoseLandmark[]) => {
   const shoulderCenter = {
     x: (leftShoulder.x + rightShoulder.x) / 2,
     y: (leftShoulder.y + rightShoulder.y) / 2,
-    z: (leftShoulder.z + rightShoulder.z) / 2
+    z: (leftShoulder.z + rightShoulder.z) / 2,
   };
 
   // 頭の方向ベクトルを計算（VRM座標系に合わせて調整）
   const headDirection = new THREE.Vector3(
     -(nose.x - shoulderCenter.x), // X軸反転
     -(nose.y - shoulderCenter.y), // Y軸反転
-    nose.z - shoulderCenter.z     // Z軸そのまま
+    nose.z - shoulderCenter.z // Z軸そのまま
   ).normalize();
 
   const head = humanoid.getRawBoneNode(VRMHumanBoneName.Head);
   if (head) {
     const baseVector = new THREE.Vector3(0, 1, 0); // 頭の基準方向（上向き）
-    const rotation = calculateRotationQuaternion(baseVector, headDirection, 0.3);
+    const rotation = calculateRotationQuaternion(
+      baseVector,
+      headDirection,
+      0.3
+    );
     head.quaternion.slerp(rotation, 0.4); // より反応を良くする
   }
 };
@@ -281,7 +295,11 @@ const applySpineRotation = (vrm: VRM, landmarks: PoseLandmark[]) => {
   const spine = humanoid.getRawBoneNode(VRMHumanBoneName.Spine);
   if (spine) {
     const baseVector = new THREE.Vector3(0, 1, 0); // 胴体の基準方向（上向き）
-    const rotation = calculateRotationQuaternion(baseVector, spineDirection, 0.2);
+    const rotation = calculateRotationQuaternion(
+      baseVector,
+      spineDirection,
+      0.2
+    );
     spine.quaternion.slerp(rotation, 0.3); // より反応を良くする
   }
 };
@@ -289,24 +307,31 @@ const applySpineRotation = (vrm: VRM, landmarks: PoseLandmark[]) => {
 /**
  * MediaPipeのポーズランドマークをVRMモデルに適用
  */
-export const retargetPoseToVRM = (vrm: VRM, landmarks: PoseLandmark[]): void => {
+export const retargetPoseToVRM = (
+  vrm: VRM,
+  landmarks: PoseLandmark[]
+): void => {
   if (!vrm || !landmarks || landmarks.length === 0) {
-    console.warn('⚠️ VRMまたはランドマークが無効:', { vrm: !!vrm, landmarksLength: landmarks?.length });
+    console.warn("⚠️ VRMまたはランドマークが無効:", {
+      vrm: !!vrm,
+      landmarksLength: landmarks?.length,
+    });
     return;
   }
 
   // 信頼度が低いランドマークをフィルタリング（閾値を下げて検出しやすく）
-  const validLandmarks = landmarks.filter(landmark =>
-    landmark.visibility === undefined || landmark.visibility > 0.5
+  const validLandmarks = landmarks.filter(
+    (landmark) => landmark.visibility === undefined || landmark.visibility > 0.5
   );
 
   if (validLandmarks.length < landmarks.length * 0.3) {
     // 有効なランドマークが30%未満の場合は処理をスキップ
-    if (Math.random() < 0.01) { // ログの頻度を下げる
-      console.warn('⚠️ 有効なランドマークが不足:', {
+    if (Math.random() < 0.01) {
+      // ログの頻度を下げる
+      console.warn("⚠️ 有効なランドマークが不足:", {
         valid: validLandmarks.length,
         total: landmarks.length,
-        threshold: landmarks.length * 0.3
+        threshold: landmarks.length * 0.3,
       });
     }
     return;
@@ -317,9 +342,8 @@ export const retargetPoseToVRM = (vrm: VRM, landmarks: PoseLandmark[]): void => 
     applyUpperBodyRotations(vrm, landmarks);
     applyHeadRotation(vrm, landmarks);
     applySpineRotation(vrm, landmarks);
-
   } catch (error) {
-    console.error('リターゲティングエラー:', error);
+    console.error("リターゲティングエラー:", error);
   }
 };
 
@@ -332,6 +356,6 @@ export const resetVRMPose = (vrm: VRM): void => {
   try {
     vrm.humanoid.resetNormalizedPose();
   } catch (error) {
-    console.error('VRMポーズリセットエラー:', error);
+    console.error("VRMポーズリセットエラー:", error);
   }
 };

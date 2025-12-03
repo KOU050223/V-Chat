@@ -144,7 +144,6 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
           category: formData.category,
           maxParticipants: formData.maxParticipants,
           tags: formData.tags,
-          userId: user.uid,
           userName: user.displayName || "ゲストユーザー",
           userPhoto: user.photoURL || undefined,
         };

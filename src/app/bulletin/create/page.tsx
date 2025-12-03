@@ -2,27 +2,27 @@
  * 投稿作成ページ
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plus, X } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
-import { PostCategory, CreatePostRequest } from '@/types/bulletin';
-import { handleError } from '@/lib/utils';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Plus, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { PostCategory, CreatePostRequest } from "@/types/bulletin";
+import { handleError } from "@/lib/utils";
 
 const categories: PostCategory[] = [
-  '雑談',
-  'ゲーム',
-  '趣味',
-  '技術',
-  'イベント',
-  'その他',
+  "雑談",
+  "ゲーム",
+  "趣味",
+  "技術",
+  "イベント",
+  "その他",
 ];
 
 export default function CreatePostPage() {
@@ -32,14 +32,14 @@ export default function CreatePostPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<CreatePostRequest>({
-    title: '',
-    content: '',
-    category: '雑談',
+    title: "",
+    content: "",
+    category: "雑談",
     maxParticipants: 4,
     tags: [],
   });
 
-  const [tagInput, setTagInput] = useState('');
+  const [tagInput, setTagInput] = useState("");
 
   const handleAddTag = () => {
     const tag = tagInput.trim();
@@ -52,7 +52,7 @@ export default function CreatePostPage() {
         ...prev,
         tags: [...(prev.tags || []), tag],
       }));
-      setTagInput('');
+      setTagInput("");
     }
   };
 
@@ -66,7 +66,7 @@ export default function CreatePostPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) {
-      setError('ログインが必要です');
+      setError("ログインが必要です");
       return;
     }
 
@@ -74,28 +74,31 @@ export default function CreatePostPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/bulletin', {
-        method: 'POST',
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
+      const response = await fetch("/api/bulletin", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           ...formData,
-          userId: user.uid,
-          userName: user.displayName || 'ユーザー',
-          userPhoto: user.photoURL || '',
+          userName: user.displayName || "ユーザー",
+          userPhoto: user.photoURL || "",
         }),
       });
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '投稿の作成に失敗しました');
+        throw new Error(data.error || "投稿の作成に失敗しました");
       }
 
       router.push(`/bulletin/${data.data.id}`);
     } catch (err) {
-      setError(handleError('投稿作成エラー', err));
+      setError(handleError("投稿作成エラー", err));
     } finally {
       setIsSubmitting(false);
     }
@@ -109,7 +112,7 @@ export default function CreatePostPage() {
             <p className="text-muted-foreground mb-4">
               投稿を作成するにはログインが必要です
             </p>
-            <Button onClick={() => router.push('/login')}>ログイン</Button>
+            <Button onClick={() => router.push("/login")}>ログイン</Button>
           </Card>
         </div>
       </div>
@@ -229,7 +232,7 @@ export default function CreatePostPage() {
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       e.preventDefault();
                       handleAddTag();
                     }
@@ -289,7 +292,7 @@ export default function CreatePostPage() {
                 キャンセル
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? '作成中...' : '投稿を作成'}
+                {isSubmitting ? "作成中..." : "投稿を作成"}
               </Button>
             </div>
           </form>

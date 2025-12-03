@@ -4,12 +4,12 @@
 
 // 投稿カテゴリ
 export type PostCategory =
-  | '雑談'
-  | 'ゲーム'
-  | '趣味'
-  | '技術'
-  | 'イベント'
-  | 'その他';
+  | "雑談"
+  | "ゲーム"
+  | "趣味"
+  | "技術"
+  | "イベント"
+  | "その他";
 
 // 投稿の型
 export interface BulletinPost {
@@ -51,7 +51,7 @@ export interface CreatePostRequest {
   category: PostCategory;
   maxParticipants: number;
   tags?: string[];
-  userId?: string;
+  // userId は Authorization ヘッダーから取得されるため不要
   userName?: string;
   userPhoto?: string;
 }
@@ -59,7 +59,7 @@ export interface CreatePostRequest {
 // 返信作成リクエストの型
 export interface CreateReplyRequest {
   content: string;
-  userId?: string;
+  // userId は Authorization ヘッダーから取得されるため不要
   userName?: string;
   userPhoto?: string;
 }
@@ -74,7 +74,7 @@ export interface UpdatePostRequest {
 }
 
 // ソート順
-export type SortOrder = 'newest' | 'popular' | 'participants';
+export type SortOrder = "newest" | "popular" | "participants";
 
 // フィルター条件
 export interface PostFilter {

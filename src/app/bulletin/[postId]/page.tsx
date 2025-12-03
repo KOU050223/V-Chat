@@ -137,14 +137,17 @@ function PostDetailContent({ postId }: { postId: string }) {
   const handleReplySubmit = async (content: string) => {
     if (!user) throw new Error("ログインが必要です");
 
+    // Firebase ID トークンを取得
+    const idToken = await user.getIdToken();
+
     const response = await fetch(`/api/bulletin/${postId}/replies`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${idToken}`,
       },
       body: JSON.stringify({
         content,
-        userId: user.uid,
         userName: user.displayName || "ユーザー",
         userPhoto: user.photoURL || undefined,
       }),

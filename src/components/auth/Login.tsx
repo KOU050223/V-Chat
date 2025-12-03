@@ -16,6 +16,25 @@ import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import { getAuthErrorMessage } from "@/lib/utils/authErrors";
 
+/**
+ * unknown型のエラーを安全な文字列に変換
+ * @param error - 未知の型のエラー
+ * @returns エラーメッセージの文字列
+ */
+function safeErrorString(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -95,8 +114,8 @@ export default function Login() {
       } else {
         await login(email, password);
       }
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error.message));
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(safeErrorString(error)));
     } finally {
       setLoading(false);
     }
@@ -108,8 +127,8 @@ export default function Login() {
 
     try {
       await loginWithGoogle();
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error.message));
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(safeErrorString(error)));
     } finally {
       setLoading(false);
     }
@@ -121,8 +140,8 @@ export default function Login() {
 
     try {
       await loginWithGithub();
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error.message));
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(safeErrorString(error)));
     } finally {
       setLoading(false);
     }
@@ -140,8 +159,8 @@ export default function Login() {
     try {
       await resetPassword(email);
       setSuccessMessage("パスワードリセットメールを送信しました");
-    } catch (error: any) {
-      setError(getAuthErrorMessage(error.message));
+    } catch (error: unknown) {
+      setError(getAuthErrorMessage(safeErrorString(error)));
     } finally {
       setLoading(false);
     }
@@ -163,7 +182,7 @@ export default function Login() {
         setLoading(false);
       }
       // redirect: true なので成功時はページが移動する
-    } catch (error: any) {
+    } catch (error: unknown) {
       setError("VRoidログインに失敗しました");
       console.error("VRoid login error:", error);
       setLoading(false);

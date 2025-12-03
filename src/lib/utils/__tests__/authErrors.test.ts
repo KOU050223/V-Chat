@@ -1,6 +1,8 @@
-import { getAuthErrorMessage } from "../authErrors";
+import { getAuthErrorMessage } from "@/lib/utils/authErrors";
 
 describe("getAuthErrorMessage", () => {
+  const GENERIC_MESSAGE =
+    "認証エラーが発生しました。しばらくしてから再度お試しください。";
   // 既知のエラーコードのテスト
   describe("既知のエラーコード", () => {
     it("auth/invalid-credential のエラーメッセージを返す", () => {
@@ -77,25 +79,19 @@ describe("getAuthErrorMessage", () => {
     it("未知のエラーコードの場合、汎用メッセージを返す", () => {
       const error = "Firebase: Unknown error occurred.";
       const result = getAuthErrorMessage(error);
-      expect(result).toBe(
-        "認証エラーが発生しました。しばらくしてから再度お試しください。"
-      );
+      expect(result).toBe(GENERIC_MESSAGE);
     });
 
     it("空文字列の場合、汎用メッセージを返す", () => {
       const error = "";
       const result = getAuthErrorMessage(error);
-      expect(result).toBe(
-        "認証エラーが発生しました。しばらくしてから再度お試しください。"
-      );
+      expect(result).toBe(GENERIC_MESSAGE);
     });
 
     it("エラーコードが含まれていないメッセージの場合、汎用メッセージを返す", () => {
       const error = "Some random error message";
       const result = getAuthErrorMessage(error);
-      expect(result).toBe(
-        "認証エラーが発生しました。しばらくしてから再度お試しください。"
-      );
+      expect(result).toBe(GENERIC_MESSAGE);
     });
   });
 

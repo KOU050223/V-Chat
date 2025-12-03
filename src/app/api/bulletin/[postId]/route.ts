@@ -94,11 +94,11 @@ export async function PATCH(
     // バリデーション
     if (
       body.maxParticipants !== undefined &&
-      (body.maxParticipants < 2 || body.maxParticipants > 10)
+      (body.maxParticipants < 1 || body.maxParticipants > 10)
     ) {
       const response: BulletinApiResponse = {
         success: false,
-        error: "募集人数は2〜10人の範囲で指定してください",
+        error: "募集人数は1〜10人の範囲で指定してください",
       };
       return NextResponse.json(response, { status: 400 });
     }

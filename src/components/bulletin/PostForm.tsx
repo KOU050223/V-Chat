@@ -52,7 +52,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
     title: post?.title || "",
     content: post?.content || "",
     category: post?.category || ("雑談" as PostCategory),
-    maxParticipants: post?.maxParticipants || 2,
+    maxParticipants: post?.maxParticipants || 1,
     tags: post?.tags || [],
   });
   const [tagInput, setTagInput] = useState("");
@@ -93,8 +93,8 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
       setError("内容を入力してください。");
       return;
     }
-    if (formData.maxParticipants < 2 || formData.maxParticipants > 10) {
-      setError("募集人数は2〜10人の範囲で入力してください。");
+    if (formData.maxParticipants < 1 || formData.maxParticipants > 10) {
+      setError("募集人数は1〜10人の範囲で入力してください。");
       return;
     }
 
@@ -270,24 +270,24 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
 
         {/* 募集人数 */}
         <div className="space-y-2">
-          <Label htmlFor="maxParticipants">募集人数 *</Label>
+          <Label htmlFor="maxParticipants">募集人数（自分以外） *</Label>
           <div className="flex items-center gap-2">
             <Input
               id="maxParticipants"
               type="number"
-              min={2}
+              min={1}
               max={10}
               value={formData.maxParticipants}
               onChange={(e) =>
                 setFormData((prev) => ({
                   ...prev,
-                  maxParticipants: parseInt(e.target.value) || 2,
+                  maxParticipants: parseInt(e.target.value) || 1,
                 }))
               }
               className="w-24"
               disabled={isSubmitting}
             />
-            <span className="text-sm text-muted-foreground">人 (2〜10人)</span>
+            <span className="text-sm text-muted-foreground">人 (1〜10人)</span>
           </div>
         </div>
 

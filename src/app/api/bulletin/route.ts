@@ -130,10 +130,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(response, { status: 400 });
     }
 
-    if (body.maxParticipants < 2 || body.maxParticipants > 10) {
+    if (body.maxParticipants < 1 || body.maxParticipants > 10) {
       const response: BulletinApiResponse = {
         success: false,
-        error: "募集人数は2〜10人の範囲で指定してください",
+        error: "募集人数は1〜10人の範囲で指定してください",
       };
       return NextResponse.json(response, { status: 400 });
     }

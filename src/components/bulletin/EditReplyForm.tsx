@@ -39,12 +39,16 @@ export function EditReplyForm({
     setError(null);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(
         `/api/bulletin/${postId}/replies/${reply.id}`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify({ content: content.trim() }),
         }

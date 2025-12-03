@@ -139,8 +139,20 @@ export async function PATCH(
     if (body.title !== undefined) updateData.title = body.title;
     if (body.content !== undefined) updateData.content = body.content;
     if (body.category !== undefined) updateData.category = body.category;
-    if (body.maxParticipants !== undefined)
+    if (body.maxParticipants !== undefined) {
+      // 現在の参加人数との整合性チェック
+      if (
+        typeof postData.currentParticipants === "number" &&
+        postData.currentParticipants > body.maxParticipants
+      ) {
+        const response: BulletinApiResponse = {
+          success: false,
+          error: "現在の参加人数未満には募集人数を減らせません",
+        };
+        return NextResponse.json(response, { status: 400 });
+      }
       updateData.maxParticipants = body.maxParticipants;
+    }
     if (body.tags !== undefined) updateData.tags = body.tags;
 
     // Firestoreを更新

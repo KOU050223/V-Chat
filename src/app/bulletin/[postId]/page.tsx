@@ -178,8 +178,14 @@ function PostDetailContent({ postId }: { postId: string }) {
     setIsDeleting(true);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(`/api/bulletin/${postId}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
       });
 
       const data = await response.json();
@@ -205,8 +211,14 @@ function PostDetailContent({ postId }: { postId: string }) {
     setIsCreatingRoom(true);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(`/api/bulletin/${postId}/create-room`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
       });
 
       const data = await response.json();

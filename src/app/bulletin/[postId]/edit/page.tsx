@@ -136,6 +136,9 @@ function EditPostContent({ postId }: { postId: string }) {
     setError(null);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const updateData: UpdatePostRequest = {
         title: formData.title,
         content: formData.content,
@@ -148,6 +151,7 @@ function EditPostContent({ postId }: { postId: string }) {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify(updateData),
       });

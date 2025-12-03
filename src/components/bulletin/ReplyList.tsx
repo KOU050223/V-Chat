@@ -47,10 +47,16 @@ export function ReplyList({
     setDeletingReplyId(reply.id);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       const response = await fetch(
         `/api/bulletin/${postId}/replies/${reply.id}`,
         {
           method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
         }
       );
 

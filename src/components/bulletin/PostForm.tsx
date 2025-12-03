@@ -102,6 +102,9 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
     setError(null);
 
     try {
+      // Firebase ID トークンを取得
+      const idToken = await user.getIdToken();
+
       if (isEdit && post) {
         // 編集
         const updateData: UpdatePostRequest = {
@@ -116,6 +119,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
           },
           body: JSON.stringify(updateData),
         });
@@ -147,7 +151,10 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
 
         const response = await fetch("/api/bulletin", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
           body: JSON.stringify(createData),
         });
 

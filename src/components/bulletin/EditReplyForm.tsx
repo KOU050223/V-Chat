@@ -2,14 +2,14 @@
  * 返信編集フォームコンポーネント
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
-import { BulletinReply } from '@/types/bulletin';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
+import { BulletinReply } from "@/types/bulletin";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EditReplyFormProps {
   reply: BulletinReply;
@@ -42,10 +42,9 @@ export function EditReplyForm({
       const response = await fetch(
         `/api/bulletin/${postId}/replies/${reply.id}`,
         {
-          method: 'PATCH',
+          method: "PATCH",
           headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': user.uid,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify({ content: content.trim() }),
         }
@@ -54,12 +53,12 @@ export function EditReplyForm({
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '返信の更新に失敗しました');
+        throw new Error(data.error || "返信の更新に失敗しました");
       }
 
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '処理に失敗しました');
+      setError(err instanceof Error ? err.message : "処理に失敗しました");
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +106,7 @@ export function EditReplyForm({
                 更新中...
               </>
             ) : (
-              '更新する'
+              "更新する"
             )}
           </Button>
         </div>

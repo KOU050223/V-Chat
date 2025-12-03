@@ -2,31 +2,31 @@
  * 掲示板投稿フォームコンポーネント
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   BulletinPost,
   PostCategory,
   CreatePostRequest,
   UpdatePostRequest,
   BulletinApiResponse,
-} from '@/types/bulletin';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+} from "@/types/bulletin";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Loader2, X } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/components/ui/select";
+import { Loader2, X } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PostFormProps {
   post?: BulletinPost; // 編集時に既存投稿データを渡す
@@ -35,12 +35,12 @@ interface PostFormProps {
 }
 
 const categories: PostCategory[] = [
-  '雑談',
-  'ゲーム',
-  '趣味',
-  '技術',
-  'イベント',
-  'その他',
+  "雑談",
+  "ゲーム",
+  "趣味",
+  "技術",
+  "イベント",
+  "その他",
 ];
 
 export function PostForm({ post, onSuccess, className }: PostFormProps) {
@@ -49,13 +49,13 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
   const isEdit = !!post;
 
   const [formData, setFormData] = useState({
-    title: post?.title || '',
-    content: post?.content || '',
-    category: post?.category || ('雑談' as PostCategory),
+    title: post?.title || "",
+    content: post?.content || "",
+    category: post?.category || ("雑談" as PostCategory),
     maxParticipants: post?.maxParticipants || 2,
     tags: post?.tags || [],
   });
-  const [tagInput, setTagInput] = useState('');
+  const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +69,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
         ...prev,
         tags: [...prev.tags, tagInput.trim()],
       }));
-      setTagInput('');
+      setTagInput("");
     }
   };
 
@@ -86,15 +86,15 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
 
     // バリデーション
     if (!formData.title.trim()) {
-      setError('タイトルを入力してください。');
+      setError("タイトルを入力してください。");
       return;
     }
     if (!formData.content.trim()) {
-      setError('内容を入力してください。');
+      setError("内容を入力してください。");
       return;
     }
     if (formData.maxParticipants < 2 || formData.maxParticipants > 10) {
-      setError('募集人数は2〜10人の範囲で入力してください。');
+      setError("募集人数は2〜10人の範囲で入力してください。");
       return;
     }
 
@@ -113,10 +113,9 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
         };
 
         const response = await fetch(`/api/bulletin/${post.id}`, {
-          method: 'PATCH',
+          method: "PATCH",
           headers: {
-            'Content-Type': 'application/json',
-            'x-user-id': user.uid,
+            "Content-Type": "application/json",
           },
           body: JSON.stringify(updateData),
         });
@@ -124,10 +123,10 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
         const data: BulletinApiResponse<BulletinPost> = await response.json();
 
         if (!data.success) {
-          throw new Error(data.error || '投稿の更新に失敗しました。');
+          throw new Error(data.error || "投稿の更新に失敗しました。");
         }
 
-        alert('投稿を更新しました。');
+        alert("投稿を更新しました。");
         if (onSuccess) {
           onSuccess();
         } else {
@@ -142,23 +141,23 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
           maxParticipants: formData.maxParticipants,
           tags: formData.tags,
           userId: user.uid,
-          userName: user.displayName || 'ゲストユーザー',
+          userName: user.displayName || "ゲストユーザー",
           userPhoto: user.photoURL || undefined,
         };
 
-        const response = await fetch('/api/bulletin', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const response = await fetch("/api/bulletin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(createData),
         });
 
         const data: BulletinApiResponse<BulletinPost> = await response.json();
 
         if (!data.success || !data.data) {
-          throw new Error(data.error || '投稿の作成に失敗しました。');
+          throw new Error(data.error || "投稿の作成に失敗しました。");
         }
 
-        alert('投稿を作成しました。');
+        alert("投稿を作成しました。");
         if (onSuccess) {
           onSuccess();
         } else {
@@ -166,7 +165,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '処理に失敗しました。');
+      setError(err instanceof Error ? err.message : "処理に失敗しました。");
     } finally {
       setIsSubmitting(false);
     }
@@ -179,7 +178,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
           <p className="text-muted-foreground mb-4">
             投稿するにはログインが必要です。
           </p>
-          <Button onClick={() => router.push('/login')}>ログイン</Button>
+          <Button onClick={() => router.push("/login")}>ログイン</Button>
         </div>
       </Card>
     );
@@ -190,7 +189,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         <div>
           <h2 className="text-2xl font-bold">
-            {isEdit ? '投稿を編集' : '新しい投稿を作成'}
+            {isEdit ? "投稿を編集" : "新しい投稿を作成"}
           </h2>
         </div>
 
@@ -295,7 +294,7 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === "Enter") {
                   e.preventDefault();
                   handleAddTag();
                 }
@@ -348,12 +347,12 @@ export function PostForm({ post, onSuccess, className }: PostFormProps) {
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                {isEdit ? '更新中...' : '作成中...'}
+                {isEdit ? "更新中..." : "作成中..."}
               </>
             ) : isEdit ? (
-              '更新する'
+              "更新する"
             ) : (
-              '投稿する'
+              "投稿する"
             )}
           </Button>
         </div>

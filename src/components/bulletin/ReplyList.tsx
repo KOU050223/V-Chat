@@ -2,21 +2,21 @@
  * 返信リストコンポーネント - Twitter風デザイン
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { BulletinReply } from '@/types/bulletin';
-import { Avatar } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { useState } from "react";
+import { BulletinReply } from "@/types/bulletin";
+import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Edit, Trash2, MoreHorizontal } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { EditReplyForm } from './EditReplyForm';
-import { useAuth } from '@/contexts/AuthContext';
+} from "@/components/ui/dropdown-menu";
+import { EditReplyForm } from "./EditReplyForm";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ReplyListProps {
   replies: BulletinReply[];
@@ -39,7 +39,7 @@ export function ReplyList({
     if (!user) return;
 
     const confirmDelete = window.confirm(
-      '本当にこの返信を削除しますか？\nこの操作は取り消せません。'
+      "本当にこの返信を削除しますか？\nこの操作は取り消せません。"
     );
 
     if (!confirmDelete) return;
@@ -50,23 +50,20 @@ export function ReplyList({
       const response = await fetch(
         `/api/bulletin/${postId}/replies/${reply.id}`,
         {
-          method: 'DELETE',
-          headers: {
-            'x-user-id': user.uid,
-          },
+          method: "DELETE",
         }
       );
 
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '返信の削除に失敗しました');
+        throw new Error(data.error || "返信の削除に失敗しました");
       }
 
       onUpdate();
     } catch (err) {
-      console.error('返信削除エラー:', err);
-      alert(err instanceof Error ? err.message : '返信の削除に失敗しました');
+      console.error("返信削除エラー:", err);
+      alert(err instanceof Error ? err.message : "返信の削除に失敗しました");
     } finally {
       setDeletingReplyId(null);
     }
@@ -79,14 +76,14 @@ export function ReplyList({
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'たった今';
+    if (minutes < 1) return "たった今";
     if (minutes < 60) return `${minutes}分前`;
     if (hours < 24) return `${hours}時間前`;
     if (days < 7) return `${days}日前`;
-    return new Date(date).toLocaleDateString('ja-JP', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    return new Date(date).toLocaleDateString("ja-JP", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
@@ -156,7 +153,7 @@ export function ReplyList({
                         </span>
                         <span className="text-xs text-muted-foreground">
                           · {formatDate(reply.createdAt)}
-                          {reply.isEdited && ' (編集済み)'}
+                          {reply.isEdited && " (編集済み)"}
                         </span>
                       </div>
 
@@ -187,8 +184,8 @@ export function ReplyList({
                             >
                               <Trash2 className="h-4 w-4" />
                               {deletingReplyId === reply.id
-                                ? '削除中...'
-                                : '削除'}
+                                ? "削除中..."
+                                : "削除"}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

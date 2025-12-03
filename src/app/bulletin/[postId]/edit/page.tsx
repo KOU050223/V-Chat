@@ -2,23 +2,23 @@
  * 投稿編集ページ
  */
 
-'use client';
+"use client";
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, X, Loader2 } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, X, Loader2 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   BulletinPost,
   PostCategory,
   UpdatePostRequest,
   BulletinApiResponse,
-} from '@/types/bulletin';
+} from "@/types/bulletin";
 
 interface PageProps {
   params: Promise<{
@@ -27,12 +27,12 @@ interface PageProps {
 }
 
 const categories: PostCategory[] = [
-  '雑談',
-  'ゲーム',
-  '趣味',
-  '技術',
-  'イベント',
-  'その他',
+  "雑談",
+  "ゲーム",
+  "趣味",
+  "技術",
+  "イベント",
+  "その他",
 ];
 
 export default function EditPostPage({ params }: PageProps) {
@@ -49,13 +49,13 @@ function EditPostContent({ postId }: { postId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    title: '',
-    content: '',
-    category: '雑談' as PostCategory,
+    title: "",
+    content: "",
+    category: "雑談" as PostCategory,
     maxParticipants: 2,
     tags: [] as string[],
   });
-  const [tagInput, setTagInput] = useState('');
+  const [tagInput, setTagInput] = useState("");
 
   // 投稿データ取得
   useEffect(() => {
@@ -66,7 +66,7 @@ function EditPostContent({ postId }: { postId: string }) {
         const data: BulletinApiResponse<BulletinPost> = await response.json();
 
         if (!data.success || !data.data) {
-          throw new Error(data.error || '投稿の取得に失敗しました');
+          throw new Error(data.error || "投稿の取得に失敗しました");
         }
 
         const postData = data.data;
@@ -80,7 +80,7 @@ function EditPostContent({ postId }: { postId: string }) {
         });
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : '投稿の取得に失敗しました'
+          err instanceof Error ? err.message : "投稿の取得に失敗しました"
         );
       } finally {
         setIsLoading(false);
@@ -97,7 +97,7 @@ function EditPostContent({ postId }: { postId: string }) {
         ...prev,
         tags: [...prev.tags, tag],
       }));
-      setTagInput('');
+      setTagInput("");
     }
   };
 
@@ -114,21 +114,21 @@ function EditPostContent({ postId }: { postId: string }) {
 
     // 権限チェック
     if (post.authorId !== user.uid) {
-      setError('この投稿を編集する権限がありません');
+      setError("この投稿を編集する権限がありません");
       return;
     }
 
     // バリデーション
     if (!formData.title.trim()) {
-      setError('タイトルを入力してください');
+      setError("タイトルを入力してください");
       return;
     }
     if (!formData.content.trim()) {
-      setError('内容を入力してください');
+      setError("内容を入力してください");
       return;
     }
     if (formData.maxParticipants < 2 || formData.maxParticipants > 10) {
-      setError('最大参加人数は2〜10人で入力してください');
+      setError("最大参加人数は2〜10人で入力してください");
       return;
     }
 
@@ -145,10 +145,9 @@ function EditPostContent({ postId }: { postId: string }) {
       };
 
       const response = await fetch(`/api/bulletin/${postId}`, {
-        method: 'PATCH',
+        method: "PATCH",
         headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.uid,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(updateData),
       });
@@ -156,13 +155,13 @@ function EditPostContent({ postId }: { postId: string }) {
       const data: BulletinApiResponse<BulletinPost> = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '投稿の更新に失敗しました');
+        throw new Error(data.error || "投稿の更新に失敗しました");
       }
 
-      alert('投稿を更新しました');
+      alert("投稿を更新しました");
       router.push(`/bulletin/${postId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '投稿の更新に失敗しました');
+      setError(err instanceof Error ? err.message : "投稿の更新に失敗しました");
     } finally {
       setIsSubmitting(false);
     }
@@ -184,7 +183,7 @@ function EditPostContent({ postId }: { postId: string }) {
             <p className="text-muted-foreground mb-4">
               投稿を編集するにはログインが必要です
             </p>
-            <Button onClick={() => router.push('/login')}>ログイン</Button>
+            <Button onClick={() => router.push("/login")}>ログイン</Button>
           </Card>
         </div>
       </div>
@@ -197,7 +196,7 @@ function EditPostContent({ postId }: { postId: string }) {
         <div className="max-w-2xl mx-auto pt-20">
           <Card className="p-8 text-center">
             <p className="text-destructive mb-4">{error}</p>
-            <Button onClick={() => router.push('/bulletin')}>
+            <Button onClick={() => router.push("/bulletin")}>
               掲示板に戻る
             </Button>
           </Card>
@@ -341,7 +340,7 @@ function EditPostContent({ postId }: { postId: string }) {
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       e.preventDefault();
                       handleAddTag();
                     }
@@ -399,7 +398,7 @@ function EditPostContent({ postId }: { postId: string }) {
                     更新中...
                   </>
                 ) : (
-                  '更新する'
+                  "更新する"
                 )}
               </Button>
             </div>

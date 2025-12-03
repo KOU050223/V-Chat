@@ -180,9 +180,6 @@ function PostDetailContent({ postId }: { postId: string }) {
     try {
       const response = await fetch(`/api/bulletin/${postId}`, {
         method: "DELETE",
-        headers: {
-          "x-user-id": user.uid,
-        },
       });
 
       const data = await response.json();
@@ -210,9 +207,6 @@ function PostDetailContent({ postId }: { postId: string }) {
     try {
       const response = await fetch(`/api/bulletin/${postId}/create-room`, {
         method: "POST",
-        headers: {
-          "x-user-id": user.uid,
-        },
       });
 
       const data = await response.json();

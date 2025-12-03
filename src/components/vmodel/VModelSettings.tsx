@@ -1,62 +1,78 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useVModel, exportVModelSettings, importVModelSettings } from '@/contexts/VModelContext';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, Upload, Trash2, Settings } from 'lucide-react';
+import { useState } from "react";
+import {
+  useVModel,
+  exportVModelSettings,
+  importVModelSettings,
+} from "@/contexts/VModelContext";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Download, Upload, Trash2, Settings } from "lucide-react";
 
 export default function VModelSettings() {
   const { settings, updatePreferences, clearSettings } = useVModel();
-  const [importData, setImportData] = useState('');
+  const [importData, setImportData] = useState("");
   const [isImporting, setIsImporting] = useState(false);
 
   const handleExport = () => {
     try {
       const exportedData = exportVModelSettings();
-      const blob = new Blob([exportedData], { type: 'application/json' });
+      const blob = new Blob([exportedData], { type: "application/json" });
       const url = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
+
+      const link = document.createElement("a");
       link.href = url;
-      link.download = `v-chat-vmodel-settings-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `v-chat-vmodel-settings-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
+
       URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('設定のエクスポートエラー:', error);
-      alert('設定のエクスポートに失敗しました');
+      console.error("設定のエクスポートエラー:", error);
+      alert("設定のエクスポートに失敗しました");
     }
   };
 
   const handleImport = async () => {
     if (!importData.trim()) {
-      alert('インポートデータを入力してください');
+      alert("インポートデータを入力してください");
       return;
     }
 
     setIsImporting(true);
     try {
       importVModelSettings(importData);
-      alert('設定がインポートされました。ページが再読み込みされます。');
+      alert("設定がインポートされました。ページが再読み込みされます。");
     } catch (error) {
-      console.error('設定のインポートエラー:', error);
-      alert('設定のインポートに失敗しました。データを確認してください。');
+      console.error("設定のインポートエラー:", error);
+      alert("設定のインポートに失敗しました。データを確認してください。");
     } finally {
       setIsImporting(false);
     }
   };
 
   const handleClearSettings = () => {
-    if (confirm('すべてのV体設定を削除しますか？この操作は取り消せません。')) {
+    if (confirm("すべてのV体設定を削除しますか？この操作は取り消せません。")) {
       clearSettings();
-      alert('設定がクリアされました');
+      alert("設定がクリアされました");
     }
   };
 
@@ -76,7 +92,7 @@ export default function VModelSettings() {
           {/* 基本設定 */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium">基本設定</h3>
-            
+
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>自動ダウンロード</Label>
@@ -86,7 +102,7 @@ export default function VModelSettings() {
               </div>
               <Switch
                 checked={settings.preferences.autoDownload}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   updatePreferences({ autoDownload: checked })
                 }
               />
@@ -101,7 +117,7 @@ export default function VModelSettings() {
               </div>
               <Switch
                 checked={settings.preferences.showPrivateModels}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   updatePreferences({ showPrivateModels: checked })
                 }
               />
@@ -111,7 +127,7 @@ export default function VModelSettings() {
               <Label>デフォルトソート</Label>
               <Select
                 value={settings.preferences.defaultSort}
-                onValueChange={(value: 'latest' | 'popular' | 'hearts') =>
+                onValueChange={(value: "latest" | "popular" | "hearts") =>
                   updatePreferences({ defaultSort: value })
                 }
               >
@@ -130,18 +146,20 @@ export default function VModelSettings() {
           {/* 現在の設定情報 */}
           <div className="space-y-4 pt-4 border-t">
             <h3 className="text-lg font-medium">設定情報</h3>
-            
+
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <Label>選択中のV体</Label>
                 <p className="text-gray-600">
-                  {settings.selectedModel ? settings.selectedModel.name || '無題のモデル' : '未選択'}
+                  {settings.selectedModel
+                    ? settings.selectedModel.name || "無題のモデル"
+                    : "未選択"}
                 </p>
               </div>
               <div>
                 <Label>最終更新</Label>
                 <p className="text-gray-600">
-                  {new Date(settings.lastUpdated).toLocaleString('ja-JP')}
+                  {new Date(settings.lastUpdated).toLocaleString("ja-JP")}
                 </p>
               </div>
             </div>
@@ -162,7 +180,7 @@ export default function VModelSettings() {
           <div className="space-y-2">
             <Label>設定のエクスポート</Label>
             <div className="flex space-x-2">
-              <Button 
+              <Button
                 onClick={handleExport}
                 variant="outline"
                 className="flex-1"
@@ -185,15 +203,15 @@ export default function VModelSettings() {
                 value={importData}
                 onChange={(e) => setImportData(e.target.value)}
                 className="min-h-[100px]"
-                style={{ resize: 'vertical' }}
+                style={{ resize: "vertical" }}
               />
-              <Button 
+              <Button
                 onClick={handleImport}
                 disabled={!importData.trim() || isImporting}
                 className="w-full"
               >
                 <Upload className="h-4 w-4 mr-2" />
-                {isImporting ? 'インポート中...' : '設定をインポート'}
+                {isImporting ? "インポート中..." : "設定をインポート"}
               </Button>
             </div>
             <p className="text-xs text-gray-500">
@@ -204,7 +222,7 @@ export default function VModelSettings() {
           {/* クリア */}
           <div className="space-y-2 pt-4 border-t">
             <Label className="text-red-600">危険な操作</Label>
-            <Button 
+            <Button
               onClick={handleClearSettings}
               variant="destructive"
               className="w-full"

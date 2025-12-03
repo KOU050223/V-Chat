@@ -1,0 +1,209 @@
+import { useEffect, useRef, useState } from "react";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import {
+  VRM,
+  VRMLoaderPlugin,
+  VRMUtils,
+  VRMHumanBoneName,
+} from "@pixiv/three-vrm";
+import * as THREE from "three";
+
+interface VRMViewerProps {
+  vrmUrl: string;
+  onVRMLoaded?: (vrm: VRM) => void;
+  position?: [number, number, number];
+  rotation?: [number, number, number];
+  scale?: [number, number, number];
+}
+
+export const VRMViewer: React.FC<VRMViewerProps> = ({
+  vrmUrl,
+  onVRMLoaded,
+  position = [0, 0, 0],
+  rotation = [0, 0, 0],
+  scale = [1, 1, 1],
+}) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const [vrm, setVrm] = useState<VRM | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // vrmのrefも保持（クリーンアップ用）
+  const vrmRef = useRef<VRM | null>(null);
+
+  // onVRMLoadedのrefを保持（依存配列の変更を避けるため）
+  const onVRMLoadedRef = useRef(onVRMLoaded);
+  useEffect(() => {
+    onVRMLoadedRef.current = onVRMLoaded;
+  }, [onVRMLoaded]);
+
+  // 直接GLTFLoaderを使用してVRMファイルを読み込み
+  useEffect(() => {
+    let isMounted = true; // クリーンアップ用フラグ
+
+    const loadVRM = async () => {
+      if (!isMounted) return; // アンマウント済みの場合は処理しない
+
+      try {
+        setError(null);
+        setIsLoading(true);
+
+        // GLTFLoaderを作成
+        const loader = new GLTFLoader();
+
+        // VRMLoaderPluginを登録
+        loader.register((parser) => {
+          return new VRMLoaderPlugin(parser);
+        });
+
+        // VRMファイルを読み込み
+        const gltf = await new Promise<any>((resolve, reject) => {
+          loader.load(
+            vrmUrl,
+            (gltf) => {
+              resolve(gltf);
+            },
+            undefined,
+            (error) => {
+              console.error("GLTF loading error:", error);
+              reject(error);
+            }
+          );
+        });
+
+        // VRMLoaderPluginによって読み込まれたVRMを取得
+        const vrmInstance = gltf.userData.vrm as VRM;
+
+        if (!vrmInstance) {
+          console.error("VRM instance not found in userData.vrm");
+          console.log("Available userData keys:", Object.keys(gltf.userData));
+          throw new Error(
+            `VRMインスタンスの生成に失敗しました。userData.vrm が見つかりません。利用可能なキー: ${Object.keys(gltf.userData).join(", ")}`
+          );
+        }
+
+        // パフォーマンス最適化
+        VRMUtils.removeUnnecessaryVertices(gltf.scene);
+        VRMUtils.combineSkeletons(gltf.scene);
+
+        // VRMの初期設定
+        vrmInstance.scene.traverse((child: any) => {
+          if (child instanceof THREE.Mesh) {
+            child.castShadow = false; // シャドウオフ（パフォーマンス最適化）
+            child.receiveShadow = false;
+            child.frustumCulled = true; // カメラ外は描画しない（パフォーマンス最適化）
+          }
+        });
+
+        // VRMの初期ポーズを設定（Tポーズ）
+        vrmInstance.humanoid?.resetNormalizedPose();
+
+        // VRMアバターをカメラに向けて配置（180度回転でカメラ方向を向く）
+        vrmInstance.scene.rotation.y = Math.PI;
+
+        if (!isMounted) return; // レスポンス受信時にアンマウント済みの場合は処理しない
+
+        setVrm(vrmInstance);
+        vrmRef.current = vrmInstance; // クリーンアップ用にrefにも保存
+        setIsLoading(false);
+        onVRMLoadedRef.current?.(vrmInstance);
+      } catch (err) {
+        if (!isMounted) return; // エラー時にアンマウント済みの場合は処理しない
+
+        const errorMessage =
+          err instanceof Error ? err.message : "Unknown error";
+        console.error("VRM読み込みエラー:", errorMessage);
+
+        // 循環参照を避けてエラー情報を安全に記録
+        if (err instanceof Error) {
+          console.error("Error details:", {
+            name: err.name,
+            message: err.message,
+            stack: err.stack,
+          });
+        }
+
+        setError(`VRMの読み込みに失敗しました: ${errorMessage}`);
+        setIsLoading(false);
+      }
+    };
+
+    loadVRM();
+
+    return () => {
+      isMounted = false; // クリーンアップ時にフラグを設定
+
+      // VRMリソースのクリーンアップ（メモリリーク防止）
+      if (vrmRef.current) {
+        // すべてのジオメトリ、マテリアル、テクスチャを破棄
+        vrmRef.current.scene.traverse((child: any) => {
+          if (child.geometry) {
+            child.geometry.dispose();
+          }
+          if (child.material) {
+            if (Array.isArray(child.material)) {
+              child.material.forEach((m: any) => {
+                if (m.map) m.map.dispose();
+                if (m.normalMap) m.normalMap.dispose();
+                if (m.emissiveMap) m.emissiveMap.dispose();
+                m.dispose();
+              });
+            } else {
+              if (child.material.map) child.material.map.dispose();
+              if (child.material.normalMap) child.material.normalMap.dispose();
+              if (child.material.emissiveMap)
+                child.material.emissiveMap.dispose();
+              child.material.dispose();
+            }
+          }
+        });
+
+        // VRMUtils.deepDisposeを使用して完全にクリーンアップ
+        VRMUtils.deepDispose(vrmRef.current.scene);
+
+        vrmRef.current = null;
+      }
+    };
+  }, [vrmUrl]); // vrmUrlのみを依存配列に
+
+  // エラーが発生した場合の表示
+  if (error) {
+    console.error("VRMエラー:", error);
+    return (
+      <group
+        ref={groupRef}
+        position={position}
+        rotation={rotation}
+        scale={scale}
+      >
+        <mesh>
+          <boxGeometry args={[1, 2, 0.5]} />
+          <meshStandardMaterial color="red" />
+        </mesh>
+      </group>
+    );
+  }
+
+  // VRMが読み込まれていない場合の表示
+  if (!vrm) {
+    return (
+      <group
+        ref={groupRef}
+        position={position}
+        rotation={rotation}
+        scale={scale}
+      >
+        <mesh>
+          <boxGeometry args={[1, 2, 0.5]} />
+          <meshStandardMaterial color={isLoading ? "yellow" : "gray"} />
+        </mesh>
+      </group>
+    );
+  }
+
+  return (
+    <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
+      <primitive object={vrm.scene} />
+    </group>
+  );
+};

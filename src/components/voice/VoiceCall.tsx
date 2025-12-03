@@ -1,270 +1,268 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Room, RoomEvent, RemoteParticipant } from 'livekit-client';
-import { Mic, MicOff, Users, Signal, ChevronUp, ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  LiveKitRoom,
+  RoomAudioRenderer,
+  useLocalParticipant,
+  useRoomContext,
+  useConnectionState,
+  useMediaDeviceSelect,
+  useParticipants,
+  useParticipantContext,
+  ParticipantLoop,
+  useIsSpeaking,
+} from "@livekit/components-react";
+import { ConnectionState, LocalAudioTrack } from "livekit-client";
+import "@livekit/components-styles";
+import { Mic, MicOff, Settings, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebaseConfig";
+import type { VoiceCallState } from "@/types/voice";
 
 interface VoiceCallProps {
   roomId: string;
   participantName: string;
   onLeave?: () => void;
-  onStateChange?: (state: any) => void;
-  serverMemberCount?: number; // サーバー側の参加者数
+  onStateChange?: (state: VoiceCallState) => void;
+  serverMemberCount?: number;
+  className?: string; // スタイル調整用
 }
 
-export default function VoiceCall({ roomId, participantName, onLeave, onStateChange, serverMemberCount }: VoiceCallProps) {
-  const [room, setRoom] = useState<Room | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
-  const [participants, setParticipants] = useState<RemoteParticipant[]>([]);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [showPanel, setShowPanel] = useState(true);
+// デバイス選択用コンポーネント
+function DeviceSettings({ onClose }: { onClose: () => void }) {
+  const {
+    devices: audioInputDevices,
+    activeDeviceId: activeAudioInputDeviceId,
+    setActiveMediaDevice: setActiveAudioInputDevice,
+  } = useMediaDeviceSelect({ kind: "audioinput" });
+
+  const {
+    devices: audioOutputDevices,
+    activeDeviceId: activeAudioOutputDeviceId,
+    setActiveMediaDevice: setActiveAudioOutputDevice,
+  } = useMediaDeviceSelect({ kind: "audiooutput" });
+
+  return (
+    <div className="absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4 z-50">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-white font-semibold">オーディオ設定</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          className="h-6 w-6 p-0 text-gray-400 hover:text-white"
+        >
+          <X className="w-4 h-4" />
+        </Button>
+      </div>
+
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <label
+            htmlFor="audio-input-select"
+            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+          >
+            マイク
+          </label>
+          <select
+            id="audio-input-select"
+            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+            value={activeAudioInputDeviceId}
+            onChange={(e) => setActiveAudioInputDevice(e.target.value)}
+          >
+            {audioInputDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `マイク ${device.deviceId.slice(0, 5)}...`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="audio-output-select"
+            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+          >
+            スピーカー
+          </label>
+          <select
+            id="audio-output-select"
+            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+            value={activeAudioOutputDeviceId}
+            onChange={(e) => setActiveAudioOutputDevice(e.target.value)}
+          >
+            {audioOutputDevices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label || `スピーカー ${device.deviceId.slice(0, 5)}...`}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 参加者個別のタイルコンポーネント
+function ParticipantTile() {
+  const participant = useParticipantContext();
+  const isSpeaking = useIsSpeaking(participant);
+
+  if (!participant) return null;
+
+  // 名前からイニシャルを取得
+  const getInitials = (name: string) => {
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // 表示名（ID部分は隠す）
+  const displayName =
+    participant.identity.split("-")[0] || participant.identity;
+  const isMicrophoneEnabled = participant.isMicrophoneEnabled;
+
+  return (
+    <div className="relative flex flex-col items-center justify-center p-4">
+      <div
+        className={`relative w-24 h-24 rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${
+          isSpeaking
+            ? "ring-4 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+            : "ring-2 ring-gray-700"
+        } ${
+          participant.isLocal
+            ? "bg-gradient-to-br from-blue-600 to-purple-600"
+            : "bg-gray-700"
+        }`}
+      >
+        <span className="text-2xl font-bold text-white">
+          {getInitials(displayName)}
+        </span>
+
+        {/* ミュートアイコン */}
+        {!isMicrophoneEnabled && (
+          <div className="absolute bottom-0 right-0 bg-red-500 rounded-full p-1.5 border-2 border-gray-900">
+            <MicOff className="w-4 h-4 text-white" />
+          </div>
+        )}
+      </div>
+
+      <div className="text-center">
+        <p className="text-white font-medium truncate max-w-[120px]">
+          {displayName} {participant.isLocal && "(あなた)"}
+        </p>
+        <p className="text-xs text-gray-400 mt-1 h-4">
+          {isSpeaking ? "話しています..." : ""}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// 参加者グリッド表示コンポーネント
+function ParticipantGrid() {
+  const participants = useParticipants();
+
+  return (
+    <div className="w-full max-w-4xl mx-auto p-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 justify-items-center">
+        <ParticipantLoop participants={participants}>
+          <ParticipantTile />
+        </ParticipantLoop>
+      </div>
+
+      {participants.length === 0 && (
+        <div className="text-center text-gray-500 py-12">
+          参加者を待機しています...
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 内部コンポーネント: 実際の通話UIとロジックを担当
+function VoiceCallContent({
+  onLeave,
+  onStateChange,
+  serverMemberCount,
+}: {
+  onLeave?: () => void;
+  onStateChange?: (state: VoiceCallState) => void;
+  serverMemberCount?: number;
+}) {
+  const room = useRoomContext();
+  const connectionState = useConnectionState();
+  const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
+    useLocalParticipant();
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
-  const [selectedInput, setSelectedInput] = useState<string>('');
-  const [selectedOutput, setSelectedOutput] = useState<string>('');
-  const [showDeviceSettings, setShowDeviceSettings] = useState(false);
-  const [isAudioMonitoringActive, setIsAudioMonitoringActive] = useState(false);
-  const connectionRef = useRef<boolean>(false);
-  const audioContextRef = useRef<AudioContext | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<string | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
-  const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
-  
-  // 強制リセット関数
-  const forceResetParticipants = () => {
-    console.log('🔄 FORCE RESET: Clearing all participants');
-    setParticipants([]);
-  };
 
-  // コンポーネントマウント時とroomId変更時に参加者リストをリセット
+  // 接続状態の監視と親への通知
   useEffect(() => {
-    console.log('🔄 Component mount/roomId change - resetting participants');
-    forceResetParticipants();
-  }, [roomId]);
+    const isConnected = connectionState === ConnectionState.Connected;
+    // 参加者数はMapのサイズから取得
+    const participantCount = room.remoteParticipants.size + 1; // 自分を含める
 
-  // デバイス一覧を取得
+    // サーバー側の参加者数との不整合を検出（開発環境でログ出力）
+    if (
+      serverMemberCount !== undefined &&
+      serverMemberCount !== participantCount &&
+      process.env.NODE_ENV === "development"
+    ) {
+      console.warn(
+        `参加者数の不整合を検出: サーバー=${serverMemberCount}, クライアント=${participantCount}`
+      );
+    }
+
+    onStateChange?.({
+      isConnected,
+      isMuted: !isMicrophoneEnabled,
+      participants: Array.from(room.remoteParticipants.values()),
+      actualParticipantCount: participantCount,
+    });
+  }, [
+    connectionState,
+    isMicrophoneEnabled,
+    room.remoteParticipants,
+    onStateChange,
+    serverMemberCount,
+  ]);
+
+  // 音声レベル監視ロジック
   useEffect(() => {
-    async function fetchDevices() {
-      try {
-        const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-        setDevices(deviceInfos);
-        
-        // デフォルトデバイスを設定
-        const defaultInput = deviceInfos.find(device => device.kind === 'audioinput');
-        const defaultOutput = deviceInfos.find(device => device.kind === 'audiooutput');
-        
-        if (defaultInput && !selectedInput) {
-          setSelectedInput(defaultInput.deviceId);
-        }
-        if (defaultOutput && !selectedOutput) {
-          setSelectedOutput(defaultOutput.deviceId);
-        }
-      } catch (error) {
-        console.error('Failed to enumerate devices:', error);
-      }
-    }
-    
-    fetchDevices();
-  }, []);
-
-  // デバイス変更時のハンドラー
-  const handleInputChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedInput(event.target.value);
-    
-    // 入力デバイスが変更された場合、音声レベル監視を再開
-    if (isConnected && room) {
-      await restartAudioMonitoring();
-    }
-  };
-
-  const handleOutputChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedOutput(event.target.value);
-  };
-
-  // デバイス変更時に音声レベル監視を再開
-  const restartAudioMonitoring = async () => {
-    if (!isConnected || !room) return;
-    
-    try {
-      console.log('🔄 Restarting audio monitoring with new device...');
-      
-      // 継続的な音声レベル監視を開始
-      await startContinuousAudioMonitoring();
-      console.log('✅ Audio monitoring restarted with new device');
-    } catch (error) {
-      console.error('Failed to restart audio monitoring:', error);
-    }
-  };
-
-  // シンプルな音声レベルテスト（LiveKitをバイパス）
-  const testAudioLevel = async () => {
-    try {
-      console.log('🧪 Starting simple audio level test...');
-      
-      // 既存の音声レベル監視を停止
-      stopAudioLevelMonitoring();
-      
-      const constraints = {
-        audio: {
-          deviceId: selectedInput ? { exact: selectedInput } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      };
-      
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      const audioTrack = stream.getAudioTracks()[0];
-      
-      if (audioTrack) {
-        console.log('✅ Got audio track for testing');
-        startAudioLevelMonitoring(audioTrack);
-        
-        // 5秒後にストリームを停止
-        setTimeout(() => {
-          stream.getTracks().forEach(track => track.stop());
-          console.log('🧪 Audio level test completed');
-        }, 5000);
-      }
-    } catch (error) {
-      console.error('Failed to test audio level:', error);
-    }
-  };
-
-  // 継続的な音声レベル監視（LiveKitをバイパス）
-  const startContinuousAudioMonitoring = async () => {
-    try {
-      console.log('🎤 Starting continuous audio level monitoring...');
-      console.log('Current state:', {
-        isConnected,
-        isMuted,
-        isAudioMonitoringActive,
-        selectedInput,
-        hasAnalyser: !!analyserRef.current,
-        hasAudioTrack: !!localAudioTrackRef.current,
-        roomExists: !!room
-      });
-      
-      // 既存の音声レベル監視を停止
-      stopAudioLevelMonitoring();
-      
-      // 音声監視は接続状態に関係なく開始可能
-      console.log('🎤 Proceeding with audio monitoring setup...');
-      
-      const constraints = {
-        audio: {
-          deviceId: selectedInput ? { exact: selectedInput } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      };
-      
-      console.log('🎤 Requesting audio stream with constraints:', constraints);
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      const audioTrack = stream.getAudioTracks()[0];
-      
-      if (audioTrack) {
-        console.log('✅ Got audio track for continuous monitoring');
-        console.log('Audio track details:', {
-          id: audioTrack.id,
-          kind: audioTrack.kind,
-          enabled: audioTrack.enabled,
-          muted: audioTrack.muted,
-          readyState: audioTrack.readyState
-        });
-        
-        localAudioTrackRef.current = audioTrack;
-        startAudioLevelMonitoring(audioTrack);
-        
-        // ストリームを保持（継続監視のため）
-        // 注意: この方法ではLiveKitのストリームと競合する可能性があります
-        console.log('⚠️ Note: Using separate stream for audio monitoring');
-        
-        // 監視が開始されたことを確認
-        console.log('🎤 Continuous audio monitoring started successfully');
-        setIsAudioMonitoringActive(true);
-      } else {
-        console.error('❌ No audio track found in stream');
-        throw new Error('No audio track found in stream');
-      }
-    } catch (error) {
-      console.error('Failed to start continuous audio monitoring:', error);
-      setIsAudioMonitoringActive(false);
-      // エラーが発生した場合でも、後で再試行できるようにする
-      throw error;
-    }
-  };
-
-  // 重複接続を防ぐためのref
-  const isConnectingRef = useRef<boolean>(false);
-  const hasConnectedRef = useRef<boolean>(false);
-
-  // 音声レベル監視関数
-  const startAudioLevelMonitoring = (audioTrack: MediaStreamTrack) => {
-    if (!audioTrack || audioTrack.kind !== 'audio') {
-      console.warn('Invalid audio track for monitoring:', audioTrack);
+    const audioTrack = microphoneTrack?.track as LocalAudioTrack | undefined;
+    if (!audioTrack?.mediaStreamTrack) {
       return;
     }
 
-    try {
-      console.log('🎤 Starting audio level monitoring...');
-      console.log('Audio track details:', {
-        id: audioTrack.id,
-        kind: audioTrack.kind,
-        enabled: audioTrack.enabled,
-        muted: audioTrack.muted,
-        readyState: audioTrack.readyState
-      });
-      
-      // AudioContextを作成
-      const audioContext = new AudioContext();
-      audioContextRef.current = audioContext;
-      console.log('🎤 AudioContext created:', audioContext.state);
+    const track = audioTrack.mediaStreamTrack;
 
-      // MediaStreamを作成
-      const stream = new MediaStream([audioTrack]);
-      console.log('🎤 MediaStream created with tracks:', stream.getTracks().map(t => ({ id: t.id, kind: t.kind, enabled: t.enabled })));
-      
-      // 音声分析用のノードを作成
-      const source = audioContext.createMediaStreamSource(stream);
+    try {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
       const analyser = audioContext.createAnalyser();
-      
       analyserRef.current = analyser;
       analyser.fftSize = 2048;
       analyser.smoothingTimeConstant = 0.8;
-      
-      // ノードを接続
+
+      const source = audioContext.createMediaStreamSource(
+        new MediaStream([track])
+      );
       source.connect(analyser);
-      
-      console.log('🎤 Audio analysis setup completed');
-      console.log('🎤 Analyser connected, starting monitoring loop...');
-      
-      // 音声レベルを監視
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-      
+
       const updateAudioLevel = () => {
-        // デバッグ情報を追加
-        if (!analyserRef.current) {
-          console.warn('⚠️ No analyser available for audio monitoring');
-          setLocalAudioLevel(0);
-          return;
-        }
-        
-        // isConnectedの状態に関係なく、analyserRef.currentがあれば監視を継続
-        // 接続状態は別途チェックする
-        if (!analyserRef.current) {
-          console.warn('⚠️ No analyser available for audio monitoring');
-          setLocalAudioLevel(0);
-          return;
-        }
-        
-        analyserRef.current.getByteFrequencyData(dataArray);
-        
-        // より正確な音声レベル計算
+        if (!analyser) return;
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+
         let sum = 0;
         let count = 0;
         for (let i = 0; i < dataArray.length; i++) {
@@ -274,944 +272,231 @@ export default function VoiceCall({ roomId, participantName, onLeave, onStateCha
           }
         }
         const average = count > 0 ? sum / count : 0;
-        
-        // 音声レベルを正規化（0-100の範囲）
         const normalizedLevel = Math.min(100, (average / 255) * 100);
-        
-        // デバッグ情報（定期的に出力）
-        if (Math.random() < 0.01) { // 1%の確率でログ出力
-          console.log('🎤 Audio monitoring status:', {
-            isMuted,
-            isConnected,
-            isAudioMonitoringActive,
-            normalizedLevel: normalizedLevel.toFixed(1),
-            average: average.toFixed(1),
-            hasAnalyser: !!analyserRef.current,
-            hasAudioTrack: !!localAudioTrackRef.current
-          });
-        }
-        
-        // ミュート状態に応じて音声レベルを設定
-        if (isMuted) {
-          setLocalAudioLevel(0);
-        } else {
-          // デバッグログ（音声レベルが高い場合のみ）
-          if (normalizedLevel > 5) {
-            console.log('🎤 Audio level detected:', normalizedLevel.toFixed(1));
-          }
-          setLocalAudioLevel(normalizedLevel);
-        }
+        setLocalAudioLevel(normalizedLevel);
 
-        // 常に監視を継続（ミュート状態に関係なく）
         animationRef.current = requestAnimationFrame(updateAudioLevel);
       };
-      
+
       updateAudioLevel();
     } catch (error) {
-      console.error('音声レベル監視エラー:', error);
+      console.error("Audio monitoring setup failed:", error);
+      setDisconnectError(
+        "音声監視の設定に失敗しました。もう一度お試しください。"
+      );
     }
-  };
 
-  // 音声レベル監視の停止
-  const stopAudioLevelMonitoring = () => {
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-      animationRef.current = null;
-    }
-    
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    
-    if (localAudioTrackRef.current) {
-      localAudioTrackRef.current.stop();
-      localAudioTrackRef.current = null;
-    }
-    
-    setLocalAudioLevel(0);
-    setIsAudioMonitoringActive(false);
-    console.log('🔇 Audio level monitoring stopped');
-  };
-
-  const connectToRoom = async () => {
-    // 既に接続処理中の場合は何もしない
-    if (isConnectingRef.current) {
-      console.log('⚠️ CONNECTION ALREADY IN PROGRESS - skipping');
-      return;
-    }
-    
-    // 開発環境でのHMR対応：既に接続済みの場合はスキップ
-    if (process.env.NODE_ENV === 'development' && hasConnectedRef.current && room && isConnected) {
-      console.log('🔧 DEV MODE: HMR DETECTED - Skipping reconnection (already connected)');
-      return;
-    }
-    try {
-      isConnectingRef.current = true;
-      setIsConnecting(true);
-      setError(null);
-      connectionRef.current = false;
-      
-      // 接続開始時に参加者リストを強制リセット
-      console.log('🔄 CONNECTION START: Force clearing participants');
-      setParticipants([]);
-      
-      console.log('🔗 CONNECTING TO ROOM:', roomId);
-      console.log('🌐 LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
-      console.log('🔧 Environment:', process.env.NODE_ENV);
-
-      // 参加者名をそのまま使用（タイムスタンプは追加しない）
-      // これにより、ルーム作成者と参加者で同じ表示名が使用される
-      console.log('Using participant name:', participantName);
-
-      // Get access token from API
-      const tokenResponse = await fetch('/api/livekit/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roomName: roomId, participantName: participantName }),
-      });
-      console.log('Token API Response Status:', tokenResponse.status);
-      const tokenData = await tokenResponse.json();
-      console.log('Token API Response Data:', tokenData);
-
-      if (!tokenResponse.ok) {
-        throw new Error(`Failed to get access token: ${tokenData.error || tokenResponse.statusText}`);
-      }
-      const { token } = tokenData;
-      console.log('Extracted Token:', token);
-      console.log('Type of Extracted Token:', typeof token);
-      if (typeof token !== 'string') {
-        throw new Error('LiveKit access token is not a string. Check API response.');
-      }
-
-      // 既存のルームがあれば完全にクリーンアップ
-      if (room) {
-        try {
-          console.log('🧹 CLEANING UP existing room connection...');
-          
-          // 既存の参加者をクリア（複数回実行して確実に）
-          setParticipants([]);
-          setIsConnected(false);
-          setRoom(null);
-          
-          // ルームのイベントリスナーを削除
-          room.removeAllListeners();
-          
-          // ルームを切断
-          await room.disconnect();
-          
-          // 少し待ってからクリーンアップ完了
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // 再度参加者リストをクリア（念のため）
-          setParticipants([]);
-          
-          console.log('✅ Previous room cleaned up successfully');
-        } catch (e) {
-          console.warn('❌ Failed to disconnect existing room:', e);
-          // エラーが発生してもリセット
-          setParticipants([]);
-          setIsConnected(false);
-          setRoom(null);
-        }
-      }
-
-      const newRoom = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        publishDefaults: { 
-          simulcast: false,
-          videoSimulcastLayers: [],
-          dtx: false
-        },
-        // DataChannelエラーを防ぐための設定
-        disconnectOnPageLeave: true
-      });
-
-      // イベントリスナーを設定
-      newRoom
-        .on(RoomEvent.ParticipantConnected, handleParticipantConnected)
-        .on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected)
-        .on(RoomEvent.AudioPlaybackStatusChanged, handleAudioPlaybackStatusChanged)
-        .on(RoomEvent.Disconnected, handleDisconnected)
-        .on(RoomEvent.ConnectionStateChanged, handleConnectionStateChanged)
-        .on(RoomEvent.Reconnecting, handleReconnecting)
-        .on(RoomEvent.Reconnected, handleReconnected);
-
-      console.log('Connecting to LiveKit with token...');
-      console.log('LiveKit URL:', process.env.NEXT_PUBLIC_LIVEKIT_URL);
-      
-      try {
-        const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-        
-        if (!livekitUrl) {
-          throw new Error('LiveKit URL is not configured. Please set NEXT_PUBLIC_LIVEKIT_URL in your .env.local file');
-        }
-        
-        await newRoom.connect(livekitUrl, token, {
-          autoSubscribe: true
-        });
-        
-        console.log('Successfully connected to LiveKit');
-        
-        // 接続が成功したと仮定して処理を続行
-        connectionRef.current = true;
-        
-        try {
-          // まずマイクアクセス許可を要求（選択されたデバイスを使用）
-          const constraints = {
-            audio: {
-              deviceId: selectedInput ? { exact: selectedInput } : undefined,
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true
-            }
-          };
-          
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
-          console.log('Microphone permission granted with selected device');
-          
-          // ストリームを停止（LiveKitが管理するため）
-          stream.getTracks().forEach(track => track.stop());
-          
-          // LiveKitでマイクを有効化
-          await newRoom.localParticipant.setMicrophoneEnabled(true);
-          console.log('Microphone enabled successfully in LiveKit');
-          
-          // 継続的な音声レベル監視を開始（LiveKitのトラック取得をバイパス）
-          console.log('🎤 Starting continuous audio monitoring after microphone enablement...');
-          console.log('Connection state before starting monitoring:', {
-            isConnected: false, // まだ接続中
-            isMuted: false,
-            isAudioMonitoringActive,
-            hasAnalyser: !!analyserRef.current,
-            hasAudioTrack: !!localAudioTrackRef.current
-          });
-          
-          try {
-            await startContinuousAudioMonitoring();
-            console.log('✅ Continuous audio monitoring started successfully on connection');
-          } catch (error) {
-            console.error('Failed to start audio monitoring on connection:', error);
-            // 接続時のエラーは致命的ではないので、接続は続行
-          }
-        } catch (micError) {
-          console.warn('マイクの有効化に失敗:', micError);
-          
-          let errorMessage = 'マイクの有効化に失敗しました。';
-          if (micError instanceof Error) {
-            if (micError.name === 'NotAllowedError') {
-              errorMessage = 'マイクのアクセスが拒否されました。ブラウザの設定でマイクアクセスを許可してください。';
-            } else if (micError.name === 'NotFoundError') {
-              errorMessage = 'マイクが見つかりません。マイクが接続されていることを確認してください。';
-            } else {
-              errorMessage = `マイクエラー: ${micError.message}`;
-            }
-          }
-          
-          setError(errorMessage);
-          // マイクエラーでも接続は続行（音声なしでも参加可能）
-        }
-
-        setRoom(newRoom);
-        setIsConnected(true);
-        setIsConnecting(false);
-        isConnectingRef.current = false; // 接続完了
-        hasConnectedRef.current = true; // 接続成功フラグ
-        
-        // 既存の参加者を取得して初期化（自分自身のみを正確に除外）
-        const allRemoteParticipants = Array.from(newRoom.remoteParticipants.values());
-        
-        console.log('=== INITIAL PARTICIPANT FILTER DEBUG ===');
-        console.log('Local participant SID:', newRoom.localParticipant?.sid);
-        console.log('Local participant identity:', newRoom.localParticipant?.identity);
-        console.log('My participantName:', participantName);
-        console.log('Room ID:', roomId);
-        console.log('All remote participants count:', allRemoteParticipants.length);
-        console.log('All remote participants:', allRemoteParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
-        
-        // 自分の名前（タイムスタンプ部分を除く）を取得
-        const myBaseName = participantName.split('-')[0];
-        
-        // 適切にフィルタリング（自分自身のみを除外）
-        const existingParticipants = allRemoteParticipants.filter(p => {
-          const participantBaseName = p.identity ? p.identity.split('-')[0] : '';
-          
-          const isMyself = (
-            p.sid === newRoom.localParticipant?.sid ||  // SIDで比較
-            p.identity === newRoom.localParticipant?.identity || // identityで比較  
-            p.identity === participantName || // 直接パラメータと比較
-            participantBaseName === myBaseName || // ベース名で比較
-            p.identity?.includes(myBaseName) || // 名前が含まれている場合
-            p.identity?.includes(participantName) // 完全な名前が含まれている場合
-          );
-          
-          console.log(`Checking participant ${p.identity}: isMyself=${isMyself}`);
-          console.log(`  - SID: ${p.sid} vs ${newRoom.localParticipant?.sid}`);
-          console.log(`  - Identity: ${p.identity} vs ${newRoom.localParticipant?.identity}`);
-          console.log(`  - Base name: ${participantBaseName} vs ${myBaseName}`);
-          return !isMyself;
-        });
-        
-        console.log('Filtered participants (excluding self):', existingParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
-        console.log('Server member count:', serverMemberCount);
-        setParticipants(existingParticipants);
-        
-        const actualCount = Math.max(existingParticipants.length + 1, 1);
-        const initialState = { 
-          isConnected: true, 
-          isMuted: false, 
-          participants: existingParticipants,
-          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
-        };
-        console.log('🔄 STATE CHANGE NOTIFICATION (initial connection):', initialState);
-        onStateChange?.(initialState);
-      } catch (connectError) {
-        console.error('Connection failed:', connectError);
-        throw connectError;
-      }
-
-    } catch (err) {
-      console.error('Failed to connect to room:', err);
-      
-      // 開発環境での接続エラーをより分かりやすく表示
-      let errorMessage = 'LiveKit接続に失敗しました';
-      
-      if (err instanceof Error) {
-        if (err.message.includes('could not establish pc connection')) {
-          errorMessage = 'LiveKitサーバーに接続できません。環境変数を確認してください。';
-        } else if (err.message.includes('LiveKit URL is not configured')) {
-          errorMessage = 'LiveKit URLが設定されていません。.env.localファイルでNEXT_PUBLIC_LIVEKIT_URLを設定してください。';
-        } else {
-          errorMessage = `接続エラー: ${err.message}`;
-        }
-      }
-      
-      setError(errorMessage);
-      setIsConnecting(false);
-      connectionRef.current = false;
-      isConnectingRef.current = false; // 接続失敗時もリセット
-      
-      // 開発環境では接続失敗でも画面表示を続行
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('開発環境: LiveKit接続失敗ですが、画面表示を続行します');
-        setIsConnected(false); // 実際には接続されていない状態
-        onStateChange?.({ isConnected: false, isMuted: false, participants: [] });
-      }
-    }
-  };
-
-  const handleConnectionStateChanged = (state: any) => {
-    console.log('Connection state changed:', state);
-    if (state === 'connected') {
-      connectionRef.current = true;
-      setIsConnected(true);
-      setIsConnecting(false); // 接続完了時は接続中状態を解除
-    } else if (state === 'disconnected') {
-      connectionRef.current = false;
-      setIsConnected(false);
-      setIsConnecting(false); // 切断時も接続中状態を解除
-    } else if (state === 'connecting') {
-      // 既に接続済みの場合は接続中状態に戻さない（新規参加者による一時的な状態変更を無視）
-      if (!isConnected) {
-        console.log('Setting connecting state (not yet connected)');
-      setIsConnecting(true);
-      } else {
-        console.log('⚠️ IGNORING connecting state - already connected (new participant joined)');
-      }
-    } else if (state === 'reconnecting') {
-      // 既に接続済みの場合は、軽微な再接続では接続中状態に戻さない
-      if (!isConnected) {
-        console.log('Setting reconnecting state (connection lost)');
-      setIsConnecting(true);
-      } else {
-        console.log('⚠️ IGNORING reconnecting state - connection stable (participant event)');
-      }
-    }
-  };
-
-  const handleReconnecting = () => {
-    console.log('Reconnecting to LiveKit...');
-    // 既に接続済みの場合は、軽微な再接続でUI状態を変更しない
-    if (!isConnected) {
-      console.log('Setting reconnecting state');
-      setIsConnecting(true);
-    } else {
-      console.log('⚠️ IGNORING reconnecting event - already connected');
-    }
-  };
-
-  const handleReconnected = () => {
-    console.log('Reconnected to LiveKit');
-    // 再接続完了時は接続状態を確実に更新
-    setIsConnected(true);
-    setIsConnecting(false);
-    connectionRef.current = true;
-  };
-
-  const disconnectFromRoom = async () => {
-    console.log('🔄 DISCONNECTING FROM ROOM');
-    
-    // 音声レベル監視を停止
-    stopAudioLevelMonitoring();
-    
-    if (room) {
-      try {
-        await room.disconnect();
-        console.log('Room disconnected successfully');
-      } catch (error) {
-        console.error('Error disconnecting from room:', error);
-      }
-    }
-    
-    setRoom(null);
-    setIsConnected(false);
-    setIsConnecting(false);
-    setParticipants([]);
-    connectionRef.current = false;
-    isConnectingRef.current = false;
-    hasConnectedRef.current = false;
-    
-    if (onLeave) {
-      onLeave();
-    }
-  };
-
-  const toggleMute = async () => {
-    if (room && connectionRef.current) {
-      try {
-        console.log('🎤 Toggle mute called. Current state:', {
-          isMuted,
-          isConnected,
-          isAudioMonitoringActive,
-          hasAnalyser: !!analyserRef.current,
-          hasAudioTrack: !!localAudioTrackRef.current
-        });
-        
-        await room.localParticipant.setMicrophoneEnabled(!isMuted);
-        const newMuteState = !isMuted;
-        setIsMuted(newMuteState);
-        
-        console.log('🎤 Mute state changed to:', newMuteState);
-        
-        // マイクの状態に応じて音声レベル監視を開始/停止
-        if (newMuteState) {
-          // ミュートになった場合、音声レベル監視を停止
-          console.log('🔇 Microphone muted - stopping audio level monitoring');
-          stopAudioLevelMonitoring();
-        } else {
-          // ミュートが解除された場合、継続的な音声レベル監視を開始
-          console.log('🎤 Microphone unmuted - starting continuous audio monitoring');
-          try {
-            // 接続状態に関係なく音声監視を開始
-            await startContinuousAudioMonitoring();
-            console.log('✅ Continuous audio monitoring started after unmute');
-          } catch (error) {
-            console.error('Failed to start audio monitoring after unmute:', error);
-            // エラーが発生しても、後で再試行できるようにする
-          }
-        }
-        
-        const actualCount = Math.max(participants.length + 1, 1);
-        onStateChange?.({ 
-          isConnected, 
-          isMuted: newMuteState, 
-          participants,
-          actualParticipantCount: actualCount
-        });
-      } catch (error) {
-        console.error('Failed to toggle mute:', error);
-      }
-    } else {
-      console.warn('⚠️ Cannot toggle mute: room or connection not available');
-    }
-  };
-
-                const handleParticipantConnected = (participant: RemoteParticipant) => {
-    console.log('=== PARTICIPANT CONNECTED DEBUG ===');
-    console.log('Connected participant SID:', participant.sid);
-    console.log('Connected participant identity:', participant.identity);
-    console.log('Local participant SID:', room?.localParticipant?.sid);
-    console.log('Local participant identity:', room?.localParticipant?.identity);
-    console.log('My participantName:', participantName);
-    console.log('Room ID:', roomId);
-    console.log('Current participants count:', participants.length);
-    console.log('Current participants:', participants.map(p => ({ sid: p.sid, identity: p.identity })));
-    
-    // 自分の名前（タイムスタンプ部分を除く）を取得
-    const myBaseName = participantName.split('-')[0];
-    const participantBaseName = participant.identity ? participant.identity.split('-')[0] : '';
-    
-    console.log('My base name:', myBaseName);
-    console.log('Participant base name:', participantBaseName);
-    
-    // より厳密な自分自身の除外チェック
-    const isMyself = room && (
-      participant.sid === room.localParticipant?.sid ||  // SIDで比較
-      participant.identity === room.localParticipant?.identity || // identityで比較
-      participant.identity === participantName || // 直接パラメータと比較
-      participantBaseName === myBaseName || // ベース名で比較
-      participant.identity?.includes(myBaseName) || // 名前が含まれている場合
-      participant.identity?.includes(participantName) // 完全な名前が含まれている場合
-    );
-    
-    console.log('Is myself check result:', isMyself);
-    console.log('Exclusion checks:');
-    console.log('  - SID match:', participant.sid === room?.localParticipant?.sid);
-    console.log('  - Identity match:', participant.identity === room?.localParticipant?.identity);
-    console.log('  - Direct name match:', participant.identity === participantName);
-    console.log('  - Base name match:', participantBaseName === myBaseName);
-    console.log('  - Contains base name:', participant.identity?.includes(myBaseName));
-    console.log('  - Contains full name:', participant.identity?.includes(participantName));
-    
-    if (isMyself) {
-      console.log('🚫 BLOCKING self participant:', participant.identity);
-      return;
-    }
-    
-    console.log('✅ ALLOWING remote participant:', participant.identity);
-    
-                setParticipants(prev => {
-      // より厳密な重複チェック
-      const existingParticipant = prev.find(p => {
-        const sameId = p.sid === participant.sid;
-        const sameIdentity = p.identity === participant.identity;
-        const sameBaseName = p.identity && participant.identity && 
-                            p.identity.split('-')[0] === participant.identity.split('-')[0];
-        
-        console.log(`Duplicate check for ${participant.identity}:`);
-        console.log(`  - Same SID: ${sameId}`);
-        console.log(`  - Same Identity: ${sameIdentity}`);
-        console.log(`  - Same Base Name: ${sameBaseName}`);
-        
-        return sameId || sameIdentity;
-      });
-      
-      if (existingParticipant) {
-        console.log('🚫 DUPLICATE BLOCKED: Participant already exists, skipping:', participant.identity);
-        console.log('Existing:', existingParticipant.identity, 'New:', participant.identity);
-        return prev;
-      }
-      
-                  const newParticipants = [...prev, participant];
-      console.log('✅ PARTICIPANT ADDED:', participant.identity);
-      console.log('New participants count (excluding self):', newParticipants.length);
-      console.log('All participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
-      
-      // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
-      setTimeout(() => {
-        const actualCount = Math.max(newParticipants.length + 1, 1);
-        const newState = { 
-          isConnected, 
-          isMuted, 
-          participants: newParticipants,
-          actualParticipantCount: actualCount // 自分も含めた正確な参加者数（最低1）
-        };
-        console.log('🔄 STATE CHANGE NOTIFICATION (participant added):', newState);
-        onStateChange?.(newState);
-      }, 0);
-      
-                  return newParticipants;
-                });
-              };
-
-                const handleParticipantDisconnected = (participant: RemoteParticipant) => {
-    console.log('Participant disconnected:', participant.identity, 'SID:', participant.sid);
-    
-    setParticipants(prev => {
-      const newParticipants = prev.filter(p => p.sid !== participant.sid);
-      console.log('❌ PARTICIPANT REMOVED:', participant.identity);
-      console.log('Remaining participants count:', newParticipants.length);
-      console.log('Remaining participants:', newParticipants.map(p => ({ sid: p.sid, identity: p.identity })));
-      
-      // 非同期で状態変更を通知（Reactの状態更新競合を避ける）
-      setTimeout(() => {
-        const actualCount = newParticipants.length + 1; // 自分を含めた正確な参加者数
-        const newState = { 
-          isConnected, 
-          isMuted, 
-          participants: newParticipants,
-          actualParticipantCount: actualCount // 自分も含めた正確な参加者数
-        };
-        console.log('🔄 STATE CHANGE NOTIFICATION (participant removed):', newState);
-        onStateChange?.(newState);
-      }, 0);
-      
-      return newParticipants;
-    });
-  };
-
-  const handleAudioPlaybackStatusChanged = (playing: boolean) => {
-    console.log('Audio playback status changed:', playing);
-  };
-
-  const handleDisconnected = () => {
-    console.log('Disconnected from room');
-    connectionRef.current = false;
-    hasConnectedRef.current = false; // 接続フラグリセット
-    setIsConnected(false);
-    setParticipants([]);
-    onStateChange?.({ 
-      isConnected: false, 
-      isMuted: false, 
-      participants: [],
-      actualParticipantCount: 0 // 切断時は0
-    });
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initConnection = async () => {
-      if (isMounted) {
-        await connectToRoom();
-      }
-    };
-    
-    initConnection();
-    
     return () => {
-      isMounted = false;
-      // コンポーネントのアンマウント時にクリーンアップ
-      if (room) {
-        try {
-          console.log('Cleaning up room on unmount...');
-          
-          // 音声レベル監視を停止
-          stopAudioLevelMonitoring();
-          
-          // 状態をリセット
-          setParticipants([]);
-          setIsConnected(false);
-          setIsConnecting(false);
-          isConnectingRef.current = false;
-          hasConnectedRef.current = false;
-          
-          // イベントリスナーを全て削除
-          room.removeAllListeners();
-          
-          // ルームを切断
-          room.disconnect();
-          
-          console.log('Room cleanup completed on unmount');
-        } catch (error) {
-          console.warn('Error during cleanup:', error);
-        }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
       }
     };
-  }, [roomId]); // roomIdのみに依存
+  }, [microphoneTrack]);
 
-  if (error) {
+  // マイクの切り替え
+  const toggleMute = useCallback(async () => {
+    if (localParticipant) {
+      const newState = !isMicrophoneEnabled;
+      await localParticipant.setMicrophoneEnabled(newState);
+    }
+  }, [localParticipant, isMicrophoneEnabled]);
+
+  // 退出処理
+  const handleDisconnect = useCallback(async () => {
+    try {
+      setDisconnectError(null);
+      await room.disconnect();
+      // 正常に退出した場合、親コンポーネントに通知
+      onLeave?.();
+    } catch (error) {
+      console.error("Failed to disconnect from LiveKit room:", error);
+      setDisconnectError(
+        "退室処理中にエラーが発生しました。もう一度お試しください。"
+      );
+    }
+  }, [room, onLeave]);
+
+  // UIレンダリング
+  if (connectionState !== ConnectionState.Connected) {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-red-900/90 backdrop-blur-sm border-t border-red-700 p-4">
-        <div className="max-w-md mx-auto text-center">
-          <p className="text-red-200 text-sm">{error}</p>
-          <Button 
-            onClick={connectToRoom} 
-            size="sm" 
-            className="mt-2 bg-red-700 hover:bg-red-600"
-          >
-            再接続
-          </Button>
+      <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+        <div className="animate-pulse text-yellow-400">
+          LiveKitサーバーに接続中...
         </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0">
-      {/* パネル表示/非表示切り替えボタン */}
-      <div className="flex justify-center mb-2">
-        <Button
-          onClick={() => setShowPanel(!showPanel)}
-          variant="outline"
-          size="sm"
-          className="bg-gray-800/80 hover:bg-gray-700/80 border-gray-600 text-gray-300 backdrop-blur-sm"
-        >
-          {showPanel ? (
-            <>
-              <ChevronDown className="w-4 h-4 mr-1" />
-              パネルを隠す
-            </>
-          ) : (
-            <>
-              <ChevronUp className="w-4 h-4 mr-1" />
-              パネルを表示
-            </>
-          )}
-        </Button>
+    <div className="flex flex-col h-full w-full relative">
+      {/* メインエリア：参加者グリッド */}
+      <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
+        <ParticipantGrid />
       </div>
 
-      {/* パネル部分（表示/非表示切り替え可能） */}
-      {showPanel && (
-        <div className="bg-gradient-to-t from-gray-900 via-gray-800/95 to-gray-900/80 backdrop-blur-xl border-t border-gray-700/50 shadow-2xl">
-          <div className="max-w-4xl mx-auto p-6">
-            {/* ヘッダー部分 */}
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-400 text-sm font-medium">音声通話</span>
-                </div>
-                <div className="text-gray-400 text-sm">
-                  ルーム: <span className="font-mono text-gray-300">{roomId}</span>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Users className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-300 text-sm">{participants.length + 1}人参加中</span>
-                </div>
-                
-                {/* デバイス設定ボタン */}
-                <Button
-                  onClick={() => setShowDeviceSettings(!showDeviceSettings)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-gray-800/50 hover:bg-gray-700/50 border-gray-600 text-gray-300"
-                >
-                  デバイス設定
-                </Button>
-              </div>
-            </div>
-
-            {/* デバイス設定パネル */}
-            {showDeviceSettings && (
-              <div className="mb-6 p-4 bg-gray-800/30 rounded-lg border border-gray-600/30">
-                <h4 className="text-gray-300 font-semibold mb-3">音声デバイス設定</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 入力デバイス選択 */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-gray-400">入力デバイス（マイク）:</label>
-                    <select 
-                      onChange={handleInputChange} 
-                      value={selectedInput}
-                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                    >
-                      {devices
-                        .filter(device => device.kind === 'audioinput')
-                        .map(device => (
-                          <option key={device.deviceId} value={device.deviceId}>
-                            {device.label || `マイク ${device.deviceId.slice(0, 8)}...`}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  
-                  {/* 出力デバイス選択 */}
-                  <div className="space-y-2">
-                    <label className="text-sm text-gray-400">出力デバイス（スピーカー）:</label>
-                    <select 
-                      onChange={handleOutputChange} 
-                      value={selectedOutput}
-                      className="w-full p-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
-                    >
-                      {devices
-                        .filter(device => device.kind === 'audiooutput')
-                        .map(device => (
-                          <option key={device.deviceId} value={device.deviceId}>
-                            {device.label || `スピーカー ${device.deviceId.slice(0, 8)}...`}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-                
-                                    {/* 音声レベルテスト */}
-                    <div className="mt-4 p-3 bg-gray-700/30 rounded">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-300">音声レベルテスト</span>
-                        <span className="text-xs text-gray-400">レベル: {localAudioLevel.toFixed(1)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-600 rounded-full h-2">
-                        <div 
-                          className="bg-gradient-to-r from-green-400 to-blue-500 h-2 rounded-full transition-all duration-100"
-                          style={{ width: `${localAudioLevel}%` }}
-                        ></div>
-                      </div>
-                      {/* 音声監視状態の表示 */}
-                      <div className="mt-2 flex items-center justify-between">
-                        <span className="text-xs text-gray-400">監視状態:</span>
-                        <span className={`text-xs font-medium ${isAudioMonitoringActive ? 'text-green-400' : 'text-red-400'}`}>
-                          {isAudioMonitoringActive ? 'アクティブ' : '停止中'}
-                        </span>
-                      </div>
-                    </div>
-                
-                {/* デバイス更新ボタン */}
-                <div className="mt-3 flex justify-end space-x-2">
-                  <Button
-                    onClick={async () => {
-                      try {
-                        const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-                        setDevices(deviceInfos);
-                        console.log('Devices refreshed');
-                      } catch (error) {
-                        console.error('Failed to refresh devices:', error);
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="bg-gray-700/50 hover:bg-gray-600/50 border-gray-500 text-gray-300"
-                  >
-                    デバイス一覧を更新
-                  </Button>
-                  
-                  <Button
-                    onClick={async () => {
-                      if (isConnected && room) {
-                        console.log('🔄 Manual audio monitoring restart...');
-                        await restartAudioMonitoring();
-                      } else {
-                        console.log('⚠️ Cannot restart audio monitoring: not connected');
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    className="bg-blue-700/50 hover:bg-blue-600/50 border-blue-500 text-blue-300"
-                  >
-                    音声監視再開
-                  </Button>
-                  
-                  <Button
-                    onClick={testAudioLevel}
-                    variant="outline"
-                    size="sm"
-                    className="bg-green-700/50 hover:bg-green-600/50 border-green-500 text-green-300"
-                  >
-                    音声テスト（5秒）
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* 参加者リスト */}
-            <div className="mb-6">
-              <h3 className="text-gray-300 font-semibold mb-3 flex items-center">
-                <Signal className="w-4 h-4 mr-2 text-blue-400" />
-                参加者 ({Math.max(participants.length + 1, 1)})
-                {serverMemberCount && serverMemberCount > 0 && serverMemberCount !== (participants.length + 1) && (
-                  <span className="ml-2 text-xs text-yellow-400">(サーバー: {serverMemberCount})</span>
-                )}
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-
-                {/* 自分 */}
-                <div className={`bg-gradient-to-r from-blue-600/20 to-purple-600/20 backdrop-blur-sm border rounded-xl p-4 flex items-center space-x-3 transition-all duration-200 ${
-                  localAudioLevel > 10 
-                    ? 'border-blue-400 shadow-lg shadow-blue-500/30' 
-                    : 'border-blue-500/30'
-                }`}>
-                  <div className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center transition-all duration-200 ${
-                    localAudioLevel > 20 
-                      ? 'scale-110 shadow-lg shadow-blue-400/50' 
-                      : 'scale-100'
-                  }`}>
-                    <span className="text-white font-bold text-sm">あ</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm truncate">あなた</p>
-                    <div className="flex items-center space-x-2 mt-1">
-                      <div className={`w-2 h-2 rounded-full ${isMuted ? 'bg-red-400' : 'bg-blue-400'}`}></div>
-                      <span className={`text-xs ${isMuted ? 'text-red-300' : 'text-blue-300'} font-medium`}>
-                        {isMuted ? 'ミュート中' : '音声オン'}
-                      </span>
-                      {!isMuted && localAudioLevel > 5 && (
-                        <div className="flex items-center space-x-1">
-                          <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse"></div>
-                          <span className="text-xs text-green-300">話し中</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* 音声レベルバー */}
-                    {!isMuted && (
-                      <div className="mt-2 w-full bg-gray-700/50 rounded-full h-1">
-                        <div 
-                          className="bg-gradient-to-r from-green-400 to-blue-500 h-1 rounded-full transition-all duration-100"
-                          style={{ width: `${localAudioLevel}%` }}
-                        ></div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 他の参加者 */}
-                {participants.map((participant, index) => {
-                  // 参加者の表示名を取得（-で分割して最初の部分）
-                  // デバッグ情報を追加
-                  console.log(`Rendering participant ${index}:`, {
-                    sid: participant.sid,
-                    identity: participant.identity,
-                    displayName: participant.identity ? participant.identity.split('-')[0] : `ユーザー${index + 1}`
-                  });
-                  
-                  const displayName = participant.identity ? participant.identity.split('-')[0] : `ユーザー${index + 1}`;
-                  
-                  return (
-                    <div key={`participant-${participant.sid}-${index}`} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 backdrop-blur-sm border border-green-500/30 rounded-xl p-4 flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold text-sm">
-                          {displayName.charAt(0)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm truncate">
-                          {displayName}
-                        </p>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                          <span className="text-xs text-gray-300">音声オン</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+      {/* エラーメッセージ */}
+      {disconnectError && (
+        <div className="fixed bottom-32 left-1/2 transform -translate-x-1/2 bg-red-500/90 text-white px-4 py-2 rounded-lg shadow-lg z-50">
+          {disconnectError}
         </div>
       )}
 
-      {/* コントロールボタン（常に表示） */}
-      <div className="bg-gradient-to-t from-gray-900/90 to-gray-900/70 backdrop-blur-sm border-t border-gray-700/50">
-        <div className="max-w-4xl mx-auto p-4">
-          <div className="flex justify-center items-center">
-            <Button
-              onClick={toggleMute}
-              variant={isMuted ? "destructive" : "outline"}
-              size="lg"
-              disabled={!isConnected}
-              className={`w-16 h-16 rounded-full transition-all duration-300 ${
-                isMuted 
-                  ? 'bg-red-600 hover:bg-red-700 border-red-600 shadow-lg' 
-                  : 'bg-gradient-to-r from-blue-600/80 to-blue-700/80 hover:from-blue-600 hover:to-blue-700 border-blue-500/50 shadow-md'
-              }`}
-            >
-              {isMuted ? (
-                <div className="flex flex-col items-center">
-                  <MicOff className="w-6 h-6 mb-1" />
-                  <div className="w-1 h-1 bg-red-200 rounded-full"></div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center">
-                  <Mic className="w-6 h-6 mb-1" />
-                  <div className="w-1 h-1 bg-blue-300 rounded-full"></div>
-                </div>
-              )}
-            </Button>
-          </div>
+      {/* コントロールバー */}
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
+        {/* 設定メニュー */}
+        {showSettings && (
+          <DeviceSettings onClose={() => setShowSettings(false)} />
+        )}
 
-          {/* 接続状態 */}
-          <div className="mt-3 text-center">
-            <div className="inline-flex items-center px-4 py-2 rounded-full bg-gray-800/50 backdrop-blur-sm border border-gray-600/50">
-              <div className={`w-2 h-2 rounded-full mr-2 ${isConnected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`}></div>
-              <span className="text-sm text-gray-300">
-                {isConnected ? '接続済み' : '接続中...'}
-              </span>
-            </div>
+        {/* 設定ボタン */}
+        <Button
+          onClick={() => setShowSettings(!showSettings)}
+          variant="outline"
+          size="icon"
+          className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white ${
+            showSettings ? "bg-gray-800 text-white ring-2 ring-blue-500" : ""
+          }`}
+        >
+          <Settings className="w-5 h-5" />
+        </Button>
+
+        {/* マイクボタン */}
+        <Button
+          onClick={toggleMute}
+          variant={isMicrophoneEnabled ? "default" : "destructive"}
+          size="lg"
+          className={`rounded-full w-16 h-16 flex items-center justify-center transition-all duration-300 ${
+            isMicrophoneEnabled
+              ? "bg-blue-600 hover:bg-blue-700 shadow-[0_0_15px_rgba(37,99,235,0.5)]"
+              : "bg-red-600 hover:bg-red-700"
+          }`}
+        >
+          {isMicrophoneEnabled ? (
+            <Mic className="w-8 h-8" />
+          ) : (
+            <MicOff className="w-8 h-8" />
+          )}
+        </Button>
+
+        {/* オーディオビジュアライザー（簡易版） */}
+        <div className="flex flex-col items-center justify-center w-32">
+          <div className="flex items-end gap-1 h-8 mb-1">
+            {[0, 1, 2, 3, 4].map((barIndex) => (
+              <div
+                key={`audio-bar-${barIndex}`}
+                className="w-1.5 bg-green-500 rounded-full transition-all duration-75"
+                style={{
+                  height: isMicrophoneEnabled
+                    ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + barIndex * 0.2)))}%`
+                    : "10%",
+                  opacity: isMicrophoneEnabled ? 1 : 0.3,
+                }}
+              />
+            ))}
           </div>
+          <span className="text-xs text-gray-400 font-mono">
+            {isMicrophoneEnabled ? "ON AIR" : "MUTED"}
+          </span>
         </div>
+
+        {/* 退出ボタン */}
+        <Button
+          onClick={handleDisconnect}
+          variant="outline"
+          className="ml-4 border-red-500/50 text-red-400 hover:bg-red-950/30 hover:text-red-300"
+        >
+          退出
+        </Button>
       </div>
+    </div>
+  );
+}
+
+export default function VoiceCall({
+  roomId,
+  participantName,
+  onLeave,
+  onStateChange,
+  serverMemberCount,
+  className,
+}: VoiceCallProps) {
+  const [token, setToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchToken = async () => {
+      try {
+        const region =
+          process.env.NEXT_PUBLIC_FIREBASE_FUNCTIONS_REGION || "us-central1";
+        const functions = getFunctions(app, region);
+        const generateToken = httpsCallable(functions, "generateLivekitToken");
+        const result = await generateToken({ roomId, participantName });
+        const data = result.data as { token: string };
+        setToken(data.token);
+      } catch (e) {
+        console.error("Token generation failed:", e);
+        setError("トークンの取得に失敗しました");
+      }
+    };
+
+    if (roomId && participantName) {
+      fetchToken();
+    }
+  }, [roomId, participantName]);
+
+  // LiveKit serverUrlの検証
+  const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  if (!livekitUrl) {
+    console.error(
+      "NEXT_PUBLIC_LIVEKIT_URL environment variable is not configured"
+    );
+    const urlError =
+      "LiveKitサーバーのURLが設定されていません。環境変数を確認してください。";
+    return <div className="text-red-500 p-4">{urlError}</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500 p-4">{error}</div>;
+  }
+
+  if (!token) {
+    return (
+      <div className="flex items-center justify-center p-8 h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`w-full h-full ${className || ""}`}>
+      <LiveKitRoom
+        video={false}
+        audio={true}
+        token={token}
+        serverUrl={livekitUrl}
+        connect={true}
+        data-lk-theme="default"
+        onDisconnected={() => {
+          console.log("Disconnected from room");
+          onLeave?.();
+        }}
+        onError={(err) => {
+          console.error("LiveKit Room Error:", err);
+          setError("接続中にエラーが発生しました。再度お試しください。");
+        }}
+        className="h-full w-full"
+      >
+        <VoiceCallContent
+          onLeave={onLeave}
+          onStateChange={onStateChange}
+          serverMemberCount={serverMemberCount}
+        />
+        <RoomAudioRenderer />
+      </LiveKitRoom>
     </div>
   );
 }

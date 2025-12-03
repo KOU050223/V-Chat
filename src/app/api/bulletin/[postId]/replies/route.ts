@@ -14,18 +14,16 @@ import {
   CreateReplyRequest,
 } from "@/types/bulletin";
 
-interface RouteContext {
-  params: {
-    postId: string;
-  };
-}
-
 // GET: 返信一覧取得
-export async function GET(request: NextRequest, { params }: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     console.log("返信一覧取得API開始");
 
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
     console.log("取得対象のpostId:", postId);
 
@@ -118,7 +116,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 // POST: 返信作成
-export async function POST(request: NextRequest, { params }: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
     const authResult = await authenticateRequest(request);
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const userPhoto = body.userPhoto || undefined;
 
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
 
     // 投稿の存在確認

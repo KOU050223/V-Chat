@@ -9,14 +9,11 @@ import { getAdminFirestore } from "@/lib/firebase-admin";
 import { Timestamp, FieldValue } from "firebase-admin/firestore";
 import { BulletinApiResponse, BulletinPost } from "@/types/bulletin";
 
-interface RouteContext {
-  params: {
-    postId: string;
-  };
-}
-
 // POST: いいねをつける/外す
-export async function POST(request: NextRequest, { params }: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
     const authResult = await authenticateRequest(request);
@@ -30,6 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     const userId = authResult.userId;
 
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
     const docRef = db.collection("bulletin_posts").doc(postId);
 

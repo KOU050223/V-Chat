@@ -15,16 +15,14 @@ import {
   UpdatePostRequest,
 } from "@/types/bulletin";
 
-interface RouteContext {
-  params: {
-    postId: string;
-  };
-}
-
 // GET: 投稿詳細取得
-export async function GET(request: NextRequest, { params }: RouteContext) {
+export async function GET(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
     const docRef = db.collection("bulletin_posts").doc(postId);
     const docSnap = await docRef.get();
@@ -72,7 +70,10 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 }
 
 // PATCH: 投稿更新
-export async function PATCH(request: NextRequest, { params }: RouteContext) {
+export async function PATCH(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
     const authResult = await authenticateRequest(request);
@@ -86,6 +87,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const userId = authResult.userId;
 
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
     const body: UpdatePostRequest = await request.json();
 
@@ -183,7 +185,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
 }
 
 // DELETE: 投稿削除
-export async function DELETE(request: NextRequest, { params }: RouteContext) {
+export async function DELETE(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
     const authResult = await authenticateRequest(request);
@@ -197,6 +202,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     const userId = authResult.userId;
 
     const db = getAdminFirestore();
+    const params = await props.params;
     const { postId } = params;
     const docRef = db.collection("bulletin_posts").doc(postId);
     const docSnap = await docRef.get();

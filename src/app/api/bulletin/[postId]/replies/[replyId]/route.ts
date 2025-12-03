@@ -9,7 +9,7 @@ import { BulletinApiResponse } from "@/types/bulletin";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { postId: string; replyId: string } }
+  props: { params: Promise<{ postId: string; replyId: string }> }
 ) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
@@ -22,6 +22,7 @@ export async function PATCH(
     }
     const userId = authResult.userId;
 
+    const params = await props.params;
     const { postId, replyId } = params;
 
     // 返信の存在確認と権限チェック
@@ -100,7 +101,7 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { postId: string; replyId: string } }
+  props: { params: Promise<{ postId: string; replyId: string }> }
 ) {
   try {
     // 認証確認（NextAuth または Firebase ID トークン）
@@ -113,6 +114,7 @@ export async function DELETE(
     }
     const userId = authResult.userId;
 
+    const params = await props.params;
     const { postId, replyId } = params;
     console.log("DELETE 返信 - postId:", postId, "replyId:", replyId);
     console.log("DELETE 返信 - userId:", userId);

@@ -9,20 +9,18 @@ import { bulletinStore } from "@/lib/bulletinStore";
 import { BulletinApiResponse, BulletinPost } from "@/types/bulletin";
 import { adminDb } from "@/lib/firebase-admin";
 
-interface RouteContext {
-  params: {
-    postId: string;
-  };
-}
-
 interface BulletinCreateRoomData {
   roomId: string;
   post: BulletinPost;
 }
 
 // POST: ルーム作成
-export async function POST(request: NextRequest, { params }: RouteContext) {
+export async function POST(
+  request: NextRequest,
+  props: { params: Promise<{ postId: string }> }
+) {
   try {
+    const params = await props.params;
     const { postId } = params;
 
     // 認証確認（NextAuth または Firebase ID トークン）

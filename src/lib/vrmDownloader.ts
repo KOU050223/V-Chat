@@ -1,4 +1,4 @@
-import { VRoidAPI } from '@/lib/vroid';
+import { VRoidAPI } from "@/lib/vroid";
 
 export interface VRMDownloadResult {
   blob: Blob;
@@ -26,56 +26,61 @@ export class VRMDownloader {
    */
   async downloadVRM(modelId: string): Promise<VRMDownloadResult> {
     try {
-      console.log('VRMダウンロード開始:', modelId);
+      console.log("VRMダウンロード開始:", modelId);
 
       // 1. ダウンロードライセンス作成
-      const licenseResponse = await this.vroidClient.getCharacterModelDownloadLicense(modelId);
-      
+      const licenseResponse =
+        await this.vroidClient.getCharacterModelDownloadLicense(modelId);
+
       if (!(licenseResponse.data as any)?.id) {
-        throw new Error('ダウンロードライセンスの作成に失敗しました');
+        throw new Error("ダウンロードライセンスの作成に失敗しました");
       }
 
       const licenseId = (licenseResponse.data as any).id;
       const expiresAt = (licenseResponse.data as any).expires_at;
-      
-      console.log('ダウンロードライセンス作成成功:', {
+
+      console.log("ダウンロードライセンス作成成功:", {
         licenseId,
-        expiresAt
+        expiresAt,
       });
 
       // 2. プロキシ経由でVRMファイルをダウンロード
       const downloadUrl = `/api/vroid/download-vrm?license_id=${licenseId}&model_id=${modelId}`;
-      console.log('VRMファイルダウンロード開始:', downloadUrl);
-      
+      console.log("VRMファイルダウンロード開始:", downloadUrl);
+
       const response = await fetch(downloadUrl, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Accept': 'application/octet-stream',
+          Accept: "application/octet-stream",
         },
       });
 
       if (!response.ok) {
-        throw new Error(`VRMファイルダウンロード失敗: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `VRMファイルダウンロード失敗: ${response.status} ${response.statusText}`
+        );
       }
 
       // 3. ファイル情報を取得
       const blob = await response.blob();
-      const contentDisposition = response.headers.get('content-disposition');
-      
+      const contentDisposition = response.headers.get("content-disposition");
+
       // ファイル名を抽出または生成
       let filename = `model_${modelId}.vrm`;
       if (contentDisposition) {
-        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\\2|[^;\\n]*)/);
+        const filenameMatch = contentDisposition.match(
+          /filename[^;=\n]*=((['"]).*?\\2|[^;\\n]*)/
+        );
         if (filenameMatch) {
-          filename = filenameMatch[1].replace(/['"]/g, '');
+          filename = filenameMatch[1].replace(/['"]/g, "");
         }
       }
 
-      console.log('VRMダウンロード完了:', {
+      console.log("VRMダウンロード完了:", {
         modelId,
         filename,
         size: blob.size,
-        type: blob.type
+        type: blob.type,
       });
 
       return {
@@ -83,11 +88,10 @@ export class VRMDownloader {
         filename,
         modelId,
         licenseId,
-        expiresAt
+        expiresAt,
       };
-
     } catch (error: any) {
-      console.error('VRMダウンロードエラー:', error);
+      console.error("VRMダウンロードエラー:", error);
       throw new Error(`VRMダウンロードエラー: ${error.message}`);
     }
   }
@@ -100,15 +104,15 @@ export class VRMDownloader {
    */
   createDownloadUrl(blob: Blob, filename?: string): string {
     const url = URL.createObjectURL(blob);
-    
+
     if (filename) {
       // ダウンロードリンクを自動的に作成
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
       link.download = filename;
       return url;
     }
-    
+
     return url;
   }
 
@@ -127,17 +131,17 @@ export class VRMDownloader {
    */
   triggerDownload(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
+    const link = document.createElement("a");
+
     link.href = url;
     link.download = filename;
-    link.target = '_blank';
-    
+    link.target = "_blank";
+
     // DOM に一時的に追加してクリック
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     // メモリ解放
     URL.revokeObjectURL(url);
   }

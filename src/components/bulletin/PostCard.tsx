@@ -2,24 +2,24 @@
  * 投稿カードコンポーネント
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { BulletinPost } from '@/types/bulletin';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Avatar } from '@/components/ui/avatar';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { BulletinPost } from "@/types/bulletin";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Heart,
   MessageCircle,
   Users,
   Calendar,
   ExternalLink,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PostCardProps {
   post: BulletinPost;
@@ -59,14 +59,14 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      雑談: 'bg-blue-100 text-blue-800 border-blue-200',
-      ゲーム: 'bg-purple-100 text-purple-800 border-purple-200',
-      趣味: 'bg-green-100 text-green-800 border-green-200',
-      技術: 'bg-orange-100 text-orange-800 border-orange-200',
-      イベント: 'bg-pink-100 text-pink-800 border-pink-200',
-      その他: 'bg-gray-100 text-gray-800 border-gray-200',
+      雑談: "bg-blue-100 text-blue-800 border-blue-200",
+      ゲーム: "bg-purple-100 text-purple-800 border-purple-200",
+      趣味: "bg-green-100 text-green-800 border-green-200",
+      技術: "bg-orange-100 text-orange-800 border-orange-200",
+      イベント: "bg-pink-100 text-pink-800 border-pink-200",
+      その他: "bg-gray-100 text-gray-800 border-gray-200",
     };
-    return colors[category as keyof typeof colors] || colors['その他'];
+    return colors[category as keyof typeof colors] || colors["その他"];
   };
 
   const formatDate = (date: Date) => {
@@ -76,18 +76,18 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'たった今';
+    if (minutes < 1) return "たった今";
     if (minutes < 60) return `${minutes}分前`;
     if (hours < 24) return `${hours}時間前`;
     if (days < 7) return `${days}日前`;
-    return new Date(date).toLocaleDateString('ja-JP');
+    return new Date(date).toLocaleDateString("ja-JP");
   };
 
   return (
     <Card
       className={cn(
-        'p-6 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1',
-        'border-2 hover:border-primary/50',
+        "p-6 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1",
+        "border-2 hover:border-primary/50",
         className
       )}
       onClick={handleCardClick}
@@ -150,13 +150,13 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
             variant="ghost"
             size="sm"
             className={cn(
-              'gap-2 transition-colors',
-              isLiked && 'text-red-500 hover:text-red-600'
+              "gap-2 transition-colors",
+              isLiked && "text-red-500 hover:text-red-600"
             )}
             onClick={handleLike}
             disabled={!user || isLiking}
           >
-            <Heart className={cn('w-4 h-4', isLiked && 'fill-current')} />
+            <Heart className={cn("w-4 h-4", isLiked && "fill-current")} />
             <span className="text-sm">{post.likes.length}</span>
           </Button>
 
@@ -188,8 +188,8 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
           <Users className="w-4 h-4 text-muted-foreground" />
           <span
             className={cn(
-              'text-sm font-medium',
-              isFull ? 'text-red-500' : 'text-primary'
+              "text-sm font-medium",
+              isFull ? "text-red-500" : "text-primary"
             )}
           >
             {post.currentParticipants}/{post.maxParticipants}

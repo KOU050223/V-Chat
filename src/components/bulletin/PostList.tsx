@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar } from '@/components/ui/avatar';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Heart,
   MessageCircle,
@@ -23,31 +23,31 @@ import {
   Plus,
   Calendar,
   Filter,
-} from 'lucide-react';
-import { BulletinPost, PostCategory } from '@/types/bulletin';
-import { cn } from '@/lib/utils';
+} from "lucide-react";
+import { BulletinPost, PostCategory } from "@/types/bulletin";
+import { cn } from "@/lib/utils";
 
 interface PostListProps {
   className?: string;
 }
 
 const categories: PostCategory[] = [
-  '雑談',
-  'ゲーム',
-  '趣味',
-  '技術',
-  'イベント',
-  'その他',
+  "雑談",
+  "ゲーム",
+  "趣味",
+  "技術",
+  "イベント",
+  "その他",
 ];
 
 export function PostList({ className }: PostListProps) {
   const router = useRouter();
   const [posts, setPosts] = useState<BulletinPost[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'latest' | 'popular' | 'replies'>(
-    'latest'
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"latest" | "popular" | "replies">(
+    "latest"
   );
 
   // 投稿一覧取得
@@ -55,7 +55,7 @@ export function PostList({ className }: PostListProps) {
     const fetchPosts = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/bulletin');
+        const response = await fetch("/api/bulletin");
         const data = await response.json();
 
         if (data.success) {
@@ -69,7 +69,7 @@ export function PostList({ className }: PostListProps) {
           setPosts(postsWithDates);
         }
       } catch (err) {
-        console.error('投稿一覧取得エラー:', err);
+        console.error("投稿一覧取得エラー:", err);
       } finally {
         setLoading(false);
       }
@@ -83,11 +83,11 @@ export function PostList({ className }: PostListProps) {
     .filter((post) => {
       // カテゴリフィルタ
       const categoryMatch =
-        selectedCategory === 'all' || post.category === selectedCategory;
+        selectedCategory === "all" || post.category === selectedCategory;
 
       // 検索クエリフィルタ
       const searchMatch =
-        searchQuery === '' ||
+        searchQuery === "" ||
         post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         post.tags?.some((tag) =>
@@ -98,11 +98,11 @@ export function PostList({ className }: PostListProps) {
     })
     .sort((a, b) => {
       switch (sortBy) {
-        case 'popular':
+        case "popular":
           return b.likes.length - a.likes.length;
-        case 'replies':
+        case "replies":
           return (b.replyCount || 0) - (a.replyCount || 0);
-        case 'latest':
+        case "latest":
         default:
           return b.createdAt.getTime() - a.createdAt.getTime();
       }
@@ -123,9 +123,9 @@ export function PostList({ className }: PostListProps) {
     } else if (days < 7) {
       return `${days}日前`;
     } else {
-      return date.toLocaleDateString('ja-JP', {
-        month: 'short',
-        day: 'numeric',
+      return date.toLocaleDateString("ja-JP", {
+        month: "short",
+        day: "numeric",
       });
     }
   };
@@ -133,14 +133,14 @@ export function PostList({ className }: PostListProps) {
   // カテゴリ色
   const getCategoryColor = (category: PostCategory): string => {
     const colors = {
-      雑談: 'bg-blue-100 text-blue-800 border-blue-200',
-      ゲーム: 'bg-purple-100 text-purple-800 border-purple-200',
-      趣味: 'bg-green-100 text-green-800 border-green-200',
-      技術: 'bg-orange-100 text-orange-800 border-orange-200',
-      イベント: 'bg-red-100 text-red-800 border-red-200',
-      その他: 'bg-gray-100 text-gray-800 border-gray-200',
+      雑談: "bg-blue-100 text-blue-800 border-blue-200",
+      ゲーム: "bg-purple-100 text-purple-800 border-purple-200",
+      趣味: "bg-green-100 text-green-800 border-green-200",
+      技術: "bg-orange-100 text-orange-800 border-orange-200",
+      イベント: "bg-red-100 text-red-800 border-red-200",
+      その他: "bg-gray-100 text-gray-800 border-gray-200",
     };
-    return colors[category] || colors['その他'];
+    return colors[category] || colors["その他"];
   };
 
   // 検索実行
@@ -165,7 +165,7 @@ export function PostList({ className }: PostListProps) {
   }
 
   return (
-    <div className={cn('space-y-6', className)}>
+    <div className={cn("space-y-6", className)}>
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
         <div>
@@ -175,7 +175,7 @@ export function PostList({ className }: PostListProps) {
           </p>
         </div>
         <Button
-          onClick={() => router.push('/bulletin/create')}
+          onClick={() => router.push("/bulletin/create")}
           className="gap-2"
         >
           <Plus className="w-4 h-4" />
@@ -195,7 +195,7 @@ export function PostList({ className }: PostListProps) {
                 placeholder="検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 className="pl-10"
               />
             </div>
@@ -226,7 +226,7 @@ export function PostList({ className }: PostListProps) {
 
             <Select
               value={sortBy}
-              onValueChange={(value: 'latest' | 'popular' | 'replies') =>
+              onValueChange={(value: "latest" | "popular" | "replies") =>
                 setSortBy(value)
               }
             >
@@ -252,12 +252,12 @@ export function PostList({ className }: PostListProps) {
               <MessageCircle className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium mb-2">投稿がありません</p>
               <p className="mb-4">
-                {searchQuery || selectedCategory !== 'all'
-                  ? '検索条件を変更してみてください'
-                  : '最初の投稿を作成してみませんか？'}
+                {searchQuery || selectedCategory !== "all"
+                  ? "検索条件を変更してみてください"
+                  : "最初の投稿を作成してみませんか？"}
               </p>
               <Button
-                onClick={() => router.push('/bulletin/create')}
+                onClick={() => router.push("/bulletin/create")}
                 className="gap-2"
               >
                 <Plus className="w-4 h-4" />
@@ -359,8 +359,8 @@ export function PostList({ className }: PostListProps) {
                       <Users className="w-4 h-4 text-muted-foreground" />
                       <span
                         className={cn(
-                          'text-sm font-medium',
-                          isFull ? 'text-red-500' : 'text-primary'
+                          "text-sm font-medium",
+                          isFull ? "text-red-500" : "text-primary"
                         )}
                       >
                         {post.currentParticipants}/{post.maxParticipants}

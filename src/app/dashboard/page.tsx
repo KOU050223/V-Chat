@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import VModelSelector from '@/components/vmodel/VModelSelector';
-import SelectedVModelCard from '@/components/vmodel/SelectedVModelCard';
-import VModelSettings from '@/components/vmodel/VModelSettings';
+} from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import VModelSelector from "@/components/vmodel/VModelSelector";
+import SelectedVModelCard from "@/components/vmodel/SelectedVModelCard";
+import VModelSettings from "@/components/vmodel/VModelSettings";
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import DebugPanel from '@/components/debug/DebugPanel';
-import Image from 'next/image';
-import Link from 'next/link';
-import { handleError } from '@/lib/utils';
+} from "@/components/ui/dialog";
+import DebugPanel from "@/components/debug/DebugPanel";
+import Image from "next/image";
+import Link from "next/link";
+import { handleError } from "@/lib/utils";
 
 // VRoidプロフィールの型定義
 interface VRoidUser {
@@ -54,7 +54,7 @@ function getVroidUserId(vroidProfile?: VRoidProfile): string | undefined {
   ];
 
   for (const c of candidates) {
-    if (c && c !== 'unknown') return c;
+    if (c && c !== "unknown") return c;
   }
 
   return undefined;
@@ -78,12 +78,12 @@ export default function Dashboard() {
       await logout();
       // ログアウト後にリダイレクトを確実にする
       setTimeout(() => {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }, 100);
     } catch (error) {
-      console.error('ログアウトエラー:', error);
+      console.error("ログアウトエラー:", error);
       // エラーでもログイン画面に戻す
-      window.location.href = '/login';
+      window.location.href = "/login";
     }
   };
 
@@ -91,7 +91,7 @@ export default function Dashboard() {
     try {
       await linkVRoidAccount();
     } catch (error: unknown) {
-      const message = handleError('VRoid連携エラー', error);
+      const message = handleError("VRoid連携エラー", error);
       alert(message);
     }
   };
@@ -100,7 +100,7 @@ export default function Dashboard() {
     try {
       await unlinkVRoidAccount();
     } catch (error: unknown) {
-      const message = handleError('VRoid連携解除エラー', error);
+      const message = handleError("VRoid連携解除エラー", error);
       alert(message);
     }
   };
@@ -126,7 +126,7 @@ export default function Dashboard() {
                     <AvatarFallback>
                       {currentUser?.name?.charAt(0) ||
                         currentUser?.email?.charAt(0) ||
-                        'U'}
+                        "U"}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium text-gray-700">
@@ -172,7 +172,7 @@ export default function Dashboard() {
                   {isVRoidLinked ? (
                     <VModelSelector
                       onModelSelect={(model) => {
-                        console.log('選択されたモデル:', model);
+                        console.log("選択されたモデル:", model);
                       }}
                     />
                   ) : (
@@ -345,7 +345,7 @@ export default function Dashboard() {
                           表示名
                         </p>
                         <p className="text-sm text-gray-900">
-                          {user?.displayName || '未設定'}
+                          {user?.displayName || "未設定"}
                         </p>
                       </div>
                       <div>
@@ -353,7 +353,7 @@ export default function Dashboard() {
                           メール確認状態
                         </p>
                         <p className="text-sm text-gray-900">
-                          {user?.emailVerified ? '確認済み' : '未確認'}
+                          {user?.emailVerified ? "確認済み" : "未確認"}
                         </p>
                       </div>
                       <div>
@@ -364,8 +364,8 @@ export default function Dashboard() {
                           {user?.metadata?.creationTime
                             ? new Date(
                                 user.metadata.creationTime
-                              ).toLocaleDateString('ja-JP')
-                            : '不明'}
+                              ).toLocaleDateString("ja-JP")
+                            : "不明"}
                         </p>
                       </div>
                     </div>
@@ -385,7 +385,7 @@ export default function Dashboard() {
                             VRoidユーザー名
                           </p>
                           <p className="text-sm text-gray-900">
-                            {nextAuthSession.user?.name || '未設定'}
+                            {nextAuthSession.user?.name || "未設定"}
                           </p>
                         </div>
                         <div>
@@ -394,7 +394,7 @@ export default function Dashboard() {
                           </p>
                           <p className="text-sm text-gray-900">
                             {getVroidUserId(nextAuthSession?.vroidProfile) ??
-                              '取得中...'}
+                              "取得中..."}
                           </p>
                         </div>
                         <div>
@@ -420,7 +420,7 @@ export default function Dashboard() {
                                     nextAuthSession?.vroidProfile as VRoidProfile;
                                   const vroidId = getVroidUserId(vroidProfile);
 
-                                  console.log('VRoid ID検索:', {
+                                  console.log("VRoid ID検索:", {
                                     actualUserId: vroidProfile?.actualUser?.id,
                                     actualUserPixivId:
                                       vroidProfile?.actualUser?.pixiv_user_id,
@@ -435,14 +435,14 @@ export default function Dashboard() {
 
                                   if (vroidId) {
                                     const url = `https://hub.vroid.com/users/${vroidId}`;
-                                    console.log('VRoidマイページを開く:', url);
-                                    window.open(url, '_blank');
+                                    console.log("VRoidマイページを開く:", url);
+                                    window.open(url, "_blank");
                                   } else {
                                     alert(
-                                      'VRoidユーザーIDが見つかりません。セッション情報を確認してください。'
+                                      "VRoidユーザーIDが見つかりません。セッション情報を確認してください。"
                                     );
                                     console.error(
-                                      'VRoidプロフィール情報:',
+                                      "VRoidプロフィール情報:",
                                       vroidProfile
                                     );
                                   }
@@ -455,8 +455,8 @@ export default function Dashboard() {
                                 size="sm"
                                 onClick={() => {
                                   window.open(
-                                    'https://hub.vroid.com',
-                                    '_blank'
+                                    "https://hub.vroid.com",
+                                    "_blank"
                                   );
                                 }}
                               >

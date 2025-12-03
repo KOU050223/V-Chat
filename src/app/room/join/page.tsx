@@ -1,60 +1,58 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Users, Key, AlertCircle } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, Users, Key, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function JoinRoomPage() {
-  const [roomId, setRoomId] = useState("");
+  const [roomId, setRoomId] = useState('');
   const [isJoining, setIsJoining] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const router = useRouter();
 
   const handleJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!roomId.trim()) {
-      setError("ルームIDを入力してください");
+      setError('ルームIDを入力してください');
       return;
     }
 
     setIsJoining(true);
-    setError("");
+    setError('');
 
     try {
-      console.log("Attempting to join room:", roomId);
-
+      console.log('Attempting to join room:', roomId);
+      
       // ルームの存在確認（実際の実装ではAPIで確認）
       const response = await fetch(`/api/rooms/${roomId}`);
-
-      console.log("API Response status:", response.status);
-      console.log("API Response headers:", response.headers);
-
+      
+      console.log('API Response status:', response.status);
+      console.log('API Response headers:', response.headers);
+      
       if (response.ok) {
         const data = await response.json();
-        console.log("Room data received:", data);
+        console.log('Room data received:', data);
         // ルームが存在する場合、そのルームに参加
         router.push(`/room/${roomId}`);
       } else {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: "Unknown error" }));
-        console.log("API Error data:", errorData);
-        setError("ルームが見つかりません。ルームIDを確認してください。");
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        console.log('API Error data:', errorData);
+        setError('ルームが見つかりません。ルームIDを確認してください。');
       }
     } catch (error) {
-      console.error("Failed to join room:", error);
-      setError("ルームへの参加に失敗しました。");
+      console.error('Failed to join room:', error);
+      setError('ルームへの参加に失敗しました。');
     } finally {
       setIsJoining(false);
     }
   };
 
   const handleCreateRoom = () => {
-    router.push("/room/create");
+    router.push('/room/create');
   };
 
   return (
@@ -63,11 +61,7 @@ export default function JoinRoomPage() {
         {/* ヘッダー */}
         <div className="flex items-center justify-between mb-8">
           <Link href="/dashboard">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-            >
+            <Button variant="outline" size="sm" className="flex items-center bg-white border-gray-200 text-gray-700 hover:bg-gray-50">
               <ArrowLeft className="w-4 h-4 mr-2" />
               ダッシュボードに戻る
             </Button>
@@ -81,17 +75,12 @@ export default function JoinRoomPage() {
         {/* メインカード */}
         <Card className="w-full shadow-2xl border-0">
           <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-bold text-gray-800">
-              ルームIDを入力
-            </CardTitle>
+            <CardTitle className="text-2xl font-bold text-gray-800">ルームIDを入力</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleJoinRoom} className="space-y-6">
               <div>
-                <label
-                  htmlFor="roomId"
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
+                <label htmlFor="roomId" className="block text-sm font-medium text-gray-700 mb-2">
                   ルームID
                 </label>
                 <div className="relative">
@@ -163,9 +152,7 @@ export default function JoinRoomPage() {
 
             {/* 説明 */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                ルームIDについて
-              </h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">ルームIDについて</h3>
               <ul className="text-xs text-gray-600 space-y-1">
                 <li>• ルームIDは「room-」で始まる文字列です</li>
                 <li>• ルーム作成者から共有されたIDを正確に入力してください</li>
@@ -177,4 +164,4 @@ export default function JoinRoomPage() {
       </div>
     </div>
   );
-}
+} 

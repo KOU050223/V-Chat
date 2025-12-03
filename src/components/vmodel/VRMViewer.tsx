@@ -1,22 +1,16 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
-import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { RotateCcw, Download, Eye, EyeOff } from "lucide-react";
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { VRM, VRMLoaderPlugin } from '@pixiv/three-vrm';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { RotateCcw, Download, Eye, EyeOff } from 'lucide-react';
 
-import VRMDisplayManager from "@/lib/vrmDisplayManager";
+import VRMDisplayManager from '@/lib/vrmDisplayManager';
 
 interface VRMViewerProps {
   modelId?: string; // VRoidモデルID（推奨）
@@ -36,14 +30,14 @@ export default function VRMViewer({
   modelId,
   vrmUrl,
   vrmBlob,
-  modelName = "VRMモデル",
-  className = "",
+  modelName = 'VRMモデル',
+  className = '',
   width = 400,
   height = 400,
   useCache = true,
   onLoadStart,
   onLoadComplete,
-  onLoadError,
+  onLoadError
 }: VRMViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -71,12 +65,12 @@ export default function VRMViewer({
       loader.register((parser) => {
         return new VRMLoaderPlugin(parser);
       });
-
-      console.log("VRM読み込み開始:", url);
+      
+      console.log('VRM読み込み開始:', url);
       const gltf = await loader.loadAsync(url);
       const vrm = gltf.userData.vrm as VRM;
-
-      console.log("VRM読み込み完了:", vrm);
+      
+      console.log('VRM読み込み完了:', vrm);
 
       // 既存のVRMを削除
       if (vrmRef.current) {
@@ -99,7 +93,7 @@ export default function VRMViewer({
 
       // VRMの位置調整
       vrm.scene.position.set(0, -1, 0);
-
+      
       // VRMサイズの正規化
       const box = new THREE.Box3().setFromObject(vrm.scene);
       const size = box.getSize(new THREE.Vector3()).length();
@@ -108,10 +102,10 @@ export default function VRMViewer({
 
       onLoadComplete?.(vrm);
       setLoading(false);
+
     } catch (error) {
-      console.error("VRM読み込みエラー:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "VRM読み込みに失敗しました";
+      console.error('VRM読み込みエラー:', error);
+      const errorMessage = error instanceof Error ? error.message : 'VRM読み込みに失敗しました';
       setError(errorMessage);
       onLoadError?.(error instanceof Error ? error : new Error(errorMessage));
       setLoading(false);
@@ -133,9 +127,9 @@ export default function VRMViewer({
     cameraRef.current = camera;
 
     // レンダラー作成
-    const renderer = new THREE.WebGLRenderer({
+    const renderer = new THREE.WebGLRenderer({ 
       antialias: true,
-      alpha: true,
+      alpha: true 
     });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -187,7 +181,7 @@ export default function VRMViewer({
       if (animationIdRef.current !== null) {
         cancelAnimationFrame(animationIdRef.current);
       }
-
+      
       if (vrmRef.current) {
         vrmRef.current.scene.traverse((child) => {
           if (child instanceof THREE.Mesh) {
@@ -200,9 +194,9 @@ export default function VRMViewer({
           }
         });
       }
-
+      
       renderer.dispose();
-
+      
       if (mountRef.current) {
         mountRef.current.removeChild(renderer.domElement);
       }
@@ -219,33 +213,28 @@ export default function VRMViewer({
 
       const loadFromModelId = async () => {
         try {
-          console.log(
-            "VRMDisplayManager import test - loading model:",
-            modelId
-          );
+          console.log('VRMDisplayManager import test - loading model:', modelId);
           // VRoid API経由でダウンロードライセンスを取得
           const licenseResponse = await fetch(`/api/vroid/download-license`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ model_id: modelId }),
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model_id: modelId })
           });
 
           if (!licenseResponse.ok) {
-            throw new Error("Failed to get download license");
+            throw new Error('Failed to get download license');
           }
 
           const licenseData = await licenseResponse.json();
-          console.log("License data received:", licenseData);
-
+          console.log('License data received:', licenseData);
+          
           if (licenseData.success && licenseData.url) {
             if (licenseData.proxy) {
               // プロキシ経由の場合は直接Blobとしてfetchしてから読み込み
-              console.log("Loading VRM via proxy:", licenseData.url);
+              console.log('Loading VRM via proxy:', licenseData.url);
               const vrmResponse = await fetch(licenseData.url);
               if (!vrmResponse.ok) {
-                throw new Error(
-                  `Failed to fetch VRM file: ${vrmResponse.statusText}`
-                );
+                throw new Error(`Failed to fetch VRM file: ${vrmResponse.statusText}`);
               }
               const vrmBlob = await vrmResponse.blob();
               const objectUrl = URL.createObjectURL(vrmBlob);
@@ -256,22 +245,17 @@ export default function VRMViewer({
               }, 0);
             } else {
               // 直接URLの場合
-              console.log("Loading VRM directly:", licenseData.url);
+              console.log('Loading VRM directly:', licenseData.url);
               await loadVRM(licenseData.url);
             }
           } else {
-            throw new Error("No download URL available");
+            throw new Error('No download URL available');
           }
         } catch (error) {
-          console.error("VRM modelId読み込みエラー:", error);
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : "モデルIDからのVRM読み込みに失敗しました";
+          console.error('VRM modelId読み込みエラー:', error);
+          const errorMessage = error instanceof Error ? error.message : 'モデルIDからのVRM読み込みに失敗しました';
           setError(errorMessage);
-          onLoadError?.(
-            error instanceof Error ? error : new Error(errorMessage)
-          );
+          onLoadError?.(error instanceof Error ? error : new Error(errorMessage));
           setLoading(false);
         }
       };
@@ -314,13 +298,15 @@ export default function VRMViewer({
             {vrmRef.current && <Badge variant="default">表示中</Badge>}
           </div>
         </CardTitle>
-        <CardDescription>3Dモデルビューア（Three.js + VRM）</CardDescription>
+        <CardDescription>
+          3Dモデルビューア（Three.js + VRM）
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
           {/* 3Dビューア */}
-          <div
-            ref={mountRef}
+          <div 
+            ref={mountRef} 
             className="border rounded-md bg-gray-50 flex items-center justify-center"
             style={{ width, height }}
           >
@@ -339,9 +325,9 @@ export default function VRMViewer({
 
           {/* コントロール */}
           <div className="flex gap-2 flex-wrap">
-            <Button
-              onClick={toggleVisibility}
-              variant="outline"
+            <Button 
+              onClick={toggleVisibility} 
+              variant="outline" 
               size="sm"
               disabled={!vrmRef.current}
             >
@@ -357,10 +343,10 @@ export default function VRMViewer({
                 </>
               )}
             </Button>
-
-            <Button
-              onClick={resetPosition}
-              variant="outline"
+            
+            <Button 
+              onClick={resetPosition} 
+              variant="outline" 
               size="sm"
               disabled={!vrmRef.current}
             >
@@ -372,9 +358,7 @@ export default function VRMViewer({
           {/* デバッグ情報 */}
           {vrmRef.current && (
             <div className="text-xs text-gray-500 space-y-1">
-              <p>
-                ポリゴン数: {vrmRef.current.scene.children.length}オブジェクト
-              </p>
+              <p>ポリゴン数: {vrmRef.current.scene.children.length}オブジェクト</p>
               <p>自動回転: 有効</p>
             </div>
           )}

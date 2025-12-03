@@ -3,9 +3,9 @@
  * サーバーサイド（API Routes、Cloud Functionsなど）でのみ使用
  */
 
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { getAuth, Auth } from "firebase-admin/auth";
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
+import { getFirestore, Firestore } from 'firebase-admin/firestore';
+import { getAuth, Auth } from 'firebase-admin/auth';
 
 let adminApp: App | null = null;
 
@@ -38,15 +38,12 @@ export function getAdminApp(): App {
           projectId,
           clientEmail,
           // 環境変数内の改行エスケープを実際の改行に変換
-          privateKey: privateKey.replace(/\\n/g, "\n"),
+          privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
       });
-      console.log("Firebase Admin initialized with service account");
+      console.log('Firebase Admin initialized with service account');
     } catch (error) {
-      console.error(
-        "Failed to initialize Firebase Admin with service account:",
-        error
-      );
+      console.error('Failed to initialize Firebase Admin with service account:', error);
       throw error;
     }
   } else {
@@ -54,11 +51,11 @@ export function getAdminApp(): App {
     // （Google Cloud環境で自動的に認証情報が提供される場合）
     try {
       adminApp = initializeApp();
-      console.log("Firebase Admin initialized with default credentials");
+      console.log('Firebase Admin initialized with default credentials');
     } catch (error) {
-      console.error("Failed to initialize Firebase Admin:", error);
+      console.error('Failed to initialize Firebase Admin:', error);
       throw new Error(
-        "Firebase Admin initialization failed. Please check your environment variables."
+        'Firebase Admin initialization failed. Please check your environment variables.'
       );
     }
   }
@@ -85,11 +82,7 @@ export function getAdminAuth(): Auth {
  * ビルド時のエラーを防ぐため、ランタイムでのみチェックを行う
  */
 export function validateAdminConfig(): { valid: boolean; missing: string[] } {
-  const required = [
-    "FIREBASE_PROJECT_ID",
-    "FIREBASE_CLIENT_EMAIL",
-    "FIREBASE_PRIVATE_KEY",
-  ];
+  const required = ['FIREBASE_PROJECT_ID', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_PRIVATE_KEY'];
   const missing: string[] = [];
 
   for (const key of required) {

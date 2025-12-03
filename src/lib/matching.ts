@@ -1,18 +1,13 @@
 // src/lib/matching.ts
-import redis from "./redis";
-import {
-  MatchingUser,
-  Match,
-  MatchingResult,
-  MatchingStats,
-} from "@/types/matching_type";
+import redis from './redis';
+import { MatchingUser, Match, MatchingResult, MatchingStats } from '@/types/matching_type';
 
 export class MatchingService {
   // Redisキー定数
-  private static readonly QUEUE_KEY = "matching:queue";
-  private static readonly MATCHES_KEY = "matching:matches";
-  private static readonly STATS_KEY = "matching:stats";
-  private static readonly USER_SESSIONS_KEY = "matching:user_sessions";
+  private static readonly QUEUE_KEY = 'matching:queue';
+  private static readonly MATCHES_KEY = 'matching:matches';
+  private static readonly STATS_KEY = 'matching:stats';
+  private static readonly USER_SESSIONS_KEY = 'matching:user_sessions';
 
   /**
    * ユーザーをマッチングキューに追加
@@ -20,32 +15,32 @@ export class MatchingService {
   static async joinQueue(user: MatchingUser): Promise<boolean> {
     try {
       const userData = JSON.stringify(user);
-
+      
       // 既存のユーザーを削除（重複防止）
       await this.leaveQueue(user.userId);
-
+      
       // キューに追加（タイムスタンプをスコアとして使用）
       await redis.zadd(this.QUEUE_KEY, user.timestamp, userData);
-
+      
       // ユーザーセッション情報を保存
       await redis.hset(
-        this.USER_SESSIONS_KEY,
-        user.userId,
+        this.USER_SESSIONS_KEY, 
+        user.userId, 
         JSON.stringify({
           socketId: user.socketId,
           joinedAt: user.timestamp,
-          preferences: user.preferences,
+          preferences: user.preferences
         })
       );
 
       console.log(`User ${user.userId} joined matching queue`);
-
+      
       // 統計情報を更新
       await this.updateStats();
-
+      
       return true;
     } catch (error) {
-      console.error("Failed to join queue:", error);
+      console.error('Failed to join queue:', error);
       return false;
     }
   }
@@ -57,7 +52,7 @@ export class MatchingService {
     try {
       // キューからユーザーを検索して削除
       const queue = await redis.zrange(this.QUEUE_KEY, 0, -1);
-
+      
       for (const userStr of queue) {
         const user = JSON.parse(userStr) as MatchingUser;
         if (user.userId === userId) {
@@ -65,18 +60,18 @@ export class MatchingService {
           break;
         }
       }
-
+      
       // ユーザーセッション情報を削除
       await redis.hdel(this.USER_SESSIONS_KEY, userId);
-
+      
       console.log(`User ${userId} left matching queue`);
-
+      
       // 統計情報を更新
       await this.updateStats();
-
+      
       return true;
     } catch (error) {
-      console.error("Failed to leave queue:", error);
+      console.error('Failed to leave queue:', error);
       return false;
     }
   }
@@ -87,7 +82,7 @@ export class MatchingService {
   static async findMatch(userId: string): Promise<MatchingUser | null> {
     try {
       const queue = await redis.zrange(this.QUEUE_KEY, 0, -1);
-      const currentUser = queue.find((userStr) => {
+      const currentUser = queue.find(userStr => {
         const user = JSON.parse(userStr) as MatchingUser;
         return user.userId === userId;
       });
@@ -101,7 +96,7 @@ export class MatchingService {
       // 自分以外のユーザーを検索
       for (const userStr of queue) {
         const user = JSON.parse(userStr) as MatchingUser;
-
+        
         if (user.userId !== userId) {
           // マッチング条件をチェック
           if (this.checkMatchingConditions(currentUserData, user)) {
@@ -112,7 +107,7 @@ export class MatchingService {
 
       return null;
     } catch (error) {
-      console.error("Failed to find match:", error);
+      console.error('Failed to find match:', error);
       return null;
     }
   }
@@ -120,10 +115,7 @@ export class MatchingService {
   /**
    * マッチング条件をチェック
    */
-  private static checkMatchingConditions(
-    user1: MatchingUser,
-    user2: MatchingUser
-  ): boolean {
+  private static checkMatchingConditions(user1: MatchingUser, user2: MatchingUser): boolean {
     // 基本的な条件チェック
     if (!user1.preferences || !user2.preferences) {
       return true; // 設定がない場合は無条件でマッチ
@@ -146,8 +138,8 @@ export class MatchingService {
 
     // 興味の一致チェック（オプション）
     if (user1.preferences.interests && user2.userInfo?.interests) {
-      const commonInterests = user1.preferences.interests.filter((interest) =>
-        user2.userInfo!.interests!.includes(interest)
+      const commonInterests = user1.preferences.interests.filter(
+        interest => user2.userInfo!.interests!.includes(interest)
       );
       if (commonInterests.length === 0) {
         return false;
@@ -160,33 +152,28 @@ export class MatchingService {
   /**
    * マッチングを作成
    */
-  static async createMatch(
-    user1: MatchingUser,
-    user2: MatchingUser
-  ): Promise<Match> {
+  static async createMatch(user1: MatchingUser, user2: MatchingUser): Promise<Match> {
     const matchId = `match_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     const roomId = `room_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
-
+    
     const match: Match = {
       id: matchId,
       users: [user1.userId, user2.userId],
       socketIds: [user1.socketId, user2.socketId],
       createdAt: new Date(),
-      status: "active",
-      roomId: roomId,
+      status: 'active',
+      roomId: roomId
     };
 
     // マッチング情報をRedisに保存
     await redis.hset(this.MATCHES_KEY, matchId, JSON.stringify(match));
-
+    
     // 両ユーザーをキューから削除
     await this.leaveQueue(user1.userId);
     await this.leaveQueue(user2.userId);
 
-    console.log(
-      `Match created: ${matchId} between ${user1.userInfo?.name || user1.userId} and ${user2.userInfo?.name || user2.userId}`
-    );
-
+    console.log(`Match created: ${matchId} between ${user1.userInfo?.name || user1.userId} and ${user2.userInfo?.name || user2.userId}`);
+    
     return match;
   }
 
@@ -198,7 +185,7 @@ export class MatchingService {
       const matchData = await redis.hget(this.MATCHES_KEY, matchId);
       return matchData ? JSON.parse(matchData) : null;
     } catch (error) {
-      console.error("Failed to get match:", error);
+      console.error('Failed to get match:', error);
       return null;
     }
   }
@@ -210,14 +197,14 @@ export class MatchingService {
     try {
       const match = await this.getMatch(matchId);
       if (match) {
-        match.status = "ended";
+        match.status = 'ended';
         await redis.hset(this.MATCHES_KEY, matchId, JSON.stringify(match));
         console.log(`Match ${matchId} ended`);
         return true;
       }
       return false;
     } catch (error) {
-      console.error("Failed to end match:", error);
+      console.error('Failed to end match:', error);
       return false;
     }
   }
@@ -228,17 +215,17 @@ export class MatchingService {
   static async getUserActiveMatch(userId: string): Promise<Match | null> {
     try {
       const matches = await redis.hgetall(this.MATCHES_KEY);
-
+      
       for (const [matchId, matchData] of Object.entries(matches)) {
         const match = JSON.parse(matchData) as Match;
-        if (match.users.includes(userId) && match.status === "active") {
+        if (match.users.includes(userId) && match.status === 'active') {
           return match;
         }
       }
-
+      
       return null;
     } catch (error) {
-      console.error("Failed to get user active match:", error);
+      console.error('Failed to get user active match:', error);
       return null;
     }
   }
@@ -251,33 +238,33 @@ export class MatchingService {
       const waitingCount = await redis.zcard(this.QUEUE_KEY);
       const matches = await redis.hgetall(this.MATCHES_KEY);
       const activeMatches = Object.values(matches).filter(
-        (matchData) => (JSON.parse(matchData) as Match).status === "active"
+        matchData => (JSON.parse(matchData) as Match).status === 'active'
       ).length;
 
       // 平均待機時間を計算
-      const queue = await redis.zrange(this.QUEUE_KEY, 0, -1, "WITHSCORES");
+      const queue = await redis.zrange(this.QUEUE_KEY, 0, -1, 'WITHSCORES');
       let totalWaitTime = 0;
       let userCount = 0;
-
+      
       for (let i = 0; i < queue.length; i += 2) {
         const timestamp = parseInt(queue[i + 1]);
         totalWaitTime += Date.now() - timestamp;
         userCount++;
       }
-
+      
       const averageWaitTime = userCount > 0 ? totalWaitTime / userCount : 0;
 
       return {
         waitingCount,
         activeMatches,
-        averageWaitTime,
+        averageWaitTime
       };
     } catch (error) {
-      console.error("Failed to get stats:", error);
+      console.error('Failed to get stats:', error);
       return {
         waitingCount: 0,
         activeMatches: 0,
-        averageWaitTime: 0,
+        averageWaitTime: 0
       };
     }
   }
@@ -290,7 +277,7 @@ export class MatchingService {
       const stats = await this.getStats();
       await redis.set(this.STATS_KEY, JSON.stringify(stats));
     } catch (error) {
-      console.error("Failed to update stats:", error);
+      console.error('Failed to update stats:', error);
     }
   }
 
@@ -301,7 +288,7 @@ export class MatchingService {
     try {
       const matches = await redis.hgetall(this.MATCHES_KEY);
       const now = Date.now();
-      const oneHourAgo = now - 60 * 60 * 1000; // 1時間前
+      const oneHourAgo = now - (60 * 60 * 1000); // 1時間前
 
       for (const [matchId, matchData] of Object.entries(matches)) {
         const match = JSON.parse(matchData) as Match;
@@ -311,7 +298,7 @@ export class MatchingService {
         }
       }
     } catch (error) {
-      console.error("Failed to cleanup old matches:", error);
+      console.error('Failed to cleanup old matches:', error);
     }
   }
 
@@ -321,12 +308,12 @@ export class MatchingService {
   static async isUserInQueue(userId: string): Promise<boolean> {
     try {
       const queue = await redis.zrange(this.QUEUE_KEY, 0, -1);
-      return queue.some((userStr) => {
+      return queue.some(userStr => {
         const user = JSON.parse(userStr) as MatchingUser;
         return user.userId === userId;
       });
     } catch (error) {
-      console.error("Failed to check if user in queue:", error);
+      console.error('Failed to check if user in queue:', error);
       return false;
     }
   }
@@ -337,17 +324,17 @@ export class MatchingService {
   static async getQueueUser(userId: string): Promise<MatchingUser | null> {
     try {
       const queue = await redis.zrange(this.QUEUE_KEY, 0, -1);
-
+      
       for (const userStr of queue) {
         const user = JSON.parse(userStr) as MatchingUser;
         if (user.userId === userId) {
           return user;
         }
       }
-
+      
       return null;
     } catch (error) {
-      console.error("Failed to get queue user:", error);
+      console.error('Failed to get queue user:', error);
       return null;
     }
   }
@@ -361,7 +348,7 @@ export class MatchingService {
     try {
       return await redis.hgetall(this.USER_SESSIONS_KEY);
     } catch (error) {
-      console.error("Failed to get user sessions:", error);
+      console.error('Failed to get user sessions:', error);
       return {};
     }
   }
@@ -369,22 +356,20 @@ export class MatchingService {
   /**
    * 特定のSocket IDを持つユーザーを検索
    */
-  static async findUserBySocketId(
-    socketId: string
-  ): Promise<MatchingUser | null> {
+  static async findUserBySocketId(socketId: string): Promise<MatchingUser | null> {
     try {
       const sessions = await this.getUserSessions();
-
+      
       for (const [userId, sessionData] of Object.entries(sessions)) {
         const session = JSON.parse(sessionData);
         if (session.socketId === socketId) {
           return await this.getQueueUser(userId);
         }
       }
-
+      
       return null;
     } catch (error) {
-      console.error("Failed to find user by socket ID:", error);
+      console.error('Failed to find user by socket ID:', error);
       return null;
     }
   }

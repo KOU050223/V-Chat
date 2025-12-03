@@ -1,14 +1,8 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
-import { VRoidCharacterModel } from "@/lib/vroid";
-import { useAuth } from "./AuthContext";
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { VRoidCharacterModel } from '@/lib/vroid';
+import { useAuth } from './AuthContext';
 
 interface VModelSettings {
   selectedModelId: string | null;
@@ -17,16 +11,14 @@ interface VModelSettings {
   preferences: {
     autoDownload: boolean;
     showPrivateModels: boolean;
-    defaultSort: "latest" | "popular" | "hearts";
+    defaultSort: 'latest' | 'popular' | 'hearts';
   };
 }
 
 interface VModelContextType {
   settings: VModelSettings;
   updateSelectedModel: (model: VRoidCharacterModel | null) => void;
-  updatePreferences: (
-    preferences: Partial<VModelSettings["preferences"]>
-  ) => void;
+  updatePreferences: (preferences: Partial<VModelSettings['preferences']>) => void;
   clearSettings: () => void;
   isLoading: boolean;
 }
@@ -38,7 +30,7 @@ const defaultSettings: VModelSettings = {
   preferences: {
     autoDownload: false,
     showPrivateModels: true,
-    defaultSort: "latest",
+    defaultSort: 'latest',
   },
 };
 
@@ -53,7 +45,7 @@ const VModelContext = createContext<VModelContextType>({
 export const useVModel = () => {
   const context = useContext(VModelContext);
   if (!context) {
-    throw new Error("useVModel must be used within a VModelProvider");
+    throw new Error('useVModel must be used within a VModelProvider');
   }
   return context;
 };
@@ -69,7 +61,7 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
 
   // ユーザー固有のストレージキーを生成
   const getStorageKey = () => {
-    const userId = user?.uid || nextAuthSession?.user?.id || "anonymous";
+    const userId = user?.uid || nextAuthSession?.user?.id || 'anonymous';
     return `v-chat-vmodel-settings-${userId}`;
   };
 
@@ -78,10 +70,10 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
     try {
       const storageKey = getStorageKey();
       const saved = localStorage.getItem(storageKey);
-
+      
       if (saved) {
         const parsedSettings = JSON.parse(saved) as VModelSettings;
-
+        
         // バージョン互換性チェック
         const mergedSettings: VModelSettings = {
           ...defaultSettings,
@@ -91,11 +83,11 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
             ...parsedSettings.preferences,
           },
         };
-
+        
         setSettings(mergedSettings);
       }
     } catch (error) {
-      console.error("V体設定の読み込みに失敗:", error);
+      console.error('V体設定の読み込みに失敗:', error);
       setSettings(defaultSettings);
     } finally {
       setIsLoading(false);
@@ -108,7 +100,7 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
       const storageKey = getStorageKey();
       localStorage.setItem(storageKey, JSON.stringify(newSettings));
     } catch (error) {
-      console.error("V体設定の保存に失敗:", error);
+      console.error('V体設定の保存に失敗:', error);
     }
   };
 
@@ -120,15 +112,13 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
       selectedModel: model,
       lastUpdated: new Date().toISOString(),
     };
-
+    
     setSettings(newSettings);
     saveSettings(newSettings);
   };
 
   // 設定を更新
-  const updatePreferences = (
-    newPreferences: Partial<VModelSettings["preferences"]>
-  ) => {
+  const updatePreferences = (newPreferences: Partial<VModelSettings['preferences']>) => {
     const newSettings: VModelSettings = {
       ...settings,
       preferences: {
@@ -137,7 +127,7 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
       },
       lastUpdated: new Date().toISOString(),
     };
-
+    
     setSettings(newSettings);
     saveSettings(newSettings);
   };
@@ -149,7 +139,7 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
       localStorage.removeItem(storageKey);
       setSettings(defaultSettings);
     } catch (error) {
-      console.error("V体設定のクリアに失敗:", error);
+      console.error('V体設定のクリアに失敗:', error);
     }
   };
 
@@ -161,22 +151,19 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
       setSettings(defaultSettings);
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.uid, nextAuthSession?.user?.id]);
 
   // 定期的にバックアップを作成（1時間ごと）
   useEffect(() => {
-    const interval = setInterval(
-      () => {
-        if (settings.selectedModel) {
-          saveSettings(settings);
-        }
-      },
-      60 * 60 * 1000
-    ); // 1時間
+    const interval = setInterval(() => {
+      if (settings.selectedModel) {
+        saveSettings(settings);
+      }
+    }, 60 * 60 * 1000); // 1時間
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings]);
 
   const value: VModelContextType = {
@@ -188,50 +175,49 @@ export const VModelProvider = ({ children }: VModelProviderProps) => {
   };
 
   return (
-    <VModelContext.Provider value={value}>{children}</VModelContext.Provider>
+    <VModelContext.Provider value={value}>
+      {children}
+    </VModelContext.Provider>
   );
 };
 
 // 設定のエクスポート/インポート機能
 export const exportVModelSettings = (): string => {
   try {
-    const allKeys = Object.keys(localStorage).filter((key) =>
-      key.startsWith("v-chat-vmodel-settings-")
+    const allKeys = Object.keys(localStorage).filter(key => 
+      key.startsWith('v-chat-vmodel-settings-')
     );
-
+    
     const allSettings: Record<string, VModelSettings> = {};
-
-    allKeys.forEach((key) => {
+    
+    allKeys.forEach(key => {
       const settings = localStorage.getItem(key);
       if (settings) {
         allSettings[key] = JSON.parse(settings);
       }
     });
-
+    
     return JSON.stringify(allSettings, null, 2);
   } catch (error) {
-    console.error("設定のエクスポートに失敗:", error);
+    console.error('設定のエクスポートに失敗:', error);
     throw error;
   }
 };
 
 export const importVModelSettings = (settingsJson: string): void => {
   try {
-    const allSettings = JSON.parse(settingsJson) as Record<
-      string,
-      VModelSettings
-    >;
-
+    const allSettings = JSON.parse(settingsJson) as Record<string, VModelSettings>;
+    
     Object.entries(allSettings).forEach(([key, settings]) => {
-      if (key.startsWith("v-chat-vmodel-settings-")) {
+      if (key.startsWith('v-chat-vmodel-settings-')) {
         localStorage.setItem(key, JSON.stringify(settings));
       }
     });
-
+    
     // ページをリロードして新しい設定を反映
     window.location.reload();
   } catch (error) {
-    console.error("設定のインポートに失敗:", error);
+    console.error('設定のインポートに失敗:', error);
     throw error;
   }
 };

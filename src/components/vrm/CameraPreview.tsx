@@ -3,8 +3,8 @@
  * MediaPipeのカメラ映像とランドマークを表示
  */
 
-import React, { useRef, useEffect } from "react";
-import type { PoseLandmark } from "../../hooks/usePoseEstimation";
+import React, { useRef, useEffect } from 'react';
+import type { PoseLandmark } from '../../hooks/usePoseEstimation';
 
 interface CameraPreviewProps {
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
@@ -15,7 +15,7 @@ interface CameraPreviewProps {
 export const CameraPreview: React.FC<CameraPreviewProps> = ({
   videoRef,
   landmarks,
-  isActive,
+  isActive
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -39,7 +39,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
 
     const canvas = canvasRef.current;
     const video = videoRef.current;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
 
     if (!ctx) return;
 
@@ -112,7 +112,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     ];
 
     // 線を描画
-    ctx.strokeStyle = "#00ff00";
+    ctx.strokeStyle = '#00ff00';
     ctx.lineWidth = 2;
     connections.forEach(([start, end]) => {
       if (landmarks[start] && landmarks[end]) {
@@ -120,10 +120,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         const endPoint = landmarks[end];
 
         // 可視性チェック
-        if (
-          (startPoint.visibility ?? 1) > 0.5 &&
-          (endPoint.visibility ?? 1) > 0.5
-        ) {
+        if ((startPoint.visibility ?? 1) > 0.5 && (endPoint.visibility ?? 1) > 0.5) {
           ctx.beginPath();
           ctx.moveTo(startPoint.x * width, startPoint.y * height);
           ctx.lineTo(endPoint.x * width, endPoint.y * height);
@@ -133,7 +130,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     });
 
     // ポイントを描画（サイズ縮小 - パフォーマンス最適化）
-    ctx.fillStyle = "#ff0000";
+    ctx.fillStyle = '#ff0000';
     // 主要な関節のみ描画（パフォーマンス最適化）
     const keyPoints = [0, 11, 12, 13, 14, 15, 16, 23, 24]; // 顔、肩、肘、手首、腰
     keyPoints.forEach((index) => {
@@ -163,12 +160,12 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         <canvas
           ref={canvasRef}
           className="w-64 h-48 object-cover"
-          style={{ transform: "scaleX(-1)" }} // 鏡像反転
+          style={{ transform: 'scaleX(-1)' }} // 鏡像反転
         />
 
         {/* ラベル */}
         <div className="absolute top-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs font-semibold">
-          カメラ映像 {landmarks ? `(${landmarks.length}点検出)` : ""}
+          カメラ映像 {landmarks ? `(${landmarks.length}点検出)` : ''}
         </div>
       </div>
     </div>

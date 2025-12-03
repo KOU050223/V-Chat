@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -10,24 +10,22 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log("Home page redirect logic:", {
+    console.log('Home page redirect logic:', {
       loading,
-      user: user ? "Firebase user exists" : "No Firebase user",
-      nextAuthSession: nextAuthSession
-        ? "NextAuth session exists"
-        : "No NextAuth session",
+      user: user ? 'Firebase user exists' : 'No Firebase user',
+      nextAuthSession: nextAuthSession ? 'NextAuth session exists' : 'No NextAuth session',
       userObject: user,
-      nextAuthSessionObject: nextAuthSession,
+      nextAuthSessionObject: nextAuthSession
     });
 
     if (!loading) {
       // Firebase認証またはNextAuth認証のいずれかでログイン済み
       if (user || nextAuthSession) {
-        console.log("User authenticated, redirecting to dashboard");
-        router.push("/dashboard");
+        console.log('User authenticated, redirecting to dashboard');
+        router.push('/dashboard');
       } else {
-        console.log("No authentication found, redirecting to login");
-        router.push("/login");
+        console.log('No authentication found, redirecting to login');
+        router.push('/login');
       }
     }
   }, [user, nextAuthSession, loading, router]);

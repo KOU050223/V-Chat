@@ -1,16 +1,12 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { CleanupService } from "@/lib/cleanupService";
+import { useEffect } from 'react';
+import { CleanupService } from '@/lib/cleanupService';
 
-export function CleanupServiceProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function CleanupServiceProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // アプリケーション起動時にクリーンアップサービスを開始
-    console.log("🧹 Initializing cleanup service...");
+    console.log('🧹 Initializing cleanup service...');
     CleanupService.startAutoCleanup();
 
     // クリーンアップ（コンポーネントのアンマウント時）

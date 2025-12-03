@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 
 export interface PoseLandmark {
   x: number;
@@ -28,13 +28,10 @@ interface UsePoseEstimationReturn {
 
 export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const [landmarks, setLandmarks] = useState<PoseLandmark[] | null>(null);
-  const [worldLandmarks, setWorldLandmarks] = useState<PoseLandmark[] | null>(
-    null
-  );
+  const [worldLandmarks, setWorldLandmarks] = useState<PoseLandmark[] | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isCameraPermissionGranted, setIsCameraPermissionGranted] =
-    useState(false);
+  const [isCameraPermissionGranted, setIsCameraPermissionGranted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
@@ -53,30 +50,25 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
         setError(null);
 
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm'
         );
 
-        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(
-          vision,
-          {
-            baseOptions: {
-              modelAssetPath: "/mediapipe/pose_landmarker_lite.task",
-              delegate: "GPU",
-            },
-            runningMode: "VIDEO",
-            numPoses: 1,
-            minPoseDetectionConfidence: 0.3,
-            minPosePresenceConfidence: 0.3,
-            minTrackingConfidence: 0.3,
-          }
-        );
+        poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: '/mediapipe/pose_landmarker_lite.task',
+            delegate: 'GPU'
+          },
+          runningMode: 'VIDEO',
+          numPoses: 1,
+          minPoseDetectionConfidence: 0.3,
+          minPosePresenceConfidence: 0.3,
+          minTrackingConfidence: 0.3
+        });
 
         setIsInitialized(true);
       } catch (err) {
-        console.error("MediaPipe初期化エラー:", err);
-        setError(
-          `MediaPipeの初期化に失敗しました: ${err instanceof Error ? err.message : "Unknown error"}`
-        );
+        console.error('MediaPipe初期化エラー:', err);
+        setError(`MediaPipeの初期化に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`);
       } finally {
         setIsLoading(false);
       }
@@ -101,20 +93,14 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     const currentTime = performance.now();
 
     // フレームレート制御: 指定間隔でのみ処理
-    if (
-      video.readyState >= 2 &&
-      currentTime - lastDetectionTimeRef.current >= DETECTION_INTERVAL
-    ) {
+    if (video.readyState >= 2 && (currentTime - lastDetectionTimeRef.current) >= DETECTION_INTERVAL) {
       try {
         // 単調増加するタイムスタンプを生成
         const timestamp = Math.max(currentTime, lastTimestampRef.current + 1);
         lastTimestampRef.current = timestamp;
         lastDetectionTimeRef.current = currentTime;
 
-        const result = poseLandmarkerRef.current.detectForVideo(
-          video,
-          timestamp
-        );
+        const result = poseLandmarkerRef.current.detectForVideo(video, timestamp);
 
         if (result.landmarks && result.landmarks.length > 0) {
           setLandmarks(result.landmarks[0]);
@@ -128,7 +114,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
           setWorldLandmarks(null);
         }
       } catch (err) {
-        console.error("ポーズ検出エラー:", err);
+        console.error('ポーズ検出エラー:', err);
       }
     }
 
@@ -142,21 +128,20 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 }, // 640→480に削減（パフォーマンス最適化）
+          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
           height: { ideal: 360 }, // 480→360に削減
-          facingMode: "user",
-          frameRate: { ideal: 30, max: 30 }, // フレームレート制限
-        },
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 30 } // フレームレート制限
+        }
       });
 
       // 許可が得られたらすぐに停止（実際の使用は startCamera で行う）
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => track.stop());
       setIsCameraPermissionGranted(true);
+
     } catch (err) {
-      console.error("カメラ許可エラー:", err);
-      setError(
-        `カメラの許可が必要です: ${err instanceof Error ? err.message : "Unknown error"}`
-      );
+      console.error('カメラ許可エラー:', err);
+      setError(`カメラの許可が必要です: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setIsCameraPermissionGranted(false);
     }
   }, []);
@@ -167,8 +152,8 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
       setError(null);
 
       if (!videoRef.current) {
-        const video = document.createElement("video");
-        video.style.display = "none";
+        const video = document.createElement('video');
+        video.style.display = 'none';
         video.autoplay = true;
         video.playsInline = true;
         document.body.appendChild(video);
@@ -177,11 +162,11 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 }, // 640→480に削減（パフォーマンス最適化）
+          width: { ideal: 480 },  // 640→480に削減（パフォーマンス最適化）
           height: { ideal: 360 }, // 480→360に削減
-          facingMode: "user",
-          frameRate: { ideal: 30, max: 30 }, // フレームレート制限
-        },
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 30 } // フレームレート制限
+        }
       });
 
       streamRef.current = stream;
@@ -194,11 +179,10 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       // ポーズ検出ループを開始
       detectPose();
+
     } catch (err) {
-      console.error("カメラアクセスエラー:", err);
-      setError(
-        `カメラにアクセスできませんでした: ${err instanceof Error ? err.message : "Unknown error"}`
-      );
+      console.error('カメラアクセスエラー:', err);
+      setError(`カメラにアクセスできませんでした: ${err instanceof Error ? err.message : 'Unknown error'}`);
       setIsCameraPermissionGranted(false);
     }
   }, [detectPose]);
@@ -211,7 +195,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     }
 
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
 
@@ -246,6 +230,6 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     videoRef,
     startCamera,
     stopCamera,
-    requestCameraPermission,
+    requestCameraPermission
   };
 };

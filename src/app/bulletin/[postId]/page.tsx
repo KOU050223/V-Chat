@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,13 +31,14 @@ import { handleError } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 interface PageProps {
-  params: {
+  params: Promise<{
     postId: string;
-  };
+  }>;
 }
 
 export default function PostDetailPage({ params }: PageProps) {
-  return <PostDetailContent postId={params.postId} />;
+  const { postId } = use(params);
+  return <PostDetailContent postId={postId} />;
 }
 
 function PostDetailContent({ postId }: { postId: string }) {

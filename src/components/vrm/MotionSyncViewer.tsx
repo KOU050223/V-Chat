@@ -1,14 +1,17 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { VRM } from '@pixiv/three-vrm';
-import { VRMViewer } from './VRMViewer';
-import { usePoseEstimation } from '../../hooks/usePoseEstimation';
-import { retargetPoseToVRMWithKalidokit } from '../../lib/vrm-retargeter-kalidokit';
-import { resetVRMPose } from '../../lib/vrm-retargeter';
-import { LogViewer } from '../ui/LogViewer';
+import React, { useRef, useEffect, useState, useCallback } from "react";
+import { useFrame } from "@react-three/fiber";
+import { VRM } from "@pixiv/three-vrm";
+import { VRMViewer } from "./VRMViewer";
+import { usePoseEstimation } from "../../hooks/usePoseEstimation";
+import { retargetPoseToVRMWithKalidokit } from "../../lib/vrm-retargeter-kalidokit";
+import { resetVRMPose } from "../../lib/vrm-retargeter";
+import { LogViewer } from "../ui/LogViewer";
 
 // モーション同期のロジックを管理するカスタムフック
-export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boolean) => void) => {
+export const useMotionSync = (
+  autoStart = false,
+  onMotionSync?: (isActive: boolean) => void
+) => {
   const vrmRef = useRef<VRM | null>(null);
   const [isMotionActive, setIsMotionActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +27,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     videoRef,
     startCamera,
     stopCamera,
-    requestCameraPermission
+    requestCameraPermission,
   } = usePoseEstimation();
 
   // モーション同期開始（useCallbackでメモ化）
@@ -33,15 +36,14 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
       setError(null);
 
       if (!isInitialized) {
-        throw new Error('MediaPipeが初期化されていません');
+        throw new Error("MediaPipeが初期化されていません");
       }
 
       await startCamera();
       setIsMotionActive(true);
       onMotionSync?.(true);
-
     } catch (err) {
-      const errorMessage = `モーション同期の開始に失敗しました: ${err instanceof Error ? err.message : 'Unknown error'}`;
+      const errorMessage = `モーション同期の開始に失敗しました: ${err instanceof Error ? err.message : "Unknown error"}`;
       setError(errorMessage);
       console.error(errorMessage, err);
     }
@@ -54,14 +56,17 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
   }, [handleStartMotionSync]);
 
   // VRM読み込み完了時のハンドラ（useCallbackでメモ化）
-  const handleVRMLoaded = useCallback((vrm: VRM) => {
-    vrmRef.current = vrm;
+  const handleVRMLoaded = useCallback(
+    (vrm: VRM) => {
+      vrmRef.current = vrm;
 
-    // オートスタートが有効な場合、カメラを開始
-    if (autoStart && isInitialized) {
-      handleStartMotionSyncRef.current();
-    }
-  }, [autoStart, isInitialized]); // handleStartMotionSyncを依存配列から除外
+      // オートスタートが有効な場合、カメラを開始
+      if (autoStart && isInitialized) {
+        handleStartMotionSyncRef.current();
+      }
+    },
+    [autoStart, isInitialized]
+  ); // handleStartMotionSyncを依存配列から除外
 
   // モーション同期停止（useCallbackでメモ化）
   const handleStopMotionSync = useCallback(() => {
@@ -104,7 +109,7 @@ export const useMotionSync = (autoStart = false, onMotionSync?: (isActive: boole
     handleVRMLoaded,
     handleStartMotionSync,
     handleStopMotionSync,
-    requestCameraPermission
+    requestCameraPermission,
   };
 };
 
@@ -137,16 +142,11 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
   rotation = [0, 0, 0],
   scale = [1, 1, 1],
   autoStart = false,
-  onMotionSync
+  onMotionSync,
 }) => {
   // モーション同期フックを使用
-  const {
-    vrmRef,
-    landmarks,
-    worldLandmarks,
-    isMotionActive,
-    handleVRMLoaded
-  } = useMotionSync(autoStart, onMotionSync);
+  const { vrmRef, landmarks, worldLandmarks, isMotionActive, handleVRMLoaded } =
+    useMotionSync(autoStart, onMotionSync);
 
   // フレームごとの更新処理
   useFrame((_state, delta) => {
@@ -166,9 +166,8 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
 
       // VRMの更新
       vrm.update(delta);
-
     } catch (err) {
-      console.error('フレーム更新エラー:', err);
+      console.error("フレーム更新エラー:", err);
     }
   });
 
@@ -195,7 +194,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
   onStartMotionSync,
   onStopMotionSync,
   onRequestCameraPermission,
-  enablePoseDebug = false
+  enablePoseDebug = false,
 }) => {
   const [showLogViewer, setShowLogViewer] = useState(false);
   // デバッグ情報の表示
@@ -203,24 +202,28 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
     if (!enablePoseDebug) return null;
 
     return (
-      <div style={{
-        position: 'absolute',
-        top: 10,
-        left: 10,
-        background: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px',
-        borderRadius: '5px',
-        fontSize: '12px',
-        fontFamily: 'monospace',
-        zIndex: 1000
-      }}>
-        <div>MediaPipe初期化: {isInitialized ? '✓' : '✗'}</div>
-        <div>カメラ許可: {isCameraPermissionGranted ? '✓' : '✗'}</div>
-        <div>モーション同期: {isMotionActive ? '✓' : '✗'}</div>
-        <div>ランドマーク検出: {landmarks && landmarks.length > 0 ? '✓' : '✗'}</div>
-        <div>VRM読み込み: {vrmLoaded ? '✓' : '✗'}</div>
-        {error &&         <div style={{ color: '#ff6b6b' }}>エラー: {error}</div>}
+      <div
+        style={{
+          position: "absolute",
+          top: 10,
+          left: 10,
+          background: "rgba(0, 0, 0, 0.7)",
+          color: "white",
+          padding: "10px",
+          borderRadius: "5px",
+          fontSize: "12px",
+          fontFamily: "monospace",
+          zIndex: 1000,
+        }}
+      >
+        <div>MediaPipe初期化: {isInitialized ? "✓" : "✗"}</div>
+        <div>カメラ許可: {isCameraPermissionGranted ? "✓" : "✗"}</div>
+        <div>モーション同期: {isMotionActive ? "✓" : "✗"}</div>
+        <div>
+          ランドマーク検出: {landmarks && landmarks.length > 0 ? "✓" : "✗"}
+        </div>
+        <div>VRM読み込み: {vrmLoaded ? "✓" : "✗"}</div>
+        {error && <div style={{ color: "#ff6b6b" }}>エラー: {error}</div>}
         {/* LogViewerボタンを無効化（パフォーマンス最適化）
         <button
           onClick={() => setShowLogViewer(true)}
@@ -245,31 +248,33 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
   // コントロールボタンの表示
   const renderControls = () => {
     return (
-      <div style={{
-        position: 'absolute',
-        bottom: 20,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '10px',
-        alignItems: 'center',
-        zIndex: 1000
-      }}>
+      <div
+        style={{
+          position: "absolute",
+          bottom: 20,
+          left: "50%",
+          transform: "translateX(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+          alignItems: "center",
+          zIndex: 1000,
+        }}
+      >
         {/* カメラ許可ボタン */}
         {!isCameraPermissionGranted && (
           <button
             onClick={onRequestCameraPermission}
             style={{
-              padding: '12px 24px',
-              fontSize: '16px',
-              backgroundColor: '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              boxShadow: '0 4px 12px rgba(33, 150, 243, 0.3)'
+              padding: "12px 24px",
+              fontSize: "16px",
+              backgroundColor: "#2196F3",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              boxShadow: "0 4px 12px rgba(33, 150, 243, 0.3)",
             }}
           >
             📷 カメラを許可する
@@ -278,35 +283,35 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
 
         {/* モーション同期ボタン */}
         {isCameraPermissionGranted && (
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: "flex", gap: "10px" }}>
             {!isMotionActive ? (
               <button
                 onClick={onStartMotionSync}
                 disabled={!isInitialized || isLoading || !vrmLoaded}
                 style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  opacity: (!isInitialized || isLoading || !vrmLoaded) ? 0.5 : 1
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  backgroundColor: "#4CAF50",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                  opacity: !isInitialized || isLoading || !vrmLoaded ? 0.5 : 1,
                 }}
               >
-                {isLoading ? '初期化中...' : 'モーション同期開始'}
+                {isLoading ? "初期化中..." : "モーション同期開始"}
               </button>
             ) : (
               <button
                 onClick={onStopMotionSync}
                 style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer'
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  backgroundColor: "#f44336",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "5px",
+                  cursor: "pointer",
                 }}
               >
                 モーション同期停止
@@ -317,13 +322,15 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
 
         {/* ヘルプテキスト */}
         {!isCameraPermissionGranted && (
-          <div style={{
-            color: 'white',
-            fontSize: '12px',
-            textAlign: 'center',
-            opacity: 0.8,
-            maxWidth: '300px'
-          }}>
+          <div
+            style={{
+              color: "white",
+              fontSize: "12px",
+              textAlign: "center",
+              opacity: 0.8,
+              maxWidth: "300px",
+            }}
+          >
             VRMアバターにモーションを同期するには、まずカメラの許可が必要です
           </div>
         )}

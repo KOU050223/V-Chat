@@ -3,7 +3,7 @@
  * 開発用。本番環境ではFirestoreを使用
  */
 
-import { BulletinPost, BulletinReply } from '@/types/bulletin';
+import { BulletinPost, BulletinReply } from "@/types/bulletin";
 
 class BulletinStore {
   private posts: Map<string, BulletinPost> = new Map();

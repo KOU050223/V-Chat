@@ -4,25 +4,26 @@ import { useState } from "react";
 import Image from "next/image";
 import { useVRoidModels } from "@/hooks/useVRoidModels";
 import { VRoidCharacterModel } from "@/lib/vroid";
-import { Button } from "@/components/ui/button";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+  Input,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui";
 import { Heart, Download, Search, RefreshCw } from "lucide-react";
 
 interface VModelSelectorProps {

@@ -6,11 +6,7 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, Card, Input, Label } from "@/components/ui";
 import { ArrowLeft, X, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {

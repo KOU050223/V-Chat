@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Users, Lock, Unlock, Search, ArrowLeft, Key } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
 
 import { Room } from "@/lib/roomStore";
 

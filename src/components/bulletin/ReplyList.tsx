@@ -6,15 +6,15 @@
 
 import { useState } from "react";
 import { BulletinReply } from "@/types/bulletin";
-import { Avatar } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Edit, Trash2, MoreHorizontal } from "lucide-react";
 import {
+  Avatar,
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@/components/ui";
+import { Edit, Trash2, MoreHorizontal } from "lucide-react";
 import { EditReplyForm } from "./EditReplyForm";
 import { useAuth } from "@/contexts/AuthContext";
 

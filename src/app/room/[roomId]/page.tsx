@@ -10,7 +10,7 @@ import {
   MessageCircle,
   MoreVertical,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
 import VoiceCall from "@/components/voice/VoiceCall";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";

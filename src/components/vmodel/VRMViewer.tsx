@@ -6,14 +6,14 @@ import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui";
 import { RotateCcw, Download, Eye, EyeOff } from "lucide-react";
 
 import VRMDisplayManager from "@/lib/vrmDisplayManager";

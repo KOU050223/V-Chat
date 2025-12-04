@@ -6,24 +6,22 @@ import {
   exportVModelSettings,
   importVModelSettings,
 } from "@/contexts/VModelContext";
-import { Button } from "@/components/ui/button";
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
+  Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+  Switch,
+} from "@/components/ui";
 import { Download, Upload, Trash2, Settings } from "lucide-react";
 
 export default function VModelSettings() {

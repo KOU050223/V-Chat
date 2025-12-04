@@ -7,10 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PostCard } from "@/components/bulletin/PostCard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, Button, Card, Input } from "@/components/ui";
 import { Plus, Search, Filter, Loader2, ArrowLeft } from "lucide-react";
 import { BulletinPost, SortOrder } from "@/types/bulletin";
 import { useAuth } from "@/contexts/AuthContext";

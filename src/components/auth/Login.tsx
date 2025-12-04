@@ -4,15 +4,15 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { signIn } from "next-auth/react";
 import { auth } from "@/lib/firebaseConfig";
-import { Button } from "@/components/ui/button";
 import {
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+  Input,
+} from "@/components/ui";
 import Image from "next/image";
 import { getAuthErrorMessage } from "@/lib/utils/authErrors";
 

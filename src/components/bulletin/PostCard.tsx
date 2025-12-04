@@ -7,10 +7,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BulletinPost } from "@/types/bulletin";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, Badge, Button, Card } from "@/components/ui";
 import {
   Heart,
   MessageCircle,

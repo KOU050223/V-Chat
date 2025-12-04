@@ -2,14 +2,14 @@
 
 import { useFeature } from "@growthbook/growthbook-react";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui";
 import Link from "next/link";
 import { Bug, Code, Database, Mic, TestTube } from "lucide-react";
 

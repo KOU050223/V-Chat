@@ -3,15 +3,15 @@
 import { useState } from "react";
 import Image from "next/image";
 import { useVRoidModels } from "@/hooks/useVRoidModels";
-import { Button } from "@/components/ui/button";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui";
 import VModelSelector from "./VModelSelector";
 import VRMViewer from "./VRMViewer";
 import { Download, Heart, ExternalLink } from "lucide-react";

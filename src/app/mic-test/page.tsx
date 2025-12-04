@@ -10,7 +10,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
 import Link from "next/link";
 
 export default function MicTestPage() {

@@ -1,15 +1,16 @@
 "use client";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import {
+  Avatar,
+  AvatarFallback,
+  Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from "@/components/ui";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import VModelSelector from "@/components/vmodel/VModelSelector";
 import SelectedVModelCard from "@/components/vmodel/SelectedVModelCard";

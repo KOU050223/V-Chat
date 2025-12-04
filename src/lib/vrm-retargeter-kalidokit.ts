@@ -6,7 +6,7 @@
 import * as Kalidokit from "kalidokit";
 import * as THREE from "three";
 import type { VRM } from "@pixiv/three-vrm";
-import type { PoseLandmark } from "../hooks/usePoseEstimation";
+import type { PoseLandmark } from "@/hooks/usePoseEstimation";
 
 /**
  * オブジェクトプーリング用の再利用可能なオブジェクト

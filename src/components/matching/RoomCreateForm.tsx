@@ -13,8 +13,13 @@ import {
   Users as UsersIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui";
 
 export default function RoomCreateForm() {
   const [roomName, setRoomName] = useState("");

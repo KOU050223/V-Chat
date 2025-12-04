@@ -16,7 +16,7 @@ import {
 import { ConnectionState, LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
 import { Mic, MicOff, Settings, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
 import type { VoiceCallState } from "@/types/voice";

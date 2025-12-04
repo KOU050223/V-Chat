@@ -1,7 +1,7 @@
 import React from "react";
 import VRMViewer from "@/components/vmodel/VRMViewer";
 import VRMDisplayManager from "@/lib/vrmDisplayManager";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui";
 import { VRoidCharacterModel } from "@/lib/vroid";
 
 /**

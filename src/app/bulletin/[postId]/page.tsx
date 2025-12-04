@@ -6,10 +6,7 @@
 
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, Badge, Button, Card } from "@/components/ui";
 import { ReplyForm } from "@/components/bulletin/ReplyForm";
 import { ReplyList } from "@/components/bulletin/ReplyList";
 import {

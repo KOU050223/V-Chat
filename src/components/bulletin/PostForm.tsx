@@ -13,18 +13,18 @@ import {
   UpdatePostRequest,
   BulletinApiResponse,
 } from "@/types/bulletin";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  Label,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui";
 import { Loader2, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 

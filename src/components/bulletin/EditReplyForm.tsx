@@ -5,8 +5,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Button, Label } from "@/components/ui";
 import { Loader2 } from "lucide-react";
 import { BulletinReply } from "@/types/bulletin";
 import { useAuth } from "@/contexts/AuthContext";

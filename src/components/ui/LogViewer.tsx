@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import logger, { type LogEntry, type LogLevel } from "../../lib/logger";
+import logger, { type LogEntry, type LogLevel } from "@/lib/logger";
 
 interface LogViewerProps {
   isVisible: boolean;

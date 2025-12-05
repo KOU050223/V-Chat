@@ -4,7 +4,7 @@
  */
 
 import React, { useRef, useEffect } from "react";
-import type { PoseLandmark } from "../../hooks/usePoseEstimation";
+import type { PoseLandmark } from "@/hooks/usePoseEstimation";
 
 interface CameraPreviewProps {
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;

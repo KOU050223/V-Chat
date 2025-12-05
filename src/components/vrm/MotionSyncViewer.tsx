@@ -2,10 +2,10 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { VRM } from "@pixiv/three-vrm";
 import { VRMViewer } from "./VRMViewer";
-import { usePoseEstimation } from "../../hooks/usePoseEstimation";
-import { retargetPoseToVRMWithKalidokit } from "../../lib/vrm-retargeter-kalidokit";
-import { resetVRMPose } from "../../lib/vrm-retargeter";
-import { LogViewer } from "../ui/LogViewer";
+import { usePoseEstimation } from "@/hooks/usePoseEstimation";
+import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
+import { resetVRMPose } from "@/lib/vrm-retargeter";
+import { LogViewer } from "@/components/ui/LogViewer";
 
 // モーション同期のロジックを管理するカスタムフック
 export const useMotionSync = (

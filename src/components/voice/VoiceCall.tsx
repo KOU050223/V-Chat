@@ -72,7 +72,7 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
             value={activeAudioInputDeviceId}
             onChange={(e) => setActiveAudioInputDevice(e.target.value)}
           >
-            {audioInputDevices.map((device) => (
+            {audioInputDevices.map((device: MediaDeviceInfo) => (
               <option key={device.deviceId} value={device.deviceId}>
                 {device.label || `マイク ${device.deviceId.slice(0, 5)}...`}
               </option>
@@ -93,7 +93,7 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
             value={activeAudioOutputDeviceId}
             onChange={(e) => setActiveAudioOutputDevice(e.target.value)}
           >
-            {audioOutputDevices.map((device) => (
+            {audioOutputDevices.map((device: MediaDeviceInfo) => (
               <option key={device.deviceId} value={device.deviceId}>
                 {device.label || `スピーカー ${device.deviceId.slice(0, 5)}...`}
               </option>
@@ -484,7 +484,7 @@ export default function VoiceCall({
           console.log("Disconnected from room");
           onLeave?.();
         }}
-        onError={(err) => {
+        onError={(err: Error) => {
           console.error("LiveKit Room Error:", err);
           setError("接続中にエラーが発生しました。再度お試しください。");
         }}

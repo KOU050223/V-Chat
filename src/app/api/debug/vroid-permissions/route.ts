@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth";
 
 const VROID_API_BASE = "https://hub.vroid.com/api";
 
+// 動的ルートとして明示的にマーク（ビルド時の静的生成を回避）
+export const dynamic = "force-dynamic";
+
 /**
  * VRoid Hub API権限テスト用エンドポイント
  * 各APIエンドポイントへのアクセス権限を順次テストする

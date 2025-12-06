@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 
+// 動的ルートとして明示的にマーク（ビルド時の静的生成を回避）
+export const dynamic = "force-dynamic";
+
 /**
  * セッション情報をデバッグするためのAPIエンドポイント
  * 開発環境でのみ利用可能

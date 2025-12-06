@@ -192,7 +192,10 @@ export default function Dashboard() {
               {/* アバター選択 */}
               <Dialog>
                 <DialogTrigger asChild>
-                  <button className="group flex flex-col items-center gap-3 p-6 rounded-2xl hover:bg-white/60 transition-all duration-300">
+                  <button
+                    type="button"
+                    className="group flex flex-col items-center gap-3 p-6 rounded-2xl hover:bg-white/60 transition-all duration-300"
+                  >
                     <div className="relative">
                       <div className="p-4 bg-gradient-to-br from-orange-100 to-orange-200 rounded-2xl group-hover:shadow-lg transition-all duration-300 group-hover:scale-110">
                         <UserCircle className="h-12 w-12 text-orange-600" />
@@ -243,17 +246,18 @@ export default function Dashboard() {
               </Dialog>
 
               {/* 掲示板 */}
-              <Link href="/bulletin">
-                <button className="group flex flex-col items-center gap-3 p-6 rounded-2xl hover:bg-white/60 transition-all duration-300">
-                  <div className="relative">
-                    <div className="p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl group-hover:shadow-lg transition-all duration-300 group-hover:scale-110">
-                      <MessageSquare className="h-12 w-12 text-blue-600" />
-                    </div>
+              <Link
+                href="/bulletin"
+                className="group flex flex-col items-center gap-3 p-6 rounded-2xl hover:bg-white/60 transition-all duration-300"
+              >
+                <div className="relative">
+                  <div className="p-4 bg-gradient-to-br from-blue-100 to-blue-200 rounded-2xl group-hover:shadow-lg transition-all duration-300 group-hover:scale-110">
+                    <MessageSquare className="h-12 w-12 text-blue-600" />
                   </div>
-                  <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
-                    掲示板
-                  </span>
-                </button>
+                </div>
+                <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">
+                  掲示板
+                </span>
               </Link>
             </div>
           </div>

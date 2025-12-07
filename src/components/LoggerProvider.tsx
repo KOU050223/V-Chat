@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import logger from "@/lib/logger";
+// logger is imported for side effects (console.log override)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import _logger from "@/lib/logger";
 
 interface LoggerProviderProps {
   children: React.ReactNode;

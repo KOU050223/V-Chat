@@ -14,6 +14,8 @@ import type { PoseLandmark } from "@/hooks/usePoseEstimation";
  */
 const tempEuler = new THREE.Euler();
 const tempQuaternion = new THREE.Quaternion();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _tempVector3 = new THREE.Vector3();
 
 /**
  * 回転をスムーズに適用するヘルパー関数（最適化版）
@@ -42,7 +44,7 @@ const applySmoothRotation = (
  * TODO: 将来的に使用予定（現在はコメントアウト中）
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const applyHeadRotationFromLandmarks = (
+const _applyHeadRotationFromLandmarks = (
   humanoid: VRMHumanoid,
   landmarks: PoseLandmark[]
 ): void => {
@@ -133,11 +135,11 @@ export const retargetPoseToVRMWithKalidokit = (
     // worldLandmarksも変換（3D空間座標）
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-          x: landmark.x,
-          y: landmark.y,
-          z: landmark.z,
-          visibility: landmark.visibility,
-        }))
+        x: landmark.x,
+        y: landmark.y,
+        z: landmark.z,
+        visibility: landmark.visibility,
+      }))
       : poseLandmarks;
 
     // Kalidokitでポーズを解析
@@ -289,11 +291,11 @@ export const calculateRiggedPose = (
 
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-          x: landmark.x,
-          y: landmark.y,
-          z: landmark.z,
-          visibility: landmark.visibility,
-        }))
+        x: landmark.x,
+        y: landmark.y,
+        z: landmark.z,
+        visibility: landmark.visibility,
+      }))
       : poseLandmarks;
 
     const riggedPose = Kalidokit.Pose.solve(

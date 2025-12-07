@@ -5,7 +5,7 @@
 
 import * as Kalidokit from "kalidokit";
 import * as THREE from "three";
-import type { VRM } from "@pixiv/three-vrm";
+import type { VRM, VRMHumanoid } from "@pixiv/three-vrm";
 import type { PoseLandmark } from "@/hooks/usePoseEstimation";
 
 /**
@@ -14,7 +14,8 @@ import type { PoseLandmark } from "@/hooks/usePoseEstimation";
  */
 const tempEuler = new THREE.Euler();
 const tempQuaternion = new THREE.Quaternion();
-const tempVector3 = new THREE.Vector3();
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _tempVector3 = new THREE.Vector3();
 
 /**
  * 回転をスムーズに適用するヘルパー関数（最適化版）
@@ -41,8 +42,9 @@ const applySmoothRotation = (
 /**
  * MediaPipeランドマークから頭の回転を直接計算
  */
-const applyHeadRotationFromLandmarks = (
-  humanoid: any,
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const _applyHeadRotationFromLandmarks = (
+  humanoid: VRMHumanoid,
   landmarks: PoseLandmark[]
 ): void => {
   // 顔のランドマークインデックス

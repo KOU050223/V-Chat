@@ -2,10 +2,12 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import { VRM } from "@pixiv/three-vrm";
 import { VRMViewer } from "./VRMViewer";
-import { usePoseEstimation } from "../../hooks/usePoseEstimation";
-import { retargetPoseToVRMWithKalidokit } from "../../lib/vrm-retargeter-kalidokit";
-import { resetVRMPose } from "../../lib/vrm-retargeter";
-import { LogViewer } from "../ui/LogViewer";
+import {
+  usePoseEstimation,
+  type PoseLandmark,
+} from "@/hooks/usePoseEstimation";
+import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
+import { resetVRMPose } from "@/lib/vrm-retargeter";
 
 // モーション同期のロジックを管理するカスタムフック
 export const useMotionSync = (
@@ -47,6 +49,7 @@ export const useMotionSync = (
       setError(errorMessage);
       console.error(errorMessage, err);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, startCamera]); // onMotionSyncを依存配列から除外
 
   // handleStartMotionSyncへの参照を保持
@@ -78,6 +81,7 @@ export const useMotionSync = (
     if (vrmRef.current) {
       resetVRMPose(vrmRef.current);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopCamera]); // onMotionSyncを依存配列から除外
 
   // エラー状態の管理
@@ -87,6 +91,7 @@ export const useMotionSync = (
       setIsMotionActive(false);
       onMotionSync?.(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poseError]); // onMotionSyncを依存配列から除外
 
   // MediaPipe初期化完了後のオートスタート処理
@@ -127,7 +132,7 @@ interface MotionSyncUIProps {
   isLoading: boolean;
   isCameraPermissionGranted: boolean;
   isMotionActive: boolean;
-  landmarks: any[] | null;
+  landmarks: PoseLandmark[] | null;
   vrmLoaded: boolean;
   error: string | null;
   onStartMotionSync: () => void;
@@ -196,7 +201,6 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
   onRequestCameraPermission,
   enablePoseDebug = false,
 }) => {
-  const [showLogViewer, setShowLogViewer] = useState(false);
   // デバッグ情報の表示
   const renderDebugInfo = () => {
     if (!enablePoseDebug) return null;

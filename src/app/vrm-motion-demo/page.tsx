@@ -2,15 +2,12 @@
 
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { VRMViewer } from "../../components/vrm/VRMViewer";
-import {
-  MotionSyncUI,
-  useMotionSync,
-} from "../../components/vrm/MotionSyncViewer";
-import { CameraPreview } from "../../components/vrm/CameraPreview";
+import { VRMViewer } from "@/components/vrm/VRMViewer";
+import { MotionSyncUI, useMotionSync } from "@/components/vrm/MotionSyncViewer";
+import { CameraPreview } from "@/components/vrm/CameraPreview";
 import { useFrame } from "@react-three/fiber";
-import { retargetPoseToVRM } from "../../lib/vrm-retargeter";
-import { retargetPoseToVRMWithKalidokit } from "../../lib/vrm-retargeter-kalidokit";
+import { retargetPoseToVRM } from "@/lib/vrm-retargeter";
+import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
 import { useState, useEffect } from "react";
 
 // Canvas内でモーション同期を行うコンポーネント

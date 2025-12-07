@@ -21,8 +21,22 @@
     ],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["vitest/globals"]
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "functions", "**/*.test.ts", "**/*.test.tsx", "src/test/**/*", "vitest.config.ts"]
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "functions",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/test/**/*",
+    "vitest.config.ts"
+  ]
 }

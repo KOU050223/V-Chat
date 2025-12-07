@@ -5,7 +5,7 @@
 
 import * as Kalidokit from "kalidokit";
 import * as THREE from "three";
-import type { VRM } from "@pixiv/three-vrm";
+import type { VRM, VRMHumanoid } from "@pixiv/three-vrm";
 import type { PoseLandmark } from "@/hooks/usePoseEstimation";
 
 /**
@@ -14,7 +14,6 @@ import type { PoseLandmark } from "@/hooks/usePoseEstimation";
  */
 const tempEuler = new THREE.Euler();
 const tempQuaternion = new THREE.Quaternion();
-const tempVector3 = new THREE.Vector3();
 
 /**
  * 回転をスムーズに適用するヘルパー関数（最適化版）
@@ -40,9 +39,11 @@ const applySmoothRotation = (
 
 /**
  * MediaPipeランドマークから頭の回転を直接計算
+ * TODO: 将来的に使用予定（現在はコメントアウト中）
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const applyHeadRotationFromLandmarks = (
-  humanoid: any,
+  humanoid: VRMHumanoid,
   landmarks: PoseLandmark[]
 ): void => {
   // 顔のランドマークインデックス
@@ -260,5 +261,107 @@ export const retargetPoseToVRMWithKalidokit = (
     }
   } catch (error) {
     console.error("❌ Kalidokitでのリターゲッティングエラー:", error);
+  }
+};
+
+/**
+ * Kalidokitを使用してポーズデータを計算し、回転情報を返す（VRMへの直接適用はしない）
+ * 送信用データの生成に使用
+ */
+import { BoneRotations, QuaternionArray } from "@/types/avatar";
+
+export const calculateRiggedPose = (
+  landmarks: PoseLandmark[],
+  worldLandmarks: PoseLandmark[] | null = null
+): BoneRotations | null => {
+  if (landmarks.length === 0) {
+    return null;
+  }
+
+  try {
+    // MediaPipeのランドマークをKalidokitの形式に変換
+    const poseLandmarks = landmarks.map((landmark) => ({
+      x: landmark.x,
+      y: landmark.y,
+      z: landmark.z,
+      visibility: landmark.visibility,
+    }));
+
+    const worldLandmarksFormatted = worldLandmarks
+      ? worldLandmarks.map((landmark) => ({
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility,
+        }))
+      : poseLandmarks;
+
+    const riggedPose = Kalidokit.Pose.solve(
+      poseLandmarks,
+      worldLandmarksFormatted,
+      {
+        runtime: "mediapipe",
+        enableLegs: true,
+      }
+    );
+
+    if (!riggedPose) {
+      return null;
+    }
+
+    const rotations: BoneRotations = {};
+
+    // Helper to convert Kalidokit rotation to QuaternionArray
+    const toQuaternion = (rotation: {
+      x: number;
+      y: number;
+      z: number;
+      w?: number;
+    }): QuaternionArray => {
+      // Quaternion case (Hips often)
+      if (rotation.w !== undefined) {
+        return [rotation.x, rotation.y, rotation.z, rotation.w];
+      }
+
+      // Euler case - Match applySmoothRotation logic (Y-axis inversion for VRM 180 rot)
+      const x = rotation.x || 0;
+      const y = -(rotation.y || 0); // Invert Y
+      const z = rotation.z || 0;
+
+      const q = new THREE.Quaternion();
+      const e = new THREE.Euler(x, y, z, "XYZ");
+      q.setFromEuler(e);
+      return [q.x, q.y, q.z, q.w];
+    };
+
+    if (riggedPose.Hips && riggedPose.Hips.rotation) {
+      // Optional: Include Hips if needed
+      // rotations.hips = toQuaternion(riggedPose.Hips.rotation);
+    }
+
+    if (riggedPose.Spine) rotations.spine = toQuaternion(riggedPose.Spine);
+    if (riggedPose.Spine) {
+      // Infer chest from spine
+      const chestRot = {
+        x: (riggedPose.Spine.x || 0) * 0.5,
+        y: (riggedPose.Spine.y || 0) * 0.5,
+        z: (riggedPose.Spine.z || 0) * 0.5,
+      };
+      rotations.chest = toQuaternion(chestRot);
+    }
+
+    if (riggedPose.LeftUpperArm)
+      rotations.leftUpperArm = toQuaternion(riggedPose.LeftUpperArm);
+    if (riggedPose.LeftLowerArm)
+      rotations.leftLowerArm = toQuaternion(riggedPose.LeftLowerArm);
+    if (riggedPose.RightUpperArm)
+      rotations.rightUpperArm = toQuaternion(riggedPose.RightUpperArm);
+    if (riggedPose.RightLowerArm)
+      rotations.rightLowerArm = toQuaternion(riggedPose.RightLowerArm);
+
+    return rotations;
+  } catch (error) {
+    console.error("❌ Error calculating rigged pose:", error);
+    return null;
   }
 };

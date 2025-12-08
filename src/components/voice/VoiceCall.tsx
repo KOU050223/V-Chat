@@ -20,6 +20,10 @@ import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
 import type { VoiceCallState } from "@/types/voice";
+import { AvatarSender } from "@/components/avatar/AvatarSender";
+import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
+import { BoneRotations } from "@/types/avatar";
+import { Canvas } from "@react-three/fiber"; // Start of Avatar integration
 
 interface VoiceCallProps {
   roomId: string;
@@ -106,53 +110,61 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
 }
 
 // 参加者個別のタイルコンポーネント
-function ParticipantTile() {
+function ParticipantTile({
+  localRotations,
+}: {
+  localRotations?: BoneRotations | null;
+}) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
 
   if (!participant) return null;
-
-  // 名前からイニシャルを取得
-  const getInitials = (name: string) => {
-    return name.slice(0, 2).toUpperCase();
-  };
 
   // 表示名（ID部分は隠す）
   const displayName =
     participant.identity.split("-")[0] || participant.identity;
   const isMicrophoneEnabled = participant.isMicrophoneEnabled;
 
+  // Pass manual rotations only if it's the local participant
+  const manualRotations = participant.isLocal ? localRotations : undefined;
+
   return (
-    <div className="relative flex flex-col items-center justify-center p-4">
+    <div className="relative flex flex-col items-center justify-center p-2 w-full h-full">
       <div
-        className={`relative w-24 h-24 rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${
+        className={`relative w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden mb-3 transition-all duration-300 border-2 ${
           isSpeaking
-            ? "ring-4 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
-            : "ring-2 ring-gray-700"
-        } ${
-          participant.isLocal
-            ? "bg-gradient-to-br from-blue-600 to-purple-600"
-            : "bg-gray-700"
-        }`}
+            ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+            : "border-gray-700"
+        } bg-gray-900`}
       >
-        <span className="text-2xl font-bold text-white">
-          {getInitials(displayName)}
-        </span>
+        {/* 3D Avatar View */}
+        <Canvas camera={{ position: [0, 1.4, 0.7], fov: 50 }}>
+          <ambientLight intensity={0.8} />
+          <directionalLight position={[0, 0, 5]} intensity={1} />
+          {/* <OrbitControls target={[0, 1.4, 0]} /> Orbit disabled for stable view, or enable if needed */}
+          <AvatarReceiver
+            participant={participant}
+            defaultAvatarUrl="/vrm/vroid_model_6689695945343414173.vrm"
+            manualRotations={manualRotations}
+          />
+        </Canvas>
 
         {/* ミュートアイコン */}
         {!isMicrophoneEnabled && (
-          <div className="absolute bottom-0 right-0 bg-red-500 rounded-full p-1.5 border-2 border-gray-900">
+          <div className="absolute bottom-2 right-2 bg-red-500 rounded-full p-1.5 border-2 border-gray-900 z-10">
             <MicOff className="w-4 h-4 text-white" />
           </div>
         )}
+
+        {/* Speaking Indicator Overlay (Optional, if border is not enough) */}
+        {isSpeaking && (
+          <div className="absolute inset-0 border-4 border-green-500 rounded-xl pointer-events-none opacity-50"></div>
+        )}
       </div>
 
-      <div className="text-center">
-        <p className="text-white font-medium truncate max-w-[120px]">
+      <div className="text-center w-full">
+        <p className="text-white font-medium truncate px-2">
           {displayName} {participant.isLocal && "(あなた)"}
-        </p>
-        <p className="text-xs text-gray-400 mt-1 h-4">
-          {isSpeaking ? "話しています..." : ""}
         </p>
       </div>
     </div>
@@ -160,14 +172,20 @@ function ParticipantTile() {
 }
 
 // 参加者グリッド表示コンポーネント
-function ParticipantGrid() {
+function ParticipantGrid({
+  localRotations,
+}: {
+  localRotations?: BoneRotations | null;
+}) {
   const participants = useParticipants();
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 justify-items-center">
+    <div className="w-full max-w-6xl mx-auto p-4 h-full flex items-center justify-center">
+      <div className="flex flex-wrap justify-center gap-6 w-full">
         <ParticipantLoop participants={participants}>
-          <ParticipantTile />
+          <div className="w-64 h-72">
+            <ParticipantTile localRotations={localRotations} />
+          </div>
         </ParticipantLoop>
       </div>
 
@@ -194,107 +212,47 @@ function VoiceCallContent({
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
     useLocalParticipant();
+  // ... inside VoiceCallContent ...
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // Avatar Integration State
+  const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
+    null
+  );
+  const [isCameraOn, setIsCameraOn] = useState(true); // Control for AvatarSender
+  const [initMeta, setInitMeta] = useState(false);
+
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // 接続状態の監視と親への通知
+  // Set initial metadata (Avatar URL)
   useEffect(() => {
-    const isConnected = connectionState === ConnectionState.Connected;
-    // 参加者数はMapのサイズから取得
-    const participantCount = room.remoteParticipants.size + 1; // 自分を含める
-
-    // サーバー側の参加者数との不整合を検出（開発環境でログ出力）
     if (
-      serverMemberCount !== undefined &&
-      serverMemberCount !== participantCount &&
-      process.env.NODE_ENV === "development"
+      localParticipant &&
+      room.state === "connected" &&
+      !initMeta &&
+      localParticipant.permissions?.canUpdateMetadata
     ) {
-      console.warn(
-        `参加者数の不整合を検出: サーバー=${serverMemberCount}, クライアント=${participantCount}`
-      );
-    }
-
-    onStateChange?.({
-      isConnected,
-      isMuted: !isMicrophoneEnabled,
-      participants: Array.from(room.remoteParticipants.values()),
-      actualParticipantCount: participantCount,
-    });
-  }, [
-    connectionState,
-    isMicrophoneEnabled,
-    room.remoteParticipants,
-    onStateChange,
-    serverMemberCount,
-  ]);
-
-  // 音声レベル監視ロジック
-  useEffect(() => {
-    const audioTrack = microphoneTrack?.track as LocalAudioTrack | undefined;
-    if (!audioTrack?.mediaStreamTrack) {
-      return;
-    }
-
-    const track = audioTrack.mediaStreamTrack;
-
-    try {
-      const AudioContextClass =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext;
-      const audioContext = new AudioContextClass();
-      audioContextRef.current = audioContext;
-      const analyser = audioContext.createAnalyser();
-      analyserRef.current = analyser;
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.8;
-
-      const source = audioContext.createMediaStreamSource(
-        new MediaStream([track])
-      );
-      source.connect(analyser);
-
-      const updateAudioLevel = () => {
-        if (!analyser) return;
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
-
-        let sum = 0;
-        let count = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          if (dataArray[i] > 0) {
-            sum += dataArray[i];
-            count++;
-          }
+      const setMeta = async () => {
+        try {
+          // TODO: Make this dynamic based on user profile
+          const metadata = JSON.stringify({
+            avatarUrl: "/vrm/vroid_model_6689695945343414173.vrm",
+          });
+          await localParticipant.setMetadata(metadata);
+          setInitMeta(true);
+          console.log("Metadata set successfully for VoiceCall");
+        } catch (e) {
+          console.error("Failed to set metadata:", e);
         }
-        const average = count > 0 ? sum / count : 0;
-        const normalizedLevel = Math.min(100, (average / 255) * 100);
-        setLocalAudioLevel(normalizedLevel);
-
-        animationRef.current = requestAnimationFrame(updateAudioLevel);
       };
-
-      updateAudioLevel();
-    } catch (error) {
-      console.error("Audio monitoring setup failed:", error);
-      setDisconnectError(
-        "音声監視の設定に失敗しました。もう一度お試しください。"
-      );
+      // Small delay to ensure stability
+      setTimeout(setMeta, 1000);
     }
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, [microphoneTrack]);
+  }, [localParticipant, room.state, initMeta]);
 
   // マイクの切り替え
   const toggleMute = useCallback(async () => {
@@ -321,6 +279,7 @@ function VoiceCallContent({
 
   // UIレンダリング
   if (connectionState !== ConnectionState.Connected) {
+    // ... loading UI ...
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
@@ -333,9 +292,18 @@ function VoiceCallContent({
 
   return (
     <div className="flex flex-col h-full w-full relative">
+      {/* Invisible/Utility components for Sender */}
+      <div className="absolute top-0 right-0 w-32 h-24 opacity-0 hover:opacity-100 transition-opacity z-50 pointer-events-none hover:pointer-events-auto bg-black border border-gray-600">
+        {/* Camera Preview (Small debug view) */}
+        <AvatarSender
+          autoStart={isCameraOn}
+          onRotationsUpdate={setLocalRotations}
+        />
+      </div>
+
       {/* メインエリア：参加者グリッド */}
       <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
-        <ParticipantGrid />
+        <ParticipantGrid localRotations={localRotations} />
       </div>
 
       {/* エラーメッセージ */}
@@ -362,6 +330,24 @@ function VoiceCallContent({
           }`}
         >
           <Settings className="w-5 h-5" />
+        </Button>
+
+        {/* カメラ (アバターモーション) ボタン */}
+        <Button
+          onClick={() => setIsCameraOn(!isCameraOn)}
+          variant={isCameraOn ? "default" : "destructive"} // Greenish if on, Red if off? Or just consistent style
+          size="lg"
+          className={`rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 ${
+            isCameraOn
+              ? "bg-green-600 hover:bg-green-700 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+              : "bg-gray-700 hover:bg-gray-600"
+          }`}
+          title="モーションキャプチャ切り替え"
+        >
+          {/* Simple Icon for now, assuming Video icon from lucide or text */}
+          <div className="text-white font-bold text-xs">
+            {isCameraOn ? "CAM ON" : "CAM OFF"}
+          </div>
         </Button>
 
         {/* マイクボタン */}

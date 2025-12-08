@@ -1,6 +1,7 @@
 export interface AvatarMetadata {
   avatarUrl: string; // VRMファイルのURL
   avatarId?: string; // アバター識別子
+  offset?: { x: number; y: number; z: number }; // アバターの表示位置補正（共有）
 }
 
 // 転送するボーンの回転情報（Quaternion）

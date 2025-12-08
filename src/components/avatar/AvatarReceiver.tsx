@@ -17,15 +17,22 @@ interface AvatarReceiverProps {
   participant: Participant;
   defaultAvatarUrl?: string;
   manualRotations?: BoneRotations | null; // For local preview loopback
+  localOverrideOffset?: { x: number; y: number; z: number }; // For immediate local feedback
 }
 
 export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
   participant,
   defaultAvatarUrl,
   manualRotations,
+  localOverrideOffset,
 }) => {
   const vrmRef = useRef<VRM | null>(null);
   const [vrmUrl, setVrmUrl] = useState<string | null>(defaultAvatarUrl || null); // Initialize with default
+  const [remoteOffset, setRemoteOffset] = useState<{
+    x: number;
+    y: number;
+    z: number;
+  } | null>(null);
   const [isCameraActive, setIsCameraActive] = useState(false); // Data v=1/0
 
   // Animation targets (for Lerp)
@@ -43,6 +50,9 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
           const meta = JSON.parse(participant.metadata) as AvatarMetadata;
           if (meta && meta.avatarUrl) {
             setVrmUrl(meta.avatarUrl);
+            if (meta.offset) {
+              setRemoteOffset(meta.offset);
+            }
             return;
           }
         } catch (e) {
@@ -155,6 +165,13 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
 
   if (!vrmUrl) return null;
 
+  // Determine final position: Local override > Remote Metadata > Default
+  const position: [number, number, number] = localOverrideOffset
+    ? [localOverrideOffset.x, localOverrideOffset.y, localOverrideOffset.z]
+    : remoteOffset
+      ? [remoteOffset.x, remoteOffset.y, remoteOffset.z]
+      : [0, 0, 0];
+
   return (
     <VRMViewer
       vrmUrl={vrmUrl}
@@ -162,7 +179,7 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
         vrmRef.current = vrm;
       }}
       // Use defaults if props are not provided (though we removed them from interface, we can add them back or hardcode default)
-      position={[0, 0, 0]}
+      position={position}
       rotation={[0, 0, 0]}
       scale={[1, 1, 1]}
     />

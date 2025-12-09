@@ -200,13 +200,13 @@ function DeviceSettings({
 
           {/* カメラ位置 (ローカル) */}
           <div className="space-y-2">
-            <label className="text-xs text-green-400 uppercase font-bold tracking-wider flex justify-between">
+            <div className="text-xs text-green-400 uppercase font-bold tracking-wider flex justify-between">
               <span>カメラ視点 (自分のみ)</span>
               <span className="font-mono text-[10px]">
                 X:{cameraConfig[0].toFixed(1)} Y:{cameraConfig[1].toFixed(1)} Z:
                 {cameraConfig[2].toFixed(1)}
               </span>
-            </label>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label
@@ -285,13 +285,13 @@ function DeviceSettings({
 
           {/* アバター位置補正 (共有) */}
           <div className="space-y-2">
-            <label className="text-xs text-blue-400 uppercase font-bold tracking-wider flex justify-between">
+            <div className="text-xs text-blue-400 uppercase font-bold tracking-wider flex justify-between">
               <span>アバター位置補正 (共有)</span>
               <span className="font-mono text-[10px]">
                 X:{avatarOffset.x.toFixed(2)} Y:{avatarOffset.y.toFixed(2)} Z:
                 {avatarOffset.z.toFixed(2)}
               </span>
-            </label>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
                 <label
@@ -540,7 +540,6 @@ function VoiceCallContent({
     null
   );
   const [isCameraOn, setIsCameraOn] = useState(true); // AvatarSenderの制御用
-  const [initMeta, setInitMeta] = useState(false);
 
   // 3D調整の状態
   const [cameraConfig, setCameraConfig] = useState<[number, number, number]>(
@@ -660,7 +659,6 @@ function VoiceCallContent({
             scale: avatarScale, // scaleを含める
           };
           await localParticipant.setMetadata(JSON.stringify(metadata));
-          setInitMeta(true);
         } catch (e) {
           console.error("Failed to set metadata:", e);
         }

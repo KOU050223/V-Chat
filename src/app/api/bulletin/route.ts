@@ -21,17 +21,26 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
 
+    // 認証確認（オプショナル - ログインしていなくても投稿は見られる）
+    const authResult = await authenticateRequest(request);
+    const userId = authResult.userId;
+
     const searchParams = request.nextUrl.searchParams;
-    const category = searchParams.get("category") as PostCategory | null;
+    const categoriesParam = searchParams.get("categories");
     const search = searchParams.get("search");
     const sortOrder = (searchParams.get("sortOrder") as SortOrder) || "newest";
 
     const postsRef = db.collection("bulletin_posts");
     let q: FirebaseFirestore.Query = postsRef;
 
-    // カテゴリフィルター
-    if (category) {
-      q = postsRef.where("category", "==", category);
+    // カテゴリフィルター（複数対応）
+    if (categoriesParam) {
+      const categories = categoriesParam
+        .split(",")
+        .filter((c) => c.trim()) as PostCategory[];
+      if (categories.length > 0) {
+        q = postsRef.where("category", "in", categories);
+      }
     }
 
     // ソート（Firestoreクエリで実行）
@@ -49,6 +58,19 @@ export async function GET(request: NextRequest) {
     }
 
     const querySnapshot = await q.get();
+
+    // ユーザーのブックマークを取得（ログインしている場合のみ）
+    let bookmarkedPostIds: Set<string> = new Set();
+    if (userId) {
+      const bookmarksSnapshot = await db
+        .collection("user_bookmarks")
+        .where("userId", "==", userId)
+        .get();
+      bookmarkedPostIds = new Set(
+        bookmarksSnapshot.docs.map((doc) => doc.data().postId)
+      );
+    }
+
     let posts: BulletinPost[] = querySnapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -64,6 +86,7 @@ export async function GET(request: NextRequest) {
         likes: data.likes || [],
         tags: data.tags || [],
         roomId: data.roomId,
+        isBookmarked: bookmarkedPostIds.has(doc.id),
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
       };

@@ -91,20 +91,23 @@ export default function SelectedVModelCard({
       // (downloadVRM内で自動的にダウンロードが実行されます)
 
       console.log("VRMファイルダウンロード完了");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       console.error("VRMダウンロードエラー詳細:", {
         modelId: selectedModel.id,
-        error: error.message,
-        stack: error.stack,
+        error: errorMessage,
+        stack: errorStack,
       });
 
       // ユーザーフレンドリーなエラーメッセージ
-      let userMessage = error.message;
+      let userMessage = errorMessage;
 
-      if (error.message.includes("権限がありません")) {
+      if (errorMessage.includes("権限がありません")) {
         userMessage +=
           "\n\n考えられる原因:\n• モデルの作者がダウンロードを許可していない\n• VRoidアカウントの権限不足\n• API制限";
-      } else if (error.message.includes("OAuth認証エラー")) {
+      } else if (errorMessage.includes("OAuth認証エラー")) {
         userMessage +=
           "\n\nVRoid Hub Developer Consoleでアプリケーション設定を確認してください。";
       }
@@ -118,9 +121,11 @@ export default function SelectedVModelCard({
   const handleToggleHeart = async () => {
     try {
       await toggleHeart(selectedModel.id, selectedModel.is_hearted);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("いいね切り替えエラー:", error);
-      alert(error.message);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      alert(errorMessage);
     }
   };
 
@@ -137,6 +142,7 @@ export default function SelectedVModelCard({
               onModelSelect={(model) => {
                 console.log("モデルが変更されました:", model);
               }}
+              triggerClassName="w-auto"
             />
           )}
         </div>
@@ -147,10 +153,15 @@ export default function SelectedVModelCard({
           <div className="relative flex-shrink-0">
             <Image
               src={selectedModel.portrait_image.sq150.url}
-              alt={selectedModel.name || "VRoidモデル"}
+              alt={
+                selectedModel.name ||
+                selectedModel.character.name ||
+                "VRoidモデル"
+              }
               width={120}
               height={120}
               className="rounded-lg object-cover"
+              unoptimized // 外部画像の最適化エラー（400）を回避
             />
             {selectedModel.is_private && (
               <Badge
@@ -166,7 +177,9 @@ export default function SelectedVModelCard({
           <div className="flex-1 space-y-3">
             <div>
               <h3 className="font-semibold text-lg line-clamp-2">
-                {selectedModel.name || "無題のモデル"}
+                {selectedModel.name ||
+                  selectedModel.character.name ||
+                  "無題のモデル"}
               </h3>
               <p className="text-sm text-gray-600">
                 作成者: {selectedModel.character.user.name}

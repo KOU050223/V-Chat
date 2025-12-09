@@ -7,9 +7,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import VModelSelector from "@/components/vmodel/VModelSelector";
@@ -124,9 +121,11 @@ export default function Dashboard() {
                 </Dialog>
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="text-sm font-medium">
-                    {currentUser?.name?.charAt(0) ||
-                      currentUser?.email?.charAt(0) ||
-                      "U"}
+                    {currentUser && "displayName" in currentUser
+                      ? currentUser.displayName?.charAt(0)
+                      : currentUser?.name?.charAt(0) ||
+                        currentUser?.email?.charAt(0) ||
+                        "U"}
                   </AvatarFallback>
                 </Avatar>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -155,7 +154,7 @@ export default function Dashboard() {
                     </div>
                     <Button
                       onClick={handleLinkVRoid}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-md"
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white shadow-md"
                       size="lg"
                     >
                       今すぐ連携

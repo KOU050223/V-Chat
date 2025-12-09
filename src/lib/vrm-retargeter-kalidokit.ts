@@ -7,6 +7,7 @@ import * as Kalidokit from "kalidokit";
 import * as THREE from "three";
 import type { VRM, VRMHumanoid } from "@pixiv/three-vrm";
 import type { PoseLandmark } from "@/hooks/usePoseEstimation";
+import { BoneRotations, QuaternionArray } from "@/types/avatar";
 
 /**
  * オブジェクトプーリング用の再利用可能なオブジェクト
@@ -274,7 +275,6 @@ export const retargetPoseToVRMWithKalidokit = (
  * @returns 上半身のボーン回転データ（spine, chest, arms）。計算失敗時はnull。
  * @note 脚の回転は含まれません（ビデオ会議の座位想定のため）
  */
-import { BoneRotations, QuaternionArray } from "@/types/avatar";
 
 export const calculateRiggedPose = (
   landmarks: PoseLandmark[],

@@ -21,6 +21,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
   const animationFrameRef = useRef<number | null>(null);
   const lastSendTimeRef = useRef<number>(0);
   const frameCounterRef = useRef<number>(0); // ログ用カウンタ
+  const textEncoderRef = useRef<TextEncoder>(new TextEncoder()); // TextEncoderを再利用
 
   // 送信レート制限 (FPS)
   const SEND_FPS = 30;
@@ -103,8 +104,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
       }
 
       // 2. 送信
-      const encoder = new TextEncoder();
-      const payload = encoder.encode(JSON.stringify(packet));
+      const payload = textEncoderRef.current.encode(JSON.stringify(packet));
 
       try {
         await localParticipant.publishData(payload, {
@@ -122,10 +122,9 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
     animationFrameRef.current = requestAnimationFrame(sendLoop);
   }, [
     localParticipant,
-    roomContext,
+    roomContext.state,
     landmarks,
     worldLandmarks,
-    SEND_INTERVAL,
     onRotationsUpdate,
   ]);
 

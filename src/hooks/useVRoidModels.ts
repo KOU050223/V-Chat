@@ -27,7 +27,6 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     enableMyModels = false,
   } = options;
   const { data: session } = useSession();
-  const { notifySessionError } = useAuth();
   const { settings, updateSelectedModel } = useVModel();
   const [state, setState] = useState<VRoidModelsState>({
     myModels: [],
@@ -112,7 +111,6 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
             // トークンエラー
             const errorMsg =
               "VRoidアクセストークンが無効です。再ログインしてください。";
-            notifySessionError(errorMsg);
             setState((prev) => ({
               ...prev,
               error: errorMsg,
@@ -138,10 +136,6 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
             finalErrorMessage +=
               "\n\n対処法:\n1. VRoid Hub Developer Consoleでアプリケーション設定を確認\n2. 必要に応じてアプリケーション審査を申請\n3. 現在は「いいねしたモデル」と「検索」機能をご利用ください";
 
-            if (errorMessage.includes("401")) {
-              notifySessionError(finalErrorMessage);
-            }
-
             setState((prev) => ({
               ...prev,
               error: finalErrorMessage,
@@ -166,7 +160,7 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
         loading: false,
       }));
     }
-  }, [vroidClient, includePrivate, enableMyModels, notifySessionError]);
+  }, [vroidClient, includePrivate, enableMyModels]);
 
   // いいねしたモデル一覧を取得
   const fetchLikedModels = useCallback(async () => {
@@ -207,17 +201,13 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
 
       const errorMessage =
         error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes("401")) {
-        notifySessionError("VRoid API 認証エラー: 再ログインが必要です");
-      }
-
       setState((prev) => ({
         ...prev,
         error: "いいねしたモデルの取得に失敗しました",
         loading: false,
       }));
     }
-  }, [vroidClient, notifySessionError]);
+  }, [vroidClient]);
 
   // モデルを検索
   const searchModels = useCallback(

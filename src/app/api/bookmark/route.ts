@@ -65,37 +65,44 @@ export async function GET(request: NextRequest) {
 
     const postIds = bookmarks.map((bookmark) => bookmark.postId);
 
-    // 投稿情報を取得
-    const posts: BulletinPost[] = [];
-    for (const postId of postIds) {
-      const postDoc = await db.collection("bulletin_posts").doc(postId).get();
-      if (postDoc.exists) {
-        const data = postDoc.data();
-        if (data) {
-          posts.push({
-            id: postDoc.id,
-            title: data.title,
-            content: data.content,
-            category: data.category,
-            maxParticipants: data.maxParticipants,
-            currentParticipants: data.currentParticipants,
-            authorId: data.authorId,
-            authorName: data.authorName,
-            authorPhoto: data.authorPhoto,
-            likes: data.likes || [],
-            tags: data.tags || [],
-            roomId: data.roomId,
-            isBookmarked: true,
-            createdAt: data.createdAt?.toDate() || new Date(),
-            updatedAt: data.updatedAt?.toDate() || new Date(),
-          });
-        }
-      }
-    }
+    // 投稿情報をバッチ取得（N+1クエリ問題の解決）
+    const postRefs = postIds.map((id) =>
+      db.collection("bulletin_posts").doc(id)
+    );
+    const postDocs = await db.getAll(...postRefs);
+
+    const posts = postDocs
+      .filter((doc) => doc.exists)
+      .map((doc) => {
+        const data = doc.data()!;
+        return {
+          id: doc.id,
+          title: data.title,
+          content: data.content,
+          category: data.category,
+          maxParticipants: data.maxParticipants,
+          currentParticipants: data.currentParticipants,
+          authorId: data.authorId,
+          authorName: data.authorName,
+          authorPhoto: data.authorPhoto,
+          likes: data.likes || [],
+          tags: data.tags || [],
+          roomId: data.roomId,
+          isBookmarked: true,
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        };
+      });
+
+    // ブックマーク順序を維持（getAll は順序を保証しないため）
+    const postsMap = new Map(posts.map((p) => [p.id, p]));
+    const orderedPosts: BulletinPost[] = postIds
+      .map((id) => postsMap.get(id))
+      .filter((p) => p !== undefined) as BulletinPost[];
 
     const response: BulletinApiResponse<BulletinPost[]> = {
       success: true,
-      data: posts,
+      data: orderedPosts,
     };
 
     return NextResponse.json(response);

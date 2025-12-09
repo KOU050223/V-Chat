@@ -14,6 +14,29 @@ interface BulletinCreateRoomData {
   post: BulletinPost;
 }
 
+// BulletinPost構築ヘルパー（重複を避ける）
+function buildBulletinPost(
+  docId: string,
+  data: FirebaseFirestore.DocumentData
+): BulletinPost {
+  return {
+    id: docId,
+    title: data.title,
+    content: data.content,
+    category: data.category,
+    maxParticipants: data.maxParticipants,
+    currentParticipants: data.currentParticipants,
+    authorId: data.authorId,
+    authorName: data.authorName,
+    authorPhoto: data.authorPhoto,
+    likes: data.likes || [],
+    tags: data.tags || [],
+    roomId: data.roomId,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+  };
+}
+
 // POST: ルーム作成
 export async function POST(
   request: NextRequest,
@@ -33,121 +56,93 @@ export async function POST(
       return NextResponse.json(response, { status: 401 });
     }
     const userId = authResult.userId;
-
     const db = getAdminFirestore();
 
-    // 投稿の存在確認
-    const postDoc = await db.collection("bulletin_posts").doc(postId).get();
-    if (!postDoc.exists) {
-      const response: BulletinApiResponse = {
-        success: false,
-        error: "投稿が見つかりません",
-      };
-      return NextResponse.json(response, { status: 404 });
-    }
+    // Firestoreトランザクションで原子的にroomIdを設定
+    const result = await db.runTransaction(async (transaction) => {
+      const postRef = db.collection("bulletin_posts").doc(postId);
+      const postDoc = await transaction.get(postRef);
 
-    const postData = postDoc.data();
-    if (!postData) {
-      const response: BulletinApiResponse = {
-        success: false,
-        error: "投稿データの取得に失敗しました",
-      };
-      return NextResponse.json(response, { status: 500 });
-    }
+      // 投稿の存在確認
+      if (!postDoc.exists) {
+        throw new Error("投稿が見つかりません");
+      }
 
-    // 投稿者確認
-    if (postData.authorId !== userId) {
-      const response: BulletinApiResponse = {
-        success: false,
-        error: "ルームを作成する権限がありません",
-      };
-      return NextResponse.json(response, { status: 403 });
-    }
+      const postData = postDoc.data();
+      if (!postData) {
+        throw new Error("投稿データの取得に失敗しました");
+      }
 
-    // すでにルームが作成されている場合
-    if (postData.roomId) {
-      const post: BulletinPost = {
-        id: postDoc.id,
-        title: postData.title,
-        content: postData.content,
-        category: postData.category,
-        maxParticipants: postData.maxParticipants,
-        currentParticipants: postData.currentParticipants,
-        authorId: postData.authorId,
-        authorName: postData.authorName,
-        authorPhoto: postData.authorPhoto,
-        likes: postData.likes || [],
-        tags: postData.tags || [],
-        roomId: postData.roomId,
-        createdAt: postData.createdAt?.toDate() || new Date(),
-        updatedAt: postData.updatedAt?.toDate() || new Date(),
-      };
+      // 投稿者確認
+      if (postData.authorId !== userId) {
+        throw new Error("ルームを作成する権限がありません");
+      }
 
-      const response: BulletinApiResponse<BulletinCreateRoomData> = {
-        success: true,
-        data: {
+      // すでにルームが作成されている場合
+      if (postData.roomId) {
+        return {
           roomId: postData.roomId,
-          post,
-        },
-        message: "すでにルームが作成されています",
+          post: buildBulletinPost(postDoc.id, postData),
+          isNew: false,
+        };
+      }
+
+      // ルームID生成
+      const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+      // トランザクション内で更新
+      transaction.update(postRef, {
+        roomId,
+        updatedAt: Timestamp.now(),
+      });
+
+      // 更新後のデータを構築
+      const updatedData = {
+        ...postData,
+        roomId,
+        updatedAt: Timestamp.now(),
       };
-      return NextResponse.json(response);
-    }
 
-    // ルームID生成（実際のマッチングシステムと連携する）
-    const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-    // Firestoreに永続化
-    await db.collection("bulletin_posts").doc(postId).update({
-      roomId,
-      updatedAt: Timestamp.now(),
+      return {
+        roomId,
+        post: buildBulletinPost(postDoc.id, updatedData),
+        isNew: true,
+      };
     });
-
-    // 更新後の投稿データを取得
-    const updatedPostDoc = await db
-      .collection("bulletin_posts")
-      .doc(postId)
-      .get();
-    const updatedPostData = updatedPostDoc.data();
-
-    const updatedPost: BulletinPost = {
-      id: postDoc.id,
-      title: updatedPostData?.title || postData.title,
-      content: updatedPostData?.content || postData.content,
-      category: updatedPostData?.category || postData.category,
-      maxParticipants:
-        updatedPostData?.maxParticipants || postData.maxParticipants,
-      currentParticipants:
-        updatedPostData?.currentParticipants || postData.currentParticipants,
-      authorId: updatedPostData?.authorId || postData.authorId,
-      authorName: updatedPostData?.authorName || postData.authorName,
-      authorPhoto: updatedPostData?.authorPhoto || postData.authorPhoto,
-      likes: updatedPostData?.likes || postData.likes || [],
-      tags: updatedPostData?.tags || postData.tags || [],
-      roomId,
-      createdAt:
-        updatedPostData?.createdAt?.toDate() ||
-        postData.createdAt?.toDate() ||
-        new Date(),
-      updatedAt: new Date(),
-    };
 
     const response: BulletinApiResponse<BulletinCreateRoomData> = {
       success: true,
       data: {
-        roomId,
-        post: updatedPost,
+        roomId: result.roomId,
+        post: result.post,
       },
-      message: "ルームを作成しました",
+      message: result.isNew
+        ? "ルームを作成しました"
+        : "すでにルームが作成されています",
     };
 
-    return NextResponse.json(response, { status: 201 });
+    return NextResponse.json(
+      response,
+      result.isNew ? { status: 201 } : undefined
+    );
   } catch (error) {
     console.error("ルーム作成エラー:", error);
+
+    // エラーメッセージに応じてステータスコードを設定
+    const errorMessage =
+      error instanceof Error ? error.message : "ルームの作成に失敗しました";
+    let statusCode = 500;
+
+    if (errorMessage === "投稿が見つかりません") {
+      statusCode = 404;
+    } else if (errorMessage === "ルームを作成する権限がありません") {
+      statusCode = 403;
+    }
+
     const response: BulletinApiResponse = {
       success: false,
-      error: "ルームの作成に失敗しました",
+      error: errorMessage,
     };
-    return NextResponse.json(response, { status: 500 });
+    return NextResponse.json(response, { status: statusCode });
   }
 }

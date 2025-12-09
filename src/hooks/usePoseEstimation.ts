@@ -8,11 +8,6 @@ export interface PoseLandmark {
   visibility?: number;
 }
 
-interface PoseEstimationResult {
-  landmarks: PoseLandmark[][];
-  worldLandmarks: PoseLandmark[][];
-}
-
 interface UsePoseEstimationReturn {
   landmarks: PoseLandmark[] | null;
   worldLandmarks: PoseLandmark[] | null;
@@ -166,6 +161,8 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     try {
       setError(null);
 
+      // If videoRef is managed by React, it should be set already.
+      // If not, we create a hidden one.
       if (!videoRef.current) {
         const video = document.createElement("video");
         video.style.display = "none";
@@ -177,20 +174,24 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 480 }, // 640→480に削減（パフォーマンス最適化）
-          height: { ideal: 360 }, // 480→360に削減
+          width: { ideal: 480 },
+          height: { ideal: 360 },
           facingMode: "user",
-          frameRate: { ideal: 30, max: 30 }, // フレームレート制限
+          frameRate: { ideal: 30, max: 30 },
         },
       });
 
       streamRef.current = stream;
-      videoRef.current.srcObject = stream;
-      setIsCameraPermissionGranted(true);
 
-      await new Promise<void>((resolve) => {
-        videoRef.current!.onloadeddata = () => resolve();
-      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Explicitly play to ensure it starts (sometimes required even with autoPlay)
+        await videoRef.current
+          .play()
+          .catch((e) => console.warn("Video play error:", e));
+      }
+
+      setIsCameraPermissionGranted(true);
 
       // ポーズ検出ループを開始
       detectPose();
@@ -216,9 +217,22 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
     }
 
     if (videoRef.current) {
+      // ストリームの解除
       videoRef.current.srcObject = null;
-      document.body.removeChild(videoRef.current);
-      videoRef.current = null;
+
+      // 内部生成（document.bodyの直下）の場合のみ削除・破壊する
+      // React管理下にある場合（parentNodeがbody以外）は削除しない
+      if (videoRef.current.parentNode === document.body) {
+        try {
+          document.body.removeChild(videoRef.current);
+        } catch (e) {
+          console.warn("Failed to remove internal video element:", e);
+        }
+        // 自分で作った場合は参照も消す
+        videoRef.current = null;
+      } else {
+        // else: React管理の場合は要素を残し、次回のstartCameraで再利用
+      }
     }
 
     // タイムスタンプをリセット

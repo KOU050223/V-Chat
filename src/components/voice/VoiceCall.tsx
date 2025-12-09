@@ -15,11 +15,25 @@ import {
 } from "@livekit/components-react";
 import { ConnectionState, LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X } from "lucide-react";
+import { Mic, MicOff, Settings, X, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
 import type { VoiceCallState } from "@/types/voice";
+import { AvatarSender } from "@/components/avatar/AvatarSender";
+import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
+import { BoneRotations, AvatarMetadata } from "@/types/avatar";
+import { Canvas, useThree } from "@react-three/fiber";
+
+// Canvas内でカメラ位置を安全に更新するためのヘルパーコンポーネント
+function CameraUpdater({ position }: { position: [number, number, number] }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    camera.position.set(...position);
+    camera.lookAt(0, 1.4, 0); // ターゲットを見続ける
+  }, [camera, position]);
+  return null;
+}
 
 interface VoiceCallProps {
   roomId: string;
@@ -30,8 +44,24 @@ interface VoiceCallProps {
   className?: string; // スタイル調整用
 }
 
-// デバイス選択用コンポーネント
-function DeviceSettings({ onClose }: { onClose: () => void }) {
+// デバイス&3D設定用コンポーネント
+function DeviceSettings({
+  onClose,
+  cameraConfig,
+  setCameraConfig,
+  avatarOffset,
+  setAvatarOffset,
+  avatarScale,
+  setAvatarScale,
+}: {
+  onClose: () => void;
+  cameraConfig: [number, number, number];
+  setCameraConfig: (pos: [number, number, number]) => void;
+  avatarOffset: { x: number; y: number; z: number };
+  setAvatarOffset: (offset: { x: number; y: number; z: number }) => void;
+  avatarScale: number;
+  setAvatarScale: (scale: number) => void;
+}) {
   const {
     devices: audioInputDevices,
     activeDeviceId: activeAudioInputDeviceId,
@@ -44,10 +74,66 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
     setActiveMediaDevice: setActiveAudioOutputDevice,
   } = useMediaDeviceSelect({ kind: "audiooutput" });
 
+  // ドラッグ処理のロジック
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{
+    x: number;
+    y: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging || !dragStartRef.current) return;
+
+      const dx = e.clientX - dragStartRef.current.x;
+      const dy = e.clientY - dragStartRef.current.y;
+
+      setOffset({
+        x: dragStartRef.current.offsetX + dx,
+        y: dragStartRef.current.offsetY + dy,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    if (isDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging]);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      offsetX: offset.x,
+      offsetY: offset.y,
+    };
+  };
+
   return (
-    <div className="absolute bottom-full mb-4 left-1/2 transform -translate-x-1/2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4 z-50">
-      <div className="flex justify-between items-center mb-4">
-        <h3 className="text-white font-semibold">オーディオ設定</h3>
+    <div
+      className="fixed bottom-24 left-4 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col"
+      style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
+    >
+      <div
+        className="flex justify-between items-center p-4 bg-gray-900/50 cursor-grab active:cursor-grabbing border-b border-gray-700"
+        onMouseDown={handleMouseDown}
+      >
+        <h3 className="text-white font-semibold flex-1 select-none">
+          オーディオ設定
+        </h3>
         <Button
           variant="ghost"
           size="sm"
@@ -58,47 +144,260 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <label
-            htmlFor="audio-input-select"
-            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
-          >
-            マイク
-          </label>
-          <select
-            id="audio-input-select"
-            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-            value={activeAudioInputDeviceId}
-            onChange={(e) => setActiveAudioInputDevice(e.target.value)}
-          >
-            {audioInputDevices.map((device: MediaDeviceInfo) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `マイク ${device.deviceId.slice(0, 5)}...`}
-              </option>
-            ))}
-          </select>
+      <div className="p-4 pt-2">
+        {/* オーディオ設定 (既存) */}
+        <div className="space-y-4 border-b border-gray-700 pb-4">
+          <h4 className="text-sm font-semibold text-gray-300">
+            オーディオ設定
+          </h4>
+          <div className="space-y-2">
+            <label
+              htmlFor="audio-input-select"
+              className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+            >
+              マイク
+            </label>
+            <select
+              id="audio-input-select"
+              className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+              value={activeAudioInputDeviceId}
+              onChange={(e) => setActiveAudioInputDevice(e.target.value)}
+            >
+              {audioInputDevices.map((device: MediaDeviceInfo) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `マイク ${device.deviceId.slice(0, 5)}...`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="audio-output-select"
+              className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+            >
+              スピーカー
+            </label>
+            <select
+              id="audio-output-select"
+              className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+              value={activeAudioOutputDeviceId}
+              onChange={(e) => setActiveAudioOutputDevice(e.target.value)}
+            >
+              {audioOutputDevices.map((device: MediaDeviceInfo) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label ||
+                    `スピーカー ${device.deviceId.slice(0, 5)}...`}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <label
-            htmlFor="audio-output-select"
-            className="text-xs text-gray-400 uppercase font-bold tracking-wider"
-          >
-            スピーカー
-          </label>
-          <select
-            id="audio-output-select"
-            className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
-            value={activeAudioOutputDeviceId}
-            onChange={(e) => setActiveAudioOutputDevice(e.target.value)}
-          >
-            {audioOutputDevices.map((device: MediaDeviceInfo) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {device.label || `スピーカー ${device.deviceId.slice(0, 5)}...`}
-              </option>
-            ))}
-          </select>
+        {/* 3D表示調整設定 (新規) */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-gray-300">3D表示調整</h4>
+
+          {/* カメラ位置 (ローカル) */}
+          <div className="space-y-2">
+            <div className="text-xs text-green-400 uppercase font-bold tracking-wider flex justify-between">
+              <span>カメラ視点 (自分のみ)</span>
+              <span className="font-mono text-[10px]">
+                X:{cameraConfig[0].toFixed(1)} Y:{cameraConfig[1].toFixed(1)} Z:
+                {cameraConfig[2].toFixed(1)}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label
+                  htmlFor="camera-x-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  左右
+                </label>
+                <input
+                  id="camera-x-range"
+                  type="range"
+                  min="-2"
+                  max="2"
+                  step="0.1"
+                  value={cameraConfig[0]}
+                  onChange={(e) =>
+                    setCameraConfig([
+                      parseFloat(e.target.value),
+                      cameraConfig[1],
+                      cameraConfig[2],
+                    ])
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="camera-y-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  高さ
+                </label>
+                <input
+                  id="camera-y-range"
+                  type="range"
+                  min="0.5"
+                  max="2.5"
+                  step="0.1"
+                  value={cameraConfig[1]}
+                  onChange={(e) =>
+                    setCameraConfig([
+                      cameraConfig[0],
+                      parseFloat(e.target.value),
+                      cameraConfig[2],
+                    ])
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="camera-z-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  距離
+                </label>
+                <input
+                  id="camera-z-range"
+                  type="range"
+                  min="0.2"
+                  max="3"
+                  step="0.1"
+                  value={cameraConfig[2]}
+                  onChange={(e) =>
+                    setCameraConfig([
+                      cameraConfig[0],
+                      cameraConfig[1],
+                      parseFloat(e.target.value),
+                    ])
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* アバター位置補正 (共有) */}
+          <div className="space-y-2">
+            <div className="text-xs text-blue-400 uppercase font-bold tracking-wider flex justify-between">
+              <span>アバター位置補正 (共有)</span>
+              <span className="font-mono text-[10px]">
+                X:{avatarOffset.x.toFixed(2)} Y:{avatarOffset.y.toFixed(2)} Z:
+                {avatarOffset.z.toFixed(2)}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label
+                  htmlFor="avatar-offset-x-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  X (左右)
+                </label>
+                <input
+                  id="avatar-offset-x-range"
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.05"
+                  value={avatarOffset.x}
+                  onChange={(e) =>
+                    setAvatarOffset({
+                      ...avatarOffset,
+                      x: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="avatar-offset-y-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  Y (高さ)
+                </label>
+                <input
+                  id="avatar-offset-y-range"
+                  type="range"
+                  min="-1.5"
+                  max="1"
+                  step="0.05"
+                  value={avatarOffset.y}
+                  onChange={(e) =>
+                    setAvatarOffset({
+                      ...avatarOffset,
+                      y: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="avatar-offset-z-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
+                  Z (前後)
+                </label>
+                <input
+                  id="avatar-offset-z-range"
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.05"
+                  value={avatarOffset.z}
+                  onChange={(e) =>
+                    setAvatarOffset({
+                      ...avatarOffset,
+                      z: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                />
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              ※この設定は他の参加者の画面にも反映されます
+            </p>
+          </div>
+
+          {/* アバターサイズ (共有) */}
+          <div className="space-y-2">
+            <label
+              htmlFor="avatar-scale-range"
+              className="text-xs text-purple-400 uppercase font-bold tracking-wider flex justify-between"
+            >
+              <span>アバターサイズ (共有)</span>
+              <span className="font-mono text-[10px]">
+                x{avatarScale.toFixed(2)}
+              </span>
+            </label>
+            <div>
+              <input
+                id="avatar-scale-range"
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.05"
+                value={avatarScale}
+                onChange={(e) => setAvatarScale(parseFloat(e.target.value))}
+                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                aria-label="アバターサイズ調整"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                <span>0.5x</span>
+                <span>1.0x</span>
+                <span>2.0x</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -106,53 +405,73 @@ function DeviceSettings({ onClose }: { onClose: () => void }) {
 }
 
 // 参加者個別のタイルコンポーネント
-function ParticipantTile() {
+function ParticipantTile({
+  localRotations,
+  cameraConfig,
+  myAvatarOffset,
+  myAvatarScale,
+}: {
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset?: { x: number; y: number; z: number };
+  myAvatarScale?: number;
+}) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
 
   if (!participant) return null;
-
-  // 名前からイニシャルを取得
-  const getInitials = (name: string) => {
-    return name.slice(0, 2).toUpperCase();
-  };
 
   // 表示名（ID部分は隠す）
   const displayName =
     participant.identity.split("-")[0] || participant.identity;
   const isMicrophoneEnabled = participant.isMicrophoneEnabled;
 
+  // 自分の場合のみ、ローカルの回転情報を渡す
+  const manualRotations = participant.isLocal ? localRotations : undefined;
+
   return (
-    <div className="relative flex flex-col items-center justify-center p-4">
+    <div className="relative flex flex-col items-center justify-center p-2 w-full h-full">
       <div
-        className={`relative w-24 h-24 rounded-full flex items-center justify-center mb-3 transition-all duration-300 ${
+        className={`relative w-48 h-48 sm:w-56 sm:h-56 rounded-xl overflow-hidden mb-3 transition-all duration-300 border-2 ${
           isSpeaking
-            ? "ring-4 ring-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
-            : "ring-2 ring-gray-700"
-        } ${
-          participant.isLocal
-            ? "bg-gradient-to-br from-blue-600 to-purple-600"
-            : "bg-gray-700"
-        }`}
+            ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+            : "border-gray-700"
+        } bg-gray-900`}
       >
-        <span className="text-2xl font-bold text-white">
-          {getInitials(displayName)}
-        </span>
+        {/* 3Dアバター表示 */}
+        <Canvas>
+          <CameraUpdater position={cameraConfig} />
+          <ambientLight intensity={0.8} />
+          <directionalLight position={[0, 0, 5]} intensity={1} />
+          {/* <OrbitControls target={[0, 1.4, 0]} /> 安定した表示のためOrbitControlsは無効化（必要に応じて有効化） */}
+          <AvatarReceiver
+            participant={participant}
+            defaultAvatarUrl="/vrm/vroid_model_6689695945343414173.vrm"
+            manualRotations={manualRotations}
+            // 自分の場合はローカルの設定を即時反映し、他人の場合はMetadataから読み取る
+            localOverrideOffset={
+              participant.isLocal ? myAvatarOffset : undefined
+            }
+            localOverrideScale={participant.isLocal ? myAvatarScale : undefined}
+          />
+        </Canvas>
 
         {/* ミュートアイコン */}
         {!isMicrophoneEnabled && (
-          <div className="absolute bottom-0 right-0 bg-red-500 rounded-full p-1.5 border-2 border-gray-900">
+          <div className="absolute bottom-2 right-2 bg-red-500 rounded-full p-1.5 border-2 border-gray-900 z-10">
             <MicOff className="w-4 h-4 text-white" />
           </div>
         )}
+
+        {/* 発話インジケーターオーバーレイ (ボーダーで不十分な場合のオプション) */}
+        {isSpeaking && (
+          <div className="absolute inset-0 border-4 border-green-500 rounded-xl pointer-events-none opacity-50"></div>
+        )}
       </div>
 
-      <div className="text-center">
-        <p className="text-white font-medium truncate max-w-[120px]">
+      <div className="text-center w-full">
+        <p className="text-white font-medium truncate px-2">
           {displayName} {participant.isLocal && "(あなた)"}
-        </p>
-        <p className="text-xs text-gray-400 mt-1 h-4">
-          {isSpeaking ? "話しています..." : ""}
         </p>
       </div>
     </div>
@@ -160,14 +479,31 @@ function ParticipantTile() {
 }
 
 // 参加者グリッド表示コンポーネント
-function ParticipantGrid() {
+function ParticipantGrid({
+  localRotations,
+  cameraConfig,
+  myAvatarOffset,
+  myAvatarScale,
+}: {
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+}) {
   const participants = useParticipants();
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-8 justify-items-center">
+    <div className="w-full max-w-6xl mx-auto p-4 h-full flex items-center justify-center">
+      <div className="flex flex-wrap justify-center gap-6 w-full">
         <ParticipantLoop participants={participants}>
-          <ParticipantTile />
+          <div className="w-64 h-72">
+            <ParticipantTile
+              localRotations={localRotations}
+              cameraConfig={cameraConfig}
+              myAvatarOffset={myAvatarOffset}
+              myAvatarScale={myAvatarScale}
+            />
+          </div>
         </ParticipantLoop>
       </div>
 
@@ -194,107 +530,145 @@ function VoiceCallContent({
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
     useLocalParticipant();
+  // ローカル参加者の音声レベル
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // アバター統合の状態
+  const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
+    null
+  );
+  const [isCameraOn, setIsCameraOn] = useState(true); // AvatarSenderの制御用
+
+  // 3D調整の状態
+  const [cameraConfig, setCameraConfig] = useState<[number, number, number]>(
+    () => {
+      const defaultConfig: [number, number, number] = [0, 1.4, 0.7];
+      // localStorageから復元（利用可能な場合）
+      if (typeof window !== "undefined") {
+        try {
+          const saved = localStorage.getItem("vchat_camera_config");
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            // 配列かつ3要素かつすべて数値であることを確認
+            if (
+              Array.isArray(parsed) &&
+              parsed.length === 3 &&
+              parsed.every((v) => typeof v === "number" && !isNaN(v))
+            ) {
+              return parsed as [number, number, number];
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to parse camera config from localStorage", e);
+        }
+      }
+      return defaultConfig;
+    }
+  );
+
+  const [avatarOffset, setAvatarOffset] = useState<{
+    x: number;
+    y: number;
+    z: number;
+  }>(() => {
+    const defaultOffset = { x: 0, y: 0, z: 0 };
+    // localStorageから復元（利用可能な場合）
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("vchat_avatar_offset");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // オブジェクトかつx, y, zプロパティがすべて数値であることを確認
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.z === "number" &&
+            !isNaN(parsed.x) &&
+            !isNaN(parsed.y) &&
+            !isNaN(parsed.z)
+          ) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse avatar offset from localStorage", e);
+      }
+    }
+    return defaultOffset;
+  });
+
+  const [avatarScale, setAvatarScale] = useState<number>(() => {
+    const defaultScale = 1.0;
+    // localStorageから復元（利用可能な場合）
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("vchat_avatar_scale");
+        if (saved) {
+          const parsed = parseFloat(saved);
+          // 有効な数値であることを確認
+          if (!isNaN(parsed) && isFinite(parsed)) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse avatar scale from localStorage", e);
+      }
+    }
+    return defaultScale;
+  });
+
+  // 設定の永続化
+  useEffect(() => {
+    localStorage.setItem("vchat_camera_config", JSON.stringify(cameraConfig));
+  }, [cameraConfig]);
+
+  useEffect(() => {
+    localStorage.setItem("vchat_avatar_offset", JSON.stringify(avatarOffset));
+  }, [avatarOffset]);
+
+  useEffect(() => {
+    localStorage.setItem("vchat_avatar_scale", avatarScale.toString());
+  }, [avatarScale]);
+
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // 接続状態の監視と親への通知
+  // 初期メタデータの設定（アバターURL）
   useEffect(() => {
-    const isConnected = connectionState === ConnectionState.Connected;
-    // 参加者数はMapのサイズから取得
-    const participantCount = room.remoteParticipants.size + 1; // 自分を含める
+    // 接続済みかつ権限がある場合のみMetadataを設定
+    // 初期設定後もavatarOffsetの変更に伴い更新する
+    console.log(
+      "[VoiceCall] Metadata Effect Triggered. RoomState:",
+      room.state,
+      "LocalParticipant:",
+      !!localParticipant
+    );
 
-    // サーバー側の参加者数との不整合を検出（開発環境でログ出力）
-    if (
-      serverMemberCount !== undefined &&
-      serverMemberCount !== participantCount &&
-      process.env.NODE_ENV === "development"
-    ) {
-      console.warn(
-        `参加者数の不整合を検出: サーバー=${serverMemberCount}, クライアント=${participantCount}`
-      );
-    }
-
-    onStateChange?.({
-      isConnected,
-      isMuted: !isMicrophoneEnabled,
-      participants: Array.from(room.remoteParticipants.values()),
-      actualParticipantCount: participantCount,
-    });
-  }, [
-    connectionState,
-    isMicrophoneEnabled,
-    room.remoteParticipants,
-    onStateChange,
-    serverMemberCount,
-  ]);
-
-  // 音声レベル監視ロジック
-  useEffect(() => {
-    const audioTrack = microphoneTrack?.track as LocalAudioTrack | undefined;
-    if (!audioTrack?.mediaStreamTrack) {
-      return;
-    }
-
-    const track = audioTrack.mediaStreamTrack;
-
-    try {
-      const AudioContextClass =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext;
-      const audioContext = new AudioContextClass();
-      audioContextRef.current = audioContext;
-      const analyser = audioContext.createAnalyser();
-      analyserRef.current = analyser;
-      analyser.fftSize = 2048;
-      analyser.smoothingTimeConstant = 0.8;
-
-      const source = audioContext.createMediaStreamSource(
-        new MediaStream([track])
-      );
-      source.connect(analyser);
-
-      const updateAudioLevel = () => {
-        if (!analyser) return;
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
-
-        let sum = 0;
-        let count = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          if (dataArray[i] > 0) {
-            sum += dataArray[i];
-            count++;
-          }
+    if (localParticipant && room.state === "connected") {
+      const updateMeta = async () => {
+        try {
+          // TODO: ユーザープロフィールに基づいてavatarUrlを動的にする
+          const metadata: AvatarMetadata = {
+            avatarUrl: "/vrm/vroid_model_6689695945343414173.vrm",
+            offset: avatarOffset, // offsetを含める
+            scale: avatarScale, // scaleを含める
+          };
+          await localParticipant.setMetadata(JSON.stringify(metadata));
+        } catch (e) {
+          console.error("Failed to set metadata:", e);
         }
-        const average = count > 0 ? sum / count : 0;
-        const normalizedLevel = Math.min(100, (average / 255) * 100);
-        setLocalAudioLevel(normalizedLevel);
-
-        animationRef.current = requestAnimationFrame(updateAudioLevel);
       };
 
-      updateAudioLevel();
-    } catch (error) {
-      console.error("Audio monitoring setup failed:", error);
-      setDisconnectError(
-        "音声監視の設定に失敗しました。もう一度お試しください。"
-      );
+      // スライダー操作中の過度な更新を防ぐため、少しデバウンスさせる
+      const timer = setTimeout(updateMeta, 500);
+      return () => clearTimeout(timer);
     }
-
-    return () => {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, [microphoneTrack]);
+  }, [localParticipant, room.state, avatarOffset, avatarScale]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
 
   // マイクの切り替え
   const toggleMute = useCallback(async () => {
@@ -321,6 +695,7 @@ function VoiceCallContent({
 
   // UIレンダリング
   if (connectionState !== ConnectionState.Connected) {
+    // ... loading UI ...
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
@@ -333,9 +708,23 @@ function VoiceCallContent({
 
   return (
     <div className="flex flex-col h-full w-full relative">
+      {/* 送信側のための不可視/ユーティリティコンポーネント */}
+      <div className="absolute top-0 right-0 w-32 h-24 opacity-0 hover:opacity-100 transition-opacity z-50 pointer-events-none hover:pointer-events-auto bg-black border border-gray-600">
+        {/* カメラプレビュー（デバッグ用の小窓） */}
+        <AvatarSender
+          autoStart={isCameraOn}
+          onRotationsUpdate={setLocalRotations}
+        />
+      </div>
+
       {/* メインエリア：参加者グリッド */}
       <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
-        <ParticipantGrid />
+        <ParticipantGrid
+          localRotations={localRotations}
+          cameraConfig={cameraConfig}
+          myAvatarOffset={avatarOffset}
+          myAvatarScale={avatarScale}
+        />
       </div>
 
       {/* エラーメッセージ */}
@@ -349,7 +738,15 @@ function VoiceCallContent({
       <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 bg-gray-900/90 p-4 rounded-2xl border border-gray-700 shadow-xl backdrop-blur-sm z-50">
         {/* 設定メニュー */}
         {showSettings && (
-          <DeviceSettings onClose={() => setShowSettings(false)} />
+          <DeviceSettings
+            onClose={() => setShowSettings(false)}
+            cameraConfig={cameraConfig}
+            setCameraConfig={setCameraConfig}
+            avatarOffset={avatarOffset}
+            setAvatarOffset={setAvatarOffset}
+            avatarScale={avatarScale}
+            setAvatarScale={setAvatarScale}
+          />
         )}
 
         {/* 設定ボタン */}
@@ -362,6 +759,27 @@ function VoiceCallContent({
           }`}
         >
           <Settings className="w-5 h-5" />
+        </Button>
+
+        {/* カメラ (アバターモーション) ボタン */}
+        <Button
+          onClick={() => setIsCameraOn(!isCameraOn)}
+          variant={isCameraOn ? "default" : "destructive"} // ONなら緑っぽい、OFFなら赤、または統一スタイル
+          size="lg"
+          className={`rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 ${
+            isCameraOn
+              ? "bg-green-600 hover:bg-green-700 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+              : "bg-gray-700 hover:bg-gray-600"
+          }`}
+          title="モーションキャプチャ切り替え"
+        >
+          <div className="text-white font-bold text-xs">
+            {isCameraOn ? (
+              <Video className="w-5 h-5" />
+            ) : (
+              <VideoOff className="w-5 h-5" />
+            )}
+          </div>
         </Button>
 
         {/* マイクボタン */}
@@ -381,7 +799,6 @@ function VoiceCallContent({
             <MicOff className="w-8 h-8" />
           )}
         </Button>
-
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">
           <div className="flex items-end gap-1 h-8 mb-1">

@@ -545,12 +545,27 @@ function VoiceCallContent({
   // 3D調整の状態
   const [cameraConfig, setCameraConfig] = useState<[number, number, number]>(
     () => {
+      const defaultConfig: [number, number, number] = [0, 1.4, 0.7];
       // localStorageから復元（利用可能な場合）
       if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("vchat_camera_config");
-        if (saved) return JSON.parse(saved);
+        try {
+          const saved = localStorage.getItem("vchat_camera_config");
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            // 配列かつ3要素かつすべて数値であることを確認
+            if (
+              Array.isArray(parsed) &&
+              parsed.length === 3 &&
+              parsed.every((v) => typeof v === "number" && !isNaN(v))
+            ) {
+              return parsed as [number, number, number];
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to parse camera config from localStorage", e);
+        }
       }
-      return [0, 1.4, 0.7]; // デフォルト
+      return defaultConfig;
     }
   );
 
@@ -559,21 +574,52 @@ function VoiceCallContent({
     y: number;
     z: number;
   }>(() => {
+    const defaultOffset = { x: 0, y: 0, z: 0 };
     // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("vchat_avatar_offset");
-      if (saved) return JSON.parse(saved);
+      try {
+        const saved = localStorage.getItem("vchat_avatar_offset");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // オブジェクトかつx, y, zプロパティがすべて数値であることを確認
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.z === "number" &&
+            !isNaN(parsed.x) &&
+            !isNaN(parsed.y) &&
+            !isNaN(parsed.z)
+          ) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse avatar offset from localStorage", e);
+      }
     }
-    return { x: 0, y: 0, z: 0 }; // デフォルト
+    return defaultOffset;
   });
 
   const [avatarScale, setAvatarScale] = useState<number>(() => {
+    const defaultScale = 1.0;
     // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("vchat_avatar_scale");
-      if (saved) return parseFloat(saved);
+      try {
+        const saved = localStorage.getItem("vchat_avatar_scale");
+        if (saved) {
+          const parsed = parseFloat(saved);
+          // 有効な数値であることを確認
+          if (!isNaN(parsed) && isFinite(parsed)) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to parse avatar scale from localStorage", e);
+      }
     }
-    return 1.0; // デフォルト
+    return defaultScale;
   });
 
   // 設定の永続化

@@ -1,11 +1,12 @@
 export interface AvatarMetadata {
   avatarUrl: string; // VRMファイルのURL
-  avatarId?: string; // アバター識別子
-  offset?: { x: number; y: number; z: number }; // アバターの表示位置補正（共有）
+  avatarId?: string; // アバターID
+  offset?: { x: number; y: number; z: number }; // アバターの位置オフセット（共有）
+  scale?: number; // アバターのスケール（デフォルト: 1.0）
 }
 
-// 転送するボーンの回転情報（Quaternion）
-// [x, y, z, w] の配列として軽量化
+// 転送されるボーン回転データ（クォータニオン）
+// 軽量化のため [x, y, z, w] の配列形式を使用
 export type QuaternionArray = [number, number, number, number];
 
 export interface BoneRotations {
@@ -32,9 +33,9 @@ export interface BoneRotations {
 }
 
 export interface MotionDataPacket {
-  t: "m"; // type: motion
-  b?: Record<string, number>; // Blendshapes (Face)
-  r?: [number, number, number]; // Head Rotation (Legacy support / easy access)
-  bones?: BoneRotations; // Upper body bone rotations
-  v: 0 | 1; // Camera Active (1=ON, 0=OFF)
+  t: "m"; // タイプ: モーション
+  b?: Record<string, number>; // ブレンドシェイプ（表情）
+  r?: [number, number, number]; // 頭部の回転（レガシーサポート/簡易アクセス用）
+  bones?: BoneRotations; // 上半身のボーン回転
+  v: 0 | 1; // カメラアクティブ状態（1=ON, 0=OFF）
 }

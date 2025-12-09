@@ -22,15 +22,15 @@ import { app } from "@/lib/firebaseConfig";
 import type { VoiceCallState } from "@/types/voice";
 import { AvatarSender } from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
-import { BoneRotations, AvatarMetadata } from "@/types/avatar"; // Update import
-import { Canvas, useThree } from "@react-three/fiber"; // Update import
+import { BoneRotations, AvatarMetadata } from "@/types/avatar";
+import { Canvas, useThree } from "@react-three/fiber";
 
-// Helper component to update camera position safely within Canvas
+// Canvas内でカメラ位置を安全に更新するためのヘルパーコンポーネント
 function CameraUpdater({ position }: { position: [number, number, number] }) {
   const { camera } = useThree();
   useEffect(() => {
     camera.position.set(...position);
-    camera.lookAt(0, 1.4, 0); // Keep looking at target
+    camera.lookAt(0, 1.4, 0); // ターゲットを見続ける
   }, [camera, position]);
   return null;
 }
@@ -51,12 +51,16 @@ function DeviceSettings({
   setCameraConfig,
   avatarOffset,
   setAvatarOffset,
+  avatarScale,
+  setAvatarScale,
 }: {
   onClose: () => void;
   cameraConfig: [number, number, number];
   setCameraConfig: (pos: [number, number, number]) => void;
   avatarOffset: { x: number; y: number; z: number };
   setAvatarOffset: (offset: { x: number; y: number; z: number }) => void;
+  avatarScale: number;
+  setAvatarScale: (scale: number) => void;
 }) {
   const {
     devices: audioInputDevices,
@@ -70,7 +74,7 @@ function DeviceSettings({
     setActiveMediaDevice: setActiveAudioOutputDevice,
   } = useMediaDeviceSelect({ kind: "audiooutput" });
 
-  // Drag Logic
+  // ドラッグ処理のロジック
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{
@@ -141,7 +145,7 @@ function DeviceSettings({
       </div>
 
       <div className="p-4 pt-2">
-        {/* Audio Settings (Existing) */}
+        {/* オーディオ設定 (既存) */}
         <div className="space-y-4 border-b border-gray-700 pb-4">
           <h4 className="text-sm font-semibold text-gray-300">
             オーディオ設定
@@ -190,11 +194,11 @@ function DeviceSettings({
           </div>
         </div>
 
-        {/* 3D Adjustment Settings (New) */}
+        {/* 3D表示調整設定 (新規) */}
         <div className="space-y-4">
           <h4 className="text-sm font-semibold text-gray-300">3D表示調整</h4>
 
-          {/* Camera Position (Local) */}
+          {/* カメラ位置 (ローカル) */}
           <div className="space-y-2">
             <label className="text-xs text-green-400 uppercase font-bold tracking-wider flex justify-between">
               <span>カメラ視点 (自分のみ)</span>
@@ -267,7 +271,7 @@ function DeviceSettings({
             </div>
           </div>
 
-          {/* Avatar Global Offset (Shared) */}
+          {/* アバター位置補正 (共有) */}
           <div className="space-y-2">
             <label className="text-xs text-blue-400 uppercase font-bold tracking-wider flex justify-between">
               <span>アバター位置補正 (共有)</span>
@@ -339,6 +343,32 @@ function DeviceSettings({
               ※この設定は他の参加者の画面にも反映されます
             </p>
           </div>
+
+          {/* アバターサイズ (共有) */}
+          <div className="space-y-2">
+            <label className="text-xs text-purple-400 uppercase font-bold tracking-wider flex justify-between">
+              <span>アバターサイズ (共有)</span>
+              <span className="font-mono text-[10px]">
+                x{avatarScale.toFixed(2)}
+              </span>
+            </label>
+            <div>
+              <input
+                type="range"
+                min="0.5"
+                max="2.0"
+                step="0.05"
+                value={avatarScale}
+                onChange={(e) => setAvatarScale(parseFloat(e.target.value))}
+                className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-gray-500 mt-1">
+                <span>0.5x</span>
+                <span>1.0x</span>
+                <span>2.0x</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -350,10 +380,12 @@ function ParticipantTile({
   localRotations,
   cameraConfig,
   myAvatarOffset,
+  myAvatarScale,
 }: {
   localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset?: { x: number; y: number; z: number };
+  myAvatarScale?: number;
 }) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
@@ -365,7 +397,7 @@ function ParticipantTile({
     participant.identity.split("-")[0] || participant.identity;
   const isMicrophoneEnabled = participant.isMicrophoneEnabled;
 
-  // Pass manual rotations only if it's the local participant
+  // 自分の場合のみ、ローカルの回転情報を渡す
   const manualRotations = participant.isLocal ? localRotations : undefined;
 
   return (
@@ -377,20 +409,21 @@ function ParticipantTile({
             : "border-gray-700"
         } bg-gray-900`}
       >
-        {/* 3D Avatar View */}
+        {/* 3Dアバター表示 */}
         <Canvas>
           <CameraUpdater position={cameraConfig} />
           <ambientLight intensity={0.8} />
           <directionalLight position={[0, 0, 5]} intensity={1} />
-          {/* <OrbitControls target={[0, 1.4, 0]} /> Orbit disabled for stable view, or enable if needed */}
+          {/* <OrbitControls target={[0, 1.4, 0]} /> 安定した表示のためOrbitControlsは無効化（必要に応じて有効化） */}
           <AvatarReceiver
             participant={participant}
             defaultAvatarUrl="/vrm/vroid_model_6689695945343414173.vrm"
             manualRotations={manualRotations}
-            // Pass local override offset if it is YOU (to see changes instantly), else AvatarReceiver reads from metadata
+            // 自分の場合はローカルの設定を即時反映し、他人の場合はMetadataから読み取る
             localOverrideOffset={
               participant.isLocal ? myAvatarOffset : undefined
             }
+            localOverrideScale={participant.isLocal ? myAvatarScale : undefined}
           />
         </Canvas>
 
@@ -401,7 +434,7 @@ function ParticipantTile({
           </div>
         )}
 
-        {/* Speaking Indicator Overlay (Optional, if border is not enough) */}
+        {/* 発話インジケーターオーバーレイ (ボーダーで不十分な場合のオプション) */}
         {isSpeaking && (
           <div className="absolute inset-0 border-4 border-green-500 rounded-xl pointer-events-none opacity-50"></div>
         )}
@@ -421,10 +454,12 @@ function ParticipantGrid({
   localRotations,
   cameraConfig,
   myAvatarOffset,
+  myAvatarScale,
 }: {
   localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
 }) {
   const participants = useParticipants();
 
@@ -437,6 +472,7 @@ function ParticipantGrid({
               localRotations={localRotations}
               cameraConfig={cameraConfig}
               myAvatarOffset={myAvatarOffset}
+              myAvatarScale={myAvatarScale}
             />
           </div>
         </ParticipantLoop>
@@ -465,27 +501,31 @@ function VoiceCallContent({
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
     useLocalParticipant();
-  // ... inside VoiceCallContent ...
+  // ローカル参加者の音声レベル
   const [localAudioLevel, setLocalAudioLevel] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
-  // Avatar Integration State
+  // アバター統合の状態
   const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
     null
   );
-  const [isCameraOn, setIsCameraOn] = useState(true); // Control for AvatarSender
+  const [isCameraOn, setIsCameraOn] = useState(true); // AvatarSenderの制御用
   const [initMeta, setInitMeta] = useState(false);
 
-  // 3D Adjustment state
+  // 3D調整の状態
   const [cameraConfig, setCameraConfig] = useState<[number, number, number]>(
     () => {
-      // Restore from localStorage if available
+      // localStorageから復元（利用可能な場合）
       if (typeof window !== "undefined") {
-        const saved = localStorage.getItem("vchat_camera_config");
-        if (saved) return JSON.parse(saved);
+        try {
+          const saved = localStorage.getItem("vchat_camera_config");
+          if (saved) return JSON.parse(saved);
+        } catch (e) {
+          console.warn("Failed to parse camera config from localStorage", e);
+        }
       }
-      return [0, 1.4, 0.7]; // Default
+      return [0, 1.4, 0.7]; // デフォルト
     }
   );
 
@@ -494,15 +534,32 @@ function VoiceCallContent({
     y: number;
     z: number;
   }>(() => {
-    // Restore from localStorage if available
+    // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("vchat_avatar_offset");
-      if (saved) return JSON.parse(saved);
+      try {
+        const saved = localStorage.getItem("vchat_avatar_offset");
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn("Failed to parse avatar offset from localStorage", e);
+      }
     }
-    return { x: 0, y: 0, z: 0 }; // Default
+    return { x: 0, y: 0, z: 0 }; // デフォルト
   });
 
-  // Persist settings
+  const [avatarScale, setAvatarScale] = useState<number>(() => {
+    // localStorageから復元（利用可能な場合）
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("vchat_avatar_scale");
+        if (saved) return parseFloat(saved);
+      } catch (e) {
+        console.warn("Failed to parse avatar scale from localStorage", e);
+      }
+    }
+    return 1.0; // デフォルト
+  });
+
+  // 設定の永続化
   useEffect(() => {
     localStorage.setItem("vchat_camera_config", JSON.stringify(cameraConfig));
   }, [cameraConfig]);
@@ -511,39 +568,46 @@ function VoiceCallContent({
     localStorage.setItem("vchat_avatar_offset", JSON.stringify(avatarOffset));
   }, [avatarOffset]);
 
+  useEffect(() => {
+    localStorage.setItem("vchat_avatar_scale", avatarScale.toString());
+  }, [avatarScale]);
+
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // Set initial metadata (Avatar URL)
+  // 初期メタデータの設定（アバターURL）
   useEffect(() => {
-    // Only set metadata if we are connected and have permissions.
-    // We also update it if avatarOffset changes after initial set.
-    if (
-      localParticipant &&
-      room.state === "connected" &&
-      localParticipant.permissions?.canUpdateMetadata
-    ) {
+    // 接続済みかつ権限がある場合のみMetadataを設定
+    // 初期設定後もavatarOffsetの変更に伴い更新する
+    console.log(
+      "[VoiceCall] Metadata Effect Triggered. RoomState:",
+      room.state,
+      "LocalParticipant:",
+      !!localParticipant
+    );
+
+    if (localParticipant && room.state === "connected") {
       const updateMeta = async () => {
         try {
-          // TODO: Make avatarUrl dynamic based on user profile
+          // TODO: ユーザープロフィールに基づいてavatarUrlを動的にする
           const metadata: AvatarMetadata = {
             avatarUrl: "/vrm/vroid_model_6689695945343414173.vrm",
-            offset: avatarOffset, // Include the offset
+            offset: avatarOffset, // offsetを含める
+            scale: avatarScale, // scaleを含める
           };
           await localParticipant.setMetadata(JSON.stringify(metadata));
           setInitMeta(true);
-          console.log("Metadata set successfully:", metadata);
         } catch (e) {
           console.error("Failed to set metadata:", e);
         }
       };
 
-      // Debounce slightly to avoid spamming updates while dragging slider
+      // スライダー操作中の過度な更新を防ぐため、少しデバウンスさせる
       const timer = setTimeout(updateMeta, 500);
       return () => clearTimeout(timer);
     }
-  }, [localParticipant, room.state, avatarOffset]); // Re-run when avatarOffset changes
+  }, [localParticipant, room.state, avatarOffset, avatarScale]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
 
   // マイクの切り替え
   const toggleMute = useCallback(async () => {
@@ -583,9 +647,9 @@ function VoiceCallContent({
 
   return (
     <div className="flex flex-col h-full w-full relative">
-      {/* Invisible/Utility components for Sender */}
+      {/* 送信側のための不可視/ユーティリティコンポーネント */}
       <div className="absolute top-0 right-0 w-32 h-24 opacity-0 hover:opacity-100 transition-opacity z-50 pointer-events-none hover:pointer-events-auto bg-black border border-gray-600">
-        {/* Camera Preview (Small debug view) */}
+        {/* カメラプレビュー（デバッグ用の小窓） */}
         <AvatarSender
           autoStart={isCameraOn}
           onRotationsUpdate={setLocalRotations}
@@ -598,6 +662,7 @@ function VoiceCallContent({
           localRotations={localRotations}
           cameraConfig={cameraConfig}
           myAvatarOffset={avatarOffset}
+          myAvatarScale={avatarScale}
         />
       </div>
 
@@ -618,6 +683,8 @@ function VoiceCallContent({
             setCameraConfig={setCameraConfig}
             avatarOffset={avatarOffset}
             setAvatarOffset={setAvatarOffset}
+            avatarScale={avatarScale}
+            setAvatarScale={setAvatarScale}
           />
         )}
 
@@ -636,7 +703,7 @@ function VoiceCallContent({
         {/* カメラ (アバターモーション) ボタン */}
         <Button
           onClick={() => setIsCameraOn(!isCameraOn)}
-          variant={isCameraOn ? "default" : "destructive"} // Greenish if on, Red if off? Or just consistent style
+          variant={isCameraOn ? "default" : "destructive"} // ONなら緑っぽい、OFFなら赤、または統一スタイル
           size="lg"
           className={`rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 ${
             isCameraOn
@@ -645,7 +712,7 @@ function VoiceCallContent({
           }`}
           title="モーションキャプチャ切り替え"
         >
-          {/* Simple Icon for now, assuming Video icon from lucide or text */}
+          {/* 今のところシンプルなアイコン、またはテキストを使用 */}
           <div className="text-white font-bold text-xs">
             {isCameraOn ? "CAM ON" : "CAM OFF"}
           </div>

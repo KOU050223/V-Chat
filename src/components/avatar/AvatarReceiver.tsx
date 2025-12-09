@@ -16,8 +16,9 @@ import * as THREE from "three";
 interface AvatarReceiverProps {
   participant: Participant;
   defaultAvatarUrl?: string;
-  manualRotations?: BoneRotations | null; // For local preview loopback
-  localOverrideOffset?: { x: number; y: number; z: number }; // For immediate local feedback
+  manualRotations?: BoneRotations | null; // ローカルプレビュー用ループバック
+  localOverrideOffset?: { x: number; y: number; z: number }; // ローカル即時反映用のオフセット上書き
+  localOverrideScale?: number; // ローカル即時反映用のスケール上書き
 }
 
 export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
@@ -25,26 +26,28 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
   defaultAvatarUrl,
   manualRotations,
   localOverrideOffset,
+  localOverrideScale,
 }) => {
   const vrmRef = useRef<VRM | null>(null);
-  const [vrmUrl, setVrmUrl] = useState<string | null>(defaultAvatarUrl || null); // Initialize with default
+  const [vrmUrl, setVrmUrl] = useState<string | null>(defaultAvatarUrl || null); // 初期URLを設定
   const [remoteOffset, setRemoteOffset] = useState<{
     x: number;
     y: number;
     z: number;
   } | null>(null);
+  const [remoteScale, setRemoteScale] = useState<number>(1.0);
   const [isCameraActive, setIsCameraActive] = useState(false); // Data v=1/0
 
-  // Animation targets (for Lerp)
+  // アニメーション補間用のターゲット回転情報
   const targetRotations = useRef<Record<string, THREE.Quaternion>>({});
 
   // MetadataからVRM URLを取得
   useEffect(() => {
     if (!participant) return;
 
-    // Metadata check function
+    // メタデータ更新処理
     const updateMetadata = () => {
-      // If metadata exists, try to use it
+      // メタデータが存在する場合は適用する
       if (participant.metadata) {
         try {
           const meta = JSON.parse(participant.metadata) as AvatarMetadata;
@@ -53,13 +56,18 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
             if (meta.offset) {
               setRemoteOffset(meta.offset);
             }
+            // scaleは常に設定する。未設定の場合はデフォルト値(1.0)を使用
+            const newScale = meta.scale ?? 1.0;
+            setRemoteScale(newScale);
+
+            // console.log(`Metadata update for ${participant.identity}:`, meta);
             return;
           }
         } catch (e) {
           console.warn("Failed to parse participant metadata", e);
         }
       }
-      // If no metadata or invalid, fall back to default if provided
+      // メタデータがない、または無効な場合はデフォルトURLを使用
       if (defaultAvatarUrl) {
         setVrmUrl(defaultAvatarUrl);
       }
@@ -78,11 +86,9 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
 
   // データ受信ハンドラ
   useEffect(() => {
-    if (!participant) return;
-
     const handleData = (payload: Uint8Array) => {
-      // Note: topic is not strictly passed in Participant.on('dataReceived') in all versions/types.
-      // We rely on the content check (t: 'm') to filter our packets.
+      // Note: topicはParticipant.on('dataReceived')の全てのバージョン/タイプで厳密に渡されるわけではありません。
+      // パケットをフィルタリングするために、内容チェック (t: 'm') に依存しています。
 
       try {
         const text = new TextDecoder().decode(payload);
@@ -90,27 +96,16 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
 
         if (data.t !== "m") return;
 
-        // Debug log
-        if (data.v === 1 && Math.random() < 0.05) {
-          console.log(
-            "Received motion packet:",
-            Object.keys(data.bones || {}).length,
-            "bones",
-            "from",
-            participant.identity
-          );
-        }
-
-        // Update Camera Active State
+        // カメラのアクティブ状態を更新
         setIsCameraActive(data.v === 1);
 
-        // Update Target Rotations
+        // ターゲット回転情報を更新
         if (data.v === 1 && data.bones) {
           Object.entries(data.bones).forEach(([boneJsonName, quatArray]) => {
-            // Convert avatar.ts bone names to VRM bone names if needed,
-            // but we used compatible names in AvatarSender (camelCase).
-            // Need to map our `spine`, `chest` to VRMHumanBoneName if strict.
-            // VRMHumanBoneName values are like 'spine', 'chest'.
+            // 必要に応じてavatar.tsのボーン名をVRMボーン名に変換する。
+            // ただし、AvatarSenderでは互換性のある名前（camelCase）を使用している。
+            // 厳密な場合は、`spine`、`chest`などをVRMHumanBoneNameにマッピングする必要がある。
+            // VRMHumanBoneNameの値は'spine'、'chest'など。
 
             if (quatArray) {
               const q = new THREE.Quaternion(
@@ -135,17 +130,17 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
     };
   }, [participant]);
 
-  // Every frame, interpolate towards target rotations
+  // 毎フレーム実行: ターゲット回転に向けて補間アニメーション
   useFrame((state, delta) => {
     const vrm = vrmRef.current;
     if (!vrm) return;
 
-    // Local Loopback (Manual Rotations from AvatarSender)
+    // ローカルループバック (AvatarSenderからの手動回転データ)
     if (manualRotations) {
-      // Apply immediately without interpolation (since it's 30fps local)
+      // ローカルは30fpsで更新されるため、補間なしで即時適用
       applyBoneRotations(vrm, manualRotations);
     }
-    // Network Data (Target Rotations with Lerp)
+    // ネットワークデータ (ターゲット回転へのLerp補間)
     else if (isCameraActive) {
       Object.entries(targetRotations.current).forEach(
         ([boneName, targetQuat]) => {
@@ -165,12 +160,15 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
 
   if (!vrmUrl) return null;
 
-  // Determine final position: Local override > Remote Metadata > Default
+  // 最終的な位置を決定: ローカル上書き > リモートMetadata > デフォルト
   const position: [number, number, number] = localOverrideOffset
     ? [localOverrideOffset.x, localOverrideOffset.y, localOverrideOffset.z]
     : remoteOffset
       ? [remoteOffset.x, remoteOffset.y, remoteOffset.z]
       : [0, 0, 0];
+
+  const scaleValue = localOverrideScale ?? remoteScale ?? 1.0;
+  const scale: [number, number, number] = [scaleValue, scaleValue, scaleValue];
 
   return (
     <VRMViewer
@@ -178,15 +176,15 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
       onVRMLoaded={(vrm) => {
         vrmRef.current = vrm;
       }}
-      // Use defaults if props are not provided (though we removed them from interface, we can add them back or hardcode default)
+      // propsが提供されない場合はデフォルトを使用
       position={position}
       rotation={[0, 0, 0]}
-      scale={[1, 1, 1]}
+      scale={scale}
     />
   );
 };
 
-// Helper: Apply bone rotations directly (for local loopback)
+// ヘルパー: ボーン回転を直接適用（ローカルループバック用）
 const applyBoneRotations = (vrm: VRM, rotations: BoneRotations) => {
   const apply = (name: string, qArr?: QuaternionArray) => {
     if (!qArr) return;

@@ -16,11 +16,11 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
   onRotationsUpdate,
 }) => {
   const { localParticipant } = useLocalParticipant();
-  const roomContext = useRoomContext(); // Use Room Context
+  const roomContext = useRoomContext(); // ルームコンテキストを使用
   const [isSending, setIsSending] = useState(false);
   const animationFrameRef = useRef<number | null>(null);
   const lastSendTimeRef = useRef<number>(0);
-  const frameCounterRef = useRef<number>(0); // For logging
+  const frameCounterRef = useRef<number>(0); // ログ用カウンタ
 
   // 送信レート制限 (FPS)
   const SEND_FPS = 30;
@@ -60,7 +60,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
     const now = performance.now();
 
     if (now - lastSendTimeRef.current >= SEND_INTERVAL) {
-      // Heartbeat log every ~2 seconds (60 frames at 30fps)
+      // ハートビートログ: 約2秒ごと（30fps換算で60フレーム）
       if (currentFrame % 60 === 0) {
         console.log(
           "AvatarSender: Loop Active. Landmarks:",
@@ -78,18 +78,18 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
         const rotations = calculateRiggedPose(landmarks, worldLandmarks);
 
         if (rotations) {
-          // Local Loopback for preview
+          // プレビュー用のローカルループバック
           if (onRotationsUpdate) {
             onRotationsUpdate(rotations);
           }
 
           packet = {
             t: "m",
-            v: 1, // Camera ON
+            v: 1, // カメラON
             bones: rotations,
           };
         } else {
-          // Log failure reason occasionally
+          // 失敗した場合は稀にログ出力
           if (currentFrame % 60 === 0) {
             console.warn("AvatarSender: Rigged pose calc failed (null)");
           }
@@ -108,17 +108,9 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
 
       try {
         await localParticipant.publishData(payload, {
-          reliable: false, // UDP mode / lossy
+          reliable: false, // 非信頼性モード / パケット損失を許容
           topic: "avatar-motion",
         });
-
-        if (packet.v === 1 && currentFrame % 30 === 0) {
-          console.log(
-            "AvatarSender: Sent motion packet",
-            Object.keys(packet.bones || {}).length,
-            "bones"
-          );
-        }
       } catch (e) {
         console.warn("Retriable error sending avatar data:", e);
         // 接続切れなどの場合はループ継続しつつエラーを握りつぶし、再接続を待つ
@@ -174,7 +166,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
         muted
       />
 
-      {/* Debug Overlay */}
+      {/* デバッグオーバーレイ */}
       <div className="absolute top-0 left-0 w-full p-2 pointer-events-none">
         <div className="flex flex-col gap-1 items-end">
           {isSending && (

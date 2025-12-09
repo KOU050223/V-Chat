@@ -135,11 +135,11 @@ export const retargetPoseToVRMWithKalidokit = (
     // worldLandmarksも変換（3D空間座標）
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-        x: landmark.x,
-        y: landmark.y,
-        z: landmark.z,
-        visibility: landmark.visibility,
-      }))
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility,
+        }))
       : poseLandmarks;
 
     // Kalidokitでポーズを解析
@@ -291,11 +291,11 @@ export const calculateRiggedPose = (
 
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-        x: landmark.x,
-        y: landmark.y,
-        z: landmark.z,
-        visibility: landmark.visibility,
-      }))
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility,
+        }))
       : poseLandmarks;
 
     const riggedPose = Kalidokit.Pose.solve(

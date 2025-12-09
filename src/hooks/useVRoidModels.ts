@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import { VRoidCharacterModel, createVRoidClient } from "@/lib/vroid";
 import { VRMDownloader, VRMDownloadResult } from "@/lib/vrmDownloader";
 import { useVModel } from "@/contexts/VModelContext";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface UseVRoidModelsOptions {
   autoFetch?: boolean;
@@ -199,8 +198,6 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
     } catch (error: unknown) {
       console.error("いいねモデル取得エラー:", error);
 
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
       setState((prev) => ({
         ...prev,
         error: "いいねしたモデルの取得に失敗しました",

@@ -7,9 +7,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import VModelSelector from "@/components/vmodel/VModelSelector";

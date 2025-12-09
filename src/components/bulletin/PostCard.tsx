@@ -14,6 +14,7 @@ import {
   Users,
   Calendar,
   ExternalLink,
+  Bookmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,15 +23,26 @@ interface PostCardProps {
   post: BulletinPost;
   onLike?: (postId: string) => void;
   onUnlike?: (postId: string) => void;
+  onBookmark?: (postId: string) => void;
+  onUnbookmark?: (postId: string) => void;
   className?: string;
 }
 
-export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
+export function PostCard({
+  post,
+  onLike,
+  onUnlike,
+  onBookmark,
+  onUnbookmark,
+  className,
+}: PostCardProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [isLiking, setIsLiking] = useState(false);
+  const [isBookmarking, setIsBookmarking] = useState(false);
 
   const isLiked = user ? post.likes.includes(user.uid) : false;
+  const isBookmarked = post.isBookmarked || false;
   const remainingSlots = post.maxParticipants - post.currentParticipants;
   const isFull = remainingSlots <= 0;
 
@@ -47,6 +59,22 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
       }
     } finally {
       setIsLiking(false);
+    }
+  };
+
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user || isBookmarking) return;
+
+    setIsBookmarking(true);
+    try {
+      if (isBookmarked && onUnbookmark) {
+        await onUnbookmark(post.id);
+      } else if (!isBookmarked && onBookmark) {
+        await onBookmark(post.id);
+      }
+    } finally {
+      setIsBookmarking(false);
     }
   };
 
@@ -155,6 +183,22 @@ export function PostCard({ post, onLike, onUnlike, className }: PostCardProps) {
           >
             <Heart className={cn("w-4 h-4", isLiked && "fill-current")} />
             <span className="text-sm">{post.likes.length}</span>
+          </Button>
+
+          {/* ブックマークボタン */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "gap-2 transition-colors",
+              isBookmarked && "text-yellow-500 hover:text-yellow-600"
+            )}
+            onClick={handleBookmark}
+            disabled={!user || isBookmarking}
+          >
+            <Bookmark
+              className={cn("w-4 h-4", isBookmarked && "fill-current")}
+            />
           </Button>
 
           {/* 返信数 */}

@@ -8,8 +8,15 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { PostCard } from "@/components/bulletin/PostCard";
 import { Badge, Button, Card, Input } from "@/components/ui";
-import { Plus, Search, Filter, Loader2, ArrowLeft } from "lucide-react";
-import { BulletinPost, SortOrder } from "@/types/bulletin";
+import {
+  Plus,
+  Search,
+  Filter,
+  Loader2,
+  ArrowLeft,
+  Bookmark,
+} from "lucide-react";
+import { BulletinPost, SortOrder, PostCategory } from "@/types/bulletin";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleError } from "@/lib/utils";
 
@@ -17,6 +24,15 @@ const sortOrders: { value: SortOrder; label: string }[] = [
   { value: "newest", label: "新着順" },
   { value: "popular", label: "人気順" },
   { value: "participants", label: "募集中" },
+];
+
+const categories: PostCategory[] = [
+  "雑談",
+  "ゲーム",
+  "趣味",
+  "技術",
+  "イベント",
+  "その他",
 ];
 
 export default function BulletinPage() {
@@ -29,6 +45,9 @@ export default function BulletinPage() {
   // フィルター状態
   const [searchQuery, setSearchQuery] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
+  const [selectedCategories, setSelectedCategories] = useState<PostCategory[]>(
+    []
+  );
   const [showFilters, setShowFilters] = useState(false);
 
   // 投稿取得
@@ -40,6 +59,9 @@ export default function BulletinPage() {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       params.append("sortOrder", sortOrder);
+      if (selectedCategories.length > 0) {
+        params.append("categories", selectedCategories.join(","));
+      }
 
       const response = await fetch(`/api/bulletin?${params.toString()}`);
       const data = await response.json();
@@ -61,7 +83,7 @@ export default function BulletinPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, sortOrder]);
+  }, [searchQuery, sortOrder, selectedCategories]);
 
   // いいね処理
   const handleLike = async (postId: string) => {
@@ -102,6 +124,79 @@ export default function BulletinPage() {
     }
   };
 
+  // カテゴリフィルターのトグル
+  const toggleCategory = (category: PostCategory) => {
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
+  };
+
+  // ブックマーク追加
+  const handleBookmark = async (postId: string) => {
+    if (!user) return;
+
+    try {
+      const idToken = await user.getIdToken();
+
+      const response = await fetch("/api/bookmark", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ postId }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "ブックマークに失敗しました");
+      }
+
+      // 投稿のブックマーク状態を更新
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId ? { ...post, isBookmarked: true } : post
+        )
+      );
+    } catch (err) {
+      console.error(handleError("ブックマークエラー", err));
+    }
+  };
+
+  // ブックマーク削除
+  const handleUnbookmark = async (postId: string) => {
+    if (!user) return;
+
+    try {
+      const idToken = await user.getIdToken();
+
+      const response = await fetch(`/api/bookmark?postId=${postId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "ブックマーク削除に失敗しました");
+      }
+
+      // 投稿のブックマーク状態を更新
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.id === postId ? { ...post, isBookmarked: false } : post
+        )
+      );
+    } catch (err) {
+      console.error(handleError("ブックマーク削除エラー", err));
+    }
+  };
+
   // 初回読み込みとフィルター変更時の再読み込み（300msデバウンス）
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -133,13 +228,23 @@ export default function BulletinPage() {
                 話題を共有して、仲間を見つけよう
               </p>
             </div>
-            <Button
-              onClick={() => router.push("/bulletin/create")}
-              className="gap-2 shadow-lg"
-            >
-              <Plus className="w-5 h-5" />
-              新規投稿
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => router.push("/bulletin/bookmarks")}
+                className="gap-2"
+              >
+                <Bookmark className="w-4 h-4" />
+                ブックマーク
+              </Button>
+              <Button
+                onClick={() => router.push("/bulletin/create")}
+                className="gap-2 shadow-lg"
+              >
+                <Plus className="w-5 h-5" />
+                新規投稿
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -170,6 +275,37 @@ export default function BulletinPage() {
             {/* フィルター */}
             {showFilters && (
               <div className="space-y-4 pt-4 border-t">
+                {/* カテゴリフィルター */}
+                <div>
+                  <p className="text-sm font-medium mb-2">カテゴリ</p>
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((category) => (
+                      <Badge
+                        key={category}
+                        variant={
+                          selectedCategories.includes(category)
+                            ? "default"
+                            : "outline"
+                        }
+                        className="cursor-pointer"
+                        onClick={() => toggleCategory(category)}
+                      >
+                        {category}
+                      </Badge>
+                    ))}
+                  </div>
+                  {selectedCategories.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedCategories([])}
+                      className="mt-2 text-xs"
+                    >
+                      カテゴリをクリア
+                    </Button>
+                  )}
+                </div>
+
                 {/* ソート順 */}
                 <div>
                   <p className="text-sm font-medium mb-2">並び替え</p>
@@ -222,6 +358,8 @@ export default function BulletinPage() {
                 post={post}
                 onLike={handleLike}
                 onUnlike={handleLike}
+                onBookmark={handleBookmark}
+                onUnbookmark={handleUnbookmark}
               />
             ))}
           </div>

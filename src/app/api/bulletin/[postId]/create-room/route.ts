@@ -5,9 +5,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth-helpers";
-import { bulletinStore } from "@/lib/bulletinStore";
 import { BulletinApiResponse, BulletinPost } from "@/types/bulletin";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminFirestore } from "@/lib/firebase-admin";
+import { Timestamp } from "firebase-admin/firestore";
 
 interface BulletinCreateRoomData {
   roomId: string;
@@ -34,9 +34,11 @@ export async function POST(
     }
     const userId = authResult.userId;
 
+    const db = getAdminFirestore();
+
     // 投稿の存在確認
-    const post = bulletinStore.getPostById(postId);
-    if (!post) {
+    const postDoc = await db.collection("bulletin_posts").doc(postId).get();
+    if (!postDoc.exists) {
       const response: BulletinApiResponse = {
         success: false,
         error: "投稿が見つかりません",
@@ -44,8 +46,17 @@ export async function POST(
       return NextResponse.json(response, { status: 404 });
     }
 
+    const postData = postDoc.data();
+    if (!postData) {
+      const response: BulletinApiResponse = {
+        success: false,
+        error: "投稿データの取得に失敗しました",
+      };
+      return NextResponse.json(response, { status: 500 });
+    }
+
     // 投稿者確認
-    if (post.authorId !== userId) {
+    if (postData.authorId !== userId) {
       const response: BulletinApiResponse = {
         success: false,
         error: "ルームを作成する権限がありません",
@@ -54,11 +65,28 @@ export async function POST(
     }
 
     // すでにルームが作成されている場合
-    if (post.roomId) {
+    if (postData.roomId) {
+      const post: BulletinPost = {
+        id: postDoc.id,
+        title: postData.title,
+        content: postData.content,
+        category: postData.category,
+        maxParticipants: postData.maxParticipants,
+        currentParticipants: postData.currentParticipants,
+        authorId: postData.authorId,
+        authorName: postData.authorName,
+        authorPhoto: postData.authorPhoto,
+        likes: postData.likes || [],
+        tags: postData.tags || [],
+        roomId: postData.roomId,
+        createdAt: postData.createdAt?.toDate() || new Date(),
+        updatedAt: postData.updatedAt?.toDate() || new Date(),
+      };
+
       const response: BulletinApiResponse<BulletinCreateRoomData> = {
         success: true,
         data: {
-          roomId: post.roomId,
+          roomId: postData.roomId,
           post,
         },
         message: "すでにルームが作成されています",
@@ -69,28 +97,40 @@ export async function POST(
     // ルームID生成（実際のマッチングシステムと連携する）
     const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
-    // 投稿にルームIDを設定（インメモリストア）
-    const updatedPost = bulletinStore.setPostRoom(postId, roomId);
+    // Firestoreに永続化
+    await db.collection("bulletin_posts").doc(postId).update({
+      roomId,
+      updatedAt: Timestamp.now(),
+    });
 
-    if (!updatedPost) {
-      const response: BulletinApiResponse = {
-        success: false,
-        error: "投稿が見つかりません",
-      };
-      return NextResponse.json(response, { status: 404 });
-    }
+    // 更新後の投稿データを取得
+    const updatedPostDoc = await db
+      .collection("bulletin_posts")
+      .doc(postId)
+      .get();
+    const updatedPostData = updatedPostDoc.data();
 
-    // Firestoreにも永続化
-    try {
-      await adminDb.collection("bulletin_posts").doc(postId).update({
-        roomId,
-        updatedAt: new Date(),
-      });
-    } catch (firestoreError) {
-      console.error("Firestore更新エラー:", firestoreError);
-      // Firestoreへの保存が失敗しても、インメモリストアは更新済みなので続行
-      // 本番環境ではこのエラーを適切に処理する必要がある
-    }
+    const updatedPost: BulletinPost = {
+      id: postDoc.id,
+      title: updatedPostData?.title || postData.title,
+      content: updatedPostData?.content || postData.content,
+      category: updatedPostData?.category || postData.category,
+      maxParticipants:
+        updatedPostData?.maxParticipants || postData.maxParticipants,
+      currentParticipants:
+        updatedPostData?.currentParticipants || postData.currentParticipants,
+      authorId: updatedPostData?.authorId || postData.authorId,
+      authorName: updatedPostData?.authorName || postData.authorName,
+      authorPhoto: updatedPostData?.authorPhoto || postData.authorPhoto,
+      likes: updatedPostData?.likes || postData.likes || [],
+      tags: updatedPostData?.tags || postData.tags || [],
+      roomId,
+      createdAt:
+        updatedPostData?.createdAt?.toDate() ||
+        postData.createdAt?.toDate() ||
+        new Date(),
+      updatedAt: new Date(),
+    };
 
     const response: BulletinApiResponse<BulletinCreateRoomData> = {
       success: true,

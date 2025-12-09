@@ -90,8 +90,8 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
             bones: rotations,
           };
         } else {
-          // 失敗した場合は稀にログ出力
-          if (currentFrame % 60 === 0) {
+          // 失敗した場合は稀にログ出力（10秒ごと）
+          if (currentFrame % 300 === 0) {
             console.warn("AvatarSender: Rigged pose calc failed (null)");
           }
           // パケット生成失敗時などはIdle扱いにするかスキップ

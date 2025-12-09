@@ -78,17 +78,13 @@ export default function NetworkSyncDebugPage() {
           const roomData = createResult.data as { roomId: string };
           if (roomData && roomData.roomId) {
             targetRoomId = roomData.roomId;
-
-            // URLを更新して、リロードしても同じ部屋に入れるようにする（また他タブへの共有用）
-            const newUrl = `${window.location.pathname}?roomId=${targetRoomId}`;
-            window.history.pushState({ path: newUrl }, "", newUrl);
           }
         } catch (createError) {
           const errorMessage =
             createError instanceof Error
               ? createError.message
-              : "Unknown error";
-          setStatus("Error creating room: " + errorMessage);
+              : JSON.stringify(createError);
+          setStatus("ルーム作成エラー: " + errorMessage);
           return;
         }
       }
@@ -101,15 +97,19 @@ export default function NetworkSyncDebugPage() {
       // Step 2: 参加（トークン発行）
       setStatus("Joining Room: " + targetRoomId);
 
-      // FirestoreのjoinRoom関数を呼んでおく
+      // FirestoreのjoinRoom関数を呼んでおく（トークン生成に必要な場合がある）
       try {
         const joinRoom = httpsCallable(functions, "joinRoom");
         await joinRoom({ roomId: targetRoomId });
         console.log("Joined Room in Firestore:", targetRoomId);
       } catch (joinError) {
         const errorMessage =
-          joinError instanceof Error ? joinError.message : "Unknown error";
-        console.warn("Join room warning:", errorMessage);
+          joinError instanceof Error
+            ? joinError.message
+            : JSON.stringify(joinError);
+        console.error("Failed to join room in Firestore:", joinError);
+        setStatus("Firestore参加エラー: " + errorMessage);
+        return; // joinRoomの失敗は致命的なので終了
       }
 
       setStatus("Getting Token...");
@@ -137,9 +137,14 @@ export default function NetworkSyncDebugPage() {
       setToken(data.token);
       setIsConnected(true);
       setStatus("Connected: " + targetRoomId);
+
+      // 接続成功後にURLを更新（リロードしても同じ部屋に入れるように）
+      const newUrl = `${window.location.pathname}?roomId=${targetRoomId}`;
+      window.history.pushState({ path: newUrl }, "", newUrl);
     } catch (e) {
       console.error(e);
-      setStatus("Error: " + (e as Error).message);
+      const errorMessage = e instanceof Error ? e.message : JSON.stringify(e);
+      setStatus("接続エラー: " + errorMessage);
     }
   };
 

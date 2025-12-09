@@ -13,6 +13,19 @@ import {
 } from "@/types/avatar";
 import * as THREE from "three";
 
+// ボーン名マッピングテーブル: JSONキー → VRMHumanBoneName
+const BONE_NAME_MAP: Record<string, VRMHumanBoneName> = {
+  spine: VRMHumanBoneName.Spine,
+  chest: VRMHumanBoneName.Chest,
+  upperChest: VRMHumanBoneName.UpperChest,
+  leftUpperArm: VRMHumanBoneName.LeftUpperArm,
+  leftLowerArm: VRMHumanBoneName.LeftLowerArm,
+  rightUpperArm: VRMHumanBoneName.RightUpperArm,
+  rightLowerArm: VRMHumanBoneName.RightLowerArm,
+  leftHand: VRMHumanBoneName.LeftHand,
+  rightHand: VRMHumanBoneName.RightHand,
+} as const;
+
 interface AvatarReceiverProps {
   participant: Participant;
   defaultAvatarUrl?: string;
@@ -102,19 +115,24 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
         // ターゲット回転情報を更新
         if (data.v === 1 && data.bones) {
           Object.entries(data.bones).forEach(([boneJsonName, quatArray]) => {
-            // 必要に応じてavatar.tsのボーン名をVRMボーン名に変換する。
-            // ただし、AvatarSenderでは互換性のある名前（camelCase）を使用している。
-            // 厳密な場合は、`spine`、`chest`などをVRMHumanBoneNameにマッピングする必要がある。
-            // VRMHumanBoneNameの値は'spine'、'chest'など。
+            // ボーン名をVRMHumanBoneNameにマッピング
+            const vrmBoneName = BONE_NAME_MAP[boneJsonName];
 
-            if (quatArray) {
+            // マッピングが存在し、quatArrayが有効な場合のみ処理
+            if (
+              vrmBoneName &&
+              quatArray &&
+              Array.isArray(quatArray) &&
+              quatArray.length === 4 &&
+              quatArray.every((v) => typeof v === "number" && !isNaN(v))
+            ) {
               const q = new THREE.Quaternion(
                 quatArray[0],
                 quatArray[1],
                 quatArray[2],
                 quatArray[3]
               );
-              targetRotations.current[boneJsonName] = q;
+              targetRotations.current[vrmBoneName] = q;
             }
           });
         }

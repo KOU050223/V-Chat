@@ -15,7 +15,7 @@ import {
 } from "@livekit/components-react";
 import { ConnectionState, LocalAudioTrack } from "livekit-client";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X } from "lucide-react";
+import { Mic, MicOff, Settings, X, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -518,12 +518,8 @@ function VoiceCallContent({
     () => {
       // localStorageから復元（利用可能な場合）
       if (typeof window !== "undefined") {
-        try {
-          const saved = localStorage.getItem("vchat_camera_config");
-          if (saved) return JSON.parse(saved);
-        } catch (e) {
-          console.warn("Failed to parse camera config from localStorage", e);
-        }
+        const saved = localStorage.getItem("vchat_camera_config");
+        if (saved) return JSON.parse(saved);
       }
       return [0, 1.4, 0.7]; // デフォルト
     }
@@ -536,12 +532,8 @@ function VoiceCallContent({
   }>(() => {
     // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("vchat_avatar_offset");
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.warn("Failed to parse avatar offset from localStorage", e);
-      }
+      const saved = localStorage.getItem("vchat_avatar_offset");
+      if (saved) return JSON.parse(saved);
     }
     return { x: 0, y: 0, z: 0 }; // デフォルト
   });
@@ -549,12 +541,8 @@ function VoiceCallContent({
   const [avatarScale, setAvatarScale] = useState<number>(() => {
     // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem("vchat_avatar_scale");
-        if (saved) return parseFloat(saved);
-      } catch (e) {
-        console.warn("Failed to parse avatar scale from localStorage", e);
-      }
+      const saved = localStorage.getItem("vchat_avatar_scale");
+      if (saved) return parseFloat(saved);
     }
     return 1.0; // デフォルト
   });
@@ -712,9 +700,12 @@ function VoiceCallContent({
           }`}
           title="モーションキャプチャ切り替え"
         >
-          {/* 今のところシンプルなアイコン、またはテキストを使用 */}
           <div className="text-white font-bold text-xs">
-            {isCameraOn ? "CAM ON" : "CAM OFF"}
+            {isCameraOn ? (
+              <Video className="w-5 h-5" />
+            ) : (
+              <VideoOff className="w-5 h-5" />
+            )}
           </div>
         </Button>
 
@@ -735,7 +726,6 @@ function VoiceCallContent({
             <MicOff className="w-8 h-8" />
           )}
         </Button>
-
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">
           <div className="flex items-end gap-1 h-8 mb-1">

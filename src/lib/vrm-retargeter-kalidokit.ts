@@ -269,6 +269,10 @@ export const retargetPoseToVRMWithKalidokit = (
 /**
  * Kalidokitを使用してポーズデータを計算し、回転情報を返す（VRMへの直接適用はしない）
  * 送信用データの生成に使用
+ * @param landmarks - MediaPipeのポーズランドマーク（必須）
+ * @param worldLandmarks - 3D空間座標のランドマーク（オプション、nullの場合はlandmarksを使用）
+ * @returns 上半身のボーン回転データ（spine, chest, arms）。計算失敗時はnull。
+ * @note 脚の回転は含まれません（ビデオ会議の座位想定のため）
  */
 import { BoneRotations, QuaternionArray } from "@/types/avatar";
 

@@ -231,8 +231,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
         // 自分で作った場合は参照も消す
         videoRef.current = null;
       } else {
-        // React管理外の場合は参照を保持する（nullにしない！）
-        // 次回 startCamera 時にこの videoRef.current を再利用するため
+        // else: React管理の場合は要素を残し、次回のstartCameraで再利用
       }
     }
 

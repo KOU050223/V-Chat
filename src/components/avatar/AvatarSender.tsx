@@ -150,9 +150,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
 
   // マウント時の自動開始処理
   useEffect(() => {
-    if (autoStart) {
-      setIsSending(true);
-    }
+    setIsSending(autoStart);
   }, [autoStart]);
 
   // デバッグ用: カメラ映像を表示

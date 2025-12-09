@@ -338,18 +338,20 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account }) {
-      console.log("JWT callback called:", {
-        user,
-        account,
-        tokenKeys: Object.keys(token),
-      });
-      console.log("Token state:", {
-        hasAccessToken: !!token.accessToken,
-        hasRefreshToken: !!token.refreshToken,
-        provider: token.provider,
-        exp: token.exp,
-        error: token.error,
-      });
+      if (process.env.NODE_ENV === "development") {
+        console.log("JWT callback called:", {
+          user,
+          account,
+          tokenKeys: Object.keys(token),
+        });
+        console.log("Token state:", {
+          hasAccessToken: !!token.accessToken,
+          hasRefreshToken: !!token.refreshToken,
+          provider: token.provider,
+          exp: token.exp,
+          error: token.error,
+        });
+      }
 
       if (account && user) {
         console.log("Setting tokens from account:", account);
@@ -399,16 +401,17 @@ export const authOptions: NextAuthOptions = {
           const tokenExpiry = (token.exp as number) || 0;
 
           // 詳細なログを追加
-          console.log("Token expiration check:", {
-            now: new Date(now * 1000).toISOString(),
-            expiry:
-              tokenExpiry > 0
-                ? new Date(tokenExpiry * 1000).toISOString()
-                : "unknown",
-            expiresInSeconds: tokenExpiry - now,
-            threshold: 30 * 60,
-          });
-
+          if (process.env.NODE_ENV === "development") {
+            console.log("Token expiration check:", {
+              now: new Date(now * 1000).toISOString(),
+              expiry:
+                tokenExpiry > 0
+                  ? new Date(tokenExpiry * 1000).toISOString()
+                  : "unknown",
+              expiresInSeconds: tokenExpiry - now,
+              threshold: 30 * 60,
+            });
+          }
           // トークンが30分以内に期限切れになる場合はリフレッシュを試行
           const TOKEN_REFRESH_THRESHOLD_SECONDS = 30 * 60; // 30分
           if (

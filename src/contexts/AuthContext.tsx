@@ -96,9 +96,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   // 開発用ログ（最小限に制限）
   // デバッグが必要な場合は以下のコメントアウトを解除
-  // 開発用ログ（最小限に制限）
-  // デバッグが必要な場合は以下のコメントアウトを解除
-  /* */
   if (process.env.NODE_ENV === "development") {
     console.log("AuthProvider state:", {
       user: user ? "Firebase user found" : "No Firebase user",
@@ -112,7 +109,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       linkedAccounts,
     });
   }
-  /* */
 
   useEffect(() => {
     if (!auth) {

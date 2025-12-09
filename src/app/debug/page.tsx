@@ -30,7 +30,7 @@ import { handleError } from "@/lib/utils";
 
 // VRoidプロフィールの型定義
 interface VRoidUser {
-  id?: string;
+  id?: string | number;
   pixiv_user_id?: string;
 }
 
@@ -46,7 +46,7 @@ interface VRoidProfile {
 function getVroidUserId(vroidProfile?: VRoidProfile): string | undefined {
   if (!vroidProfile) return undefined;
 
-  const candidates: Array<string | undefined> = [
+  const candidates: Array<string | number | undefined> = [
     vroidProfile.actualUser?.id,
     vroidProfile.userDetail?.user?.id,
     vroidProfile.actualUser?.pixiv_user_id,
@@ -55,7 +55,7 @@ function getVroidUserId(vroidProfile?: VRoidProfile): string | undefined {
   ];
 
   for (const c of candidates) {
-    if (c && c !== "unknown") return c;
+    if (c && c !== "unknown") return String(c);
   }
 
   return undefined;
@@ -125,13 +125,17 @@ export default function DebugPage() {
                 <div className="flex items-center space-x-2">
                   <Avatar>
                     <AvatarFallback>
-                      {currentUser?.name?.charAt(0) ||
-                        currentUser?.email?.charAt(0) ||
-                        "U"}
+                      {currentUser && "displayName" in currentUser
+                        ? currentUser.displayName?.charAt(0)
+                        : currentUser?.name?.charAt(0) ||
+                          currentUser?.email?.charAt(0) ||
+                          "U"}
                     </AvatarFallback>
                   </Avatar>
                   <span className="text-sm font-medium text-gray-700">
-                    {currentUser?.name || currentUser?.email}
+                    {currentUser && "displayName" in currentUser
+                      ? currentUser.displayName
+                      : currentUser?.name || currentUser?.email}
                   </span>
                   {nextAuthSession && (
                     <span className="text-xs bg-purple-100 text-purple-600 px-2 py-1 rounded">

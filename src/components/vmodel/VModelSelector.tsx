@@ -28,9 +28,13 @@ import { Heart, Download, Search, RefreshCw } from "lucide-react";
 
 interface VModelSelectorProps {
   onModelSelect?: (model: VRoidCharacterModel | null) => void;
+  triggerClassName?: string;
 }
 
-export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
+export default function VModelSelector({
+  onModelSelect,
+  triggerClassName,
+}: VModelSelectorProps) {
   const {
     myModels,
     likedModels,
@@ -65,9 +69,11 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("ダウンロードエラー:", error);
-      alert(error.message);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      alert(errorMessage);
     } finally {
       setDownloadingModels((prev) => {
         const newSet = new Set(prev);
@@ -80,9 +86,11 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
   const handleToggleHeart = async (modelId: string, isHearted: boolean) => {
     try {
       await toggleHeart(modelId, isHearted);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("いいね切り替えエラー:", error);
-      alert(error.message);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      alert(errorMessage);
     }
   };
 
@@ -185,7 +193,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
     try {
       const results = await searchModels(searchKeyword);
       setSearchResults(results);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("検索エラー:", error);
     } finally {
       setSearchLoading(false);
@@ -200,11 +208,11 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full">
+        <Button className={triggerClassName || "w-full"}>
           {selectedModel ? "V体を変更" : "V体を選択"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden">
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>V体選択</DialogTitle>
           <DialogDescription>
@@ -213,7 +221,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
         </DialogHeader>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md shrink-0">
             <p className="text-sm">{error}</p>
             <Button
               variant="ghost"
@@ -226,7 +234,7 @@ export default function VModelSelector({ onModelSelect }: VModelSelectorProps) {
           </div>
         )}
 
-        <div className="overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
           <Tabs
             defaultValue={hasMyModelsPermission ? "my-models" : "liked-models"}
             className="space-y-4"
@@ -411,17 +419,16 @@ function VModelCard({
 }: VModelCardProps) {
   return (
     <Card
-      className={`cursor-pointer transition-all ${
-        isSelected ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"
-      }`}
+      className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-blue-500 bg-blue-50" : "hover:shadow-md"}`}
     >
       <div className="relative">
         <Image
           src={model.portrait_image.sq300.url}
-          alt={model.name || "VRoidモデル"}
+          alt={model.name || model.character.name || "VRoidモデル"}
           width={300}
           height={300}
           className="w-full h-48 object-cover rounded-t-lg"
+          unoptimized
         />
         {isSelected && (
           <div className="absolute top-2 left-2">
@@ -445,7 +452,7 @@ function VModelCard({
       <CardContent className="p-4">
         <div className="space-y-2">
           <h3 className="font-medium text-sm line-clamp-2">
-            {model.name || "無題のモデル"}
+            {model.name || model.character.name || "無題のモデル"}
           </h3>
 
           <div className="flex items-center justify-between text-xs text-gray-500">

@@ -76,6 +76,7 @@ declare module "next-auth" {
     accessToken?: string;
     refreshToken?: string;
     provider?: string;
+    error?: string; // エラー情報を追加
     vroidProfile?: VRoidProfileBase;
     vroidData?: {
       userData?: VRoidData;
@@ -101,6 +102,7 @@ declare module "next-auth/jwt" {
     accessToken?: string;
     refreshToken?: string;
     provider?: string;
+    error?: string; // エラー情報を追加
     vroidProfile?: VRoidProfileBase;
     picture?: string | null;
   }

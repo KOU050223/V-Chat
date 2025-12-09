@@ -36,6 +36,7 @@ export default function Dashboard() {
     linkVRoidAccount,
     unlinkVRoidAccount,
     isVRoidLinked,
+    sessionError, // セッションエラーを取得
   } = useAuth();
 
   // 現在のユーザー情報を取得（Firebase または NextAuth）
@@ -124,9 +125,11 @@ export default function Dashboard() {
                 </Dialog>
                 <Avatar className="h-9 w-9">
                   <AvatarFallback className="text-sm font-medium">
-                    {currentUser?.name?.charAt(0) ||
-                      currentUser?.email?.charAt(0) ||
-                      "U"}
+                    {currentUser && "displayName" in currentUser
+                      ? currentUser.displayName?.charAt(0)
+                      : currentUser?.name?.charAt(0) ||
+                        currentUser?.email?.charAt(0) ||
+                        "U"}
                   </AvatarFallback>
                 </Avatar>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
@@ -142,23 +145,47 @@ export default function Dashboard() {
           <div className="w-full max-w-3xl mx-auto space-y-8">
             {/* VRoid連携バナー（未連携時） */}
             {!isVRoidLinked && (
-              <Card className="border-2 border-purple-300 bg-gradient-to-r from-purple-100 to-pink-100 shadow-lg animate-in fade-in slide-in-from-top-4 duration-500">
+              <Card
+                className={`border-2 ${
+                  sessionError ? "border-red-300" : "border-purple-300"
+                } bg-gradient-to-r ${
+                  sessionError
+                    ? "from-red-50 to-orange-50"
+                    : "from-purple-100 to-pink-100"
+                } shadow-lg animate-in fade-in slide-in-from-top-4 duration-500`}
+              >
                 <CardContent className="p-6">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-center sm:text-left flex-1">
-                      <h3 className="font-bold text-purple-900 mb-1 text-lg">
-                        VRoidアカウント連携が必要です
+                      <h3
+                        className={`font-bold ${
+                          sessionError ? "text-red-900" : "text-purple-900"
+                        } mb-1 text-lg`}
+                      >
+                        {sessionError
+                          ? "VRoid連携の有効期限が切れました"
+                          : "VRoidアカウント連携が必要です"}
                       </h3>
-                      <p className="text-sm text-purple-700">
-                        3Dアバターでチャットを楽しむには、VRoidアカウントを連携してください
+                      <p
+                        className={`text-sm ${
+                          sessionError ? "text-red-700" : "text-purple-700"
+                        }`}
+                      >
+                        {sessionError
+                          ? "セキュリティのため、もう一度連携を行ってください"
+                          : "3Dアバターでチャットを楽しむには、VRoidアカウントを連携してください"}
                       </p>
                     </div>
                     <Button
                       onClick={handleLinkVRoid}
-                      className="bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700 shadow-md"
+                      className={`${
+                        sessionError
+                          ? "bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
+                          : "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+                      } text-white shadow-md`}
                       size="lg"
                     >
-                      今すぐ連携
+                      {sessionError ? "再連携する" : "今すぐ連携"}
                     </Button>
                   </div>
                 </CardContent>

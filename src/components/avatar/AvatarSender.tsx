@@ -120,12 +120,14 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
     }
 
     animationFrameRef.current = requestAnimationFrame(sendLoop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     localParticipant,
     roomContext.state,
     landmarks,
     worldLandmarks,
     onRotationsUpdate,
+    // SEND_INTERVALは定数なので依存配列に含める必要なし
   ]);
 
   // 開始/停止制御

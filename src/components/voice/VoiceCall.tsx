@@ -209,10 +209,14 @@ function DeviceSettings({
             </label>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="camera-x-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   左右
-                </span>
+                </label>
                 <input
+                  id="camera-x-range"
                   type="range"
                   min="-2"
                   max="2"
@@ -229,10 +233,14 @@ function DeviceSettings({
                 />
               </div>
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="camera-y-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   高さ
-                </span>
+                </label>
                 <input
+                  id="camera-y-range"
                   type="range"
                   min="0.5"
                   max="2.5"
@@ -249,10 +257,14 @@ function DeviceSettings({
                 />
               </div>
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="camera-z-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   距離
-                </span>
+                </label>
                 <input
+                  id="camera-z-range"
                   type="range"
                   min="0.2"
                   max="3"
@@ -282,10 +294,14 @@ function DeviceSettings({
             </label>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="avatar-offset-x-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   X (左右)
-                </span>
+                </label>
                 <input
+                  id="avatar-offset-x-range"
                   type="range"
                   min="-1"
                   max="1"
@@ -301,10 +317,14 @@ function DeviceSettings({
                 />
               </div>
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="avatar-offset-y-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   Y (高さ)
-                </span>
+                </label>
                 <input
+                  id="avatar-offset-y-range"
                   type="range"
                   min="-1.5"
                   max="1"
@@ -320,10 +340,14 @@ function DeviceSettings({
                 />
               </div>
               <div>
-                <span className="text-[10px] text-gray-500 block text-center">
+                <label
+                  htmlFor="avatar-offset-z-range"
+                  className="text-[10px] text-gray-500 block text-center"
+                >
                   Z (前後)
-                </span>
+                </label>
                 <input
+                  id="avatar-offset-z-range"
                   type="range"
                   min="-1"
                   max="1"
@@ -346,7 +370,10 @@ function DeviceSettings({
 
           {/* アバターサイズ (共有) */}
           <div className="space-y-2">
-            <label className="text-xs text-purple-400 uppercase font-bold tracking-wider flex justify-between">
+            <label
+              htmlFor="avatar-scale-range"
+              className="text-xs text-purple-400 uppercase font-bold tracking-wider flex justify-between"
+            >
               <span>アバターサイズ (共有)</span>
               <span className="font-mono text-[10px]">
                 x{avatarScale.toFixed(2)}
@@ -354,6 +381,7 @@ function DeviceSettings({
             </label>
             <div>
               <input
+                id="avatar-scale-range"
                 type="range"
                 min="0.5"
                 max="2.0"
@@ -361,6 +389,7 @@ function DeviceSettings({
                 value={avatarScale}
                 onChange={(e) => setAvatarScale(parseFloat(e.target.value))}
                 className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
+                aria-label="アバターサイズ調整"
               />
               <div className="flex justify-between text-[10px] text-gray-500 mt-1">
                 <span>0.5x</span>

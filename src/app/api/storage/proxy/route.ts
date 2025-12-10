@@ -93,7 +93,11 @@ export async function GET(request: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("Storage Proxy Error:", error);
     return NextResponse.json(
-      { error: "Internal Server Error", details: errorMessage },
+      {
+        error: "Internal Server Error",
+        details:
+          process.env.NODE_ENV === "development" ? errorMessage : undefined,
+      },
       { status: 500 }
     );
   }

@@ -73,12 +73,13 @@ export async function uploadVRMToStorage(
 /**
  * VRMがStorageにあるか確認し、なければダウンロード関数を実行してアップロードする
  * 最終的にStorageのURLを返す
+ * downloadFnがnullを返した場合は、nullを返す（フォールバック処理は呼び出し側で行う）
  */
 export async function ensureVRMInStorage(
   modelId: string,
-  downloadFn: () => Promise<Blob>,
+  downloadFn: () => Promise<Blob | null>,
   token: string
-): Promise<string> {
+): Promise<string | null> {
   // 1. まずStorageを確認
   const existingUrl = await getVRMStorageUrl(modelId);
   if (existingUrl) {
@@ -91,9 +92,15 @@ export async function ensureVRMInStorage(
     `VRM not found in Storage, downloading from source...: ${modelId}`
   );
 
-  let blob: Blob;
+  let blob: Blob | null;
   try {
     blob = await downloadFn();
+    if (!blob) {
+      console.warn(
+        `Download function returned null for modelId=${modelId}. Skipping storage upload.`
+      );
+      return null;
+    }
   } catch (error: unknown) {
     console.error(`Failed to download VRM for modelId=${modelId}`, error);
     throw new Error(

@@ -543,9 +543,6 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
   // VModel Contextから設定を取得
   const { settings } = useVModel();
   const { user, nextAuthSession } = useAuth(); // AuthContextからユーザー情報とセッションを取得
-  const { getDownloadLicense } = useVRoidModels({
-    autoFetch: false, // ここでは自動取得しない
-  });
 
   // アバター統合の状態
   const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
@@ -660,7 +657,9 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
     if (localParticipant && room.state === "connected") {
       const updateMeta = async () => {
         try {
-          let avatarUrl = "/vrm/vroid_model_6689695945343414173.vrm"; // デフォルト
+          // デフォルトアバターURL（フォールバック用）
+          const DEFAULT_AVATAR_URL = "/vrm/vroid_model_6689695945343414173.vrm";
+          let avatarUrl = DEFAULT_AVATAR_URL;
 
           // 選択されたモデルがある場合、そのURLを取得
           if (settings.selectedModel) {
@@ -675,43 +674,55 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
               // アバターのアップロードに使用するFirebase IDトークンを取得
               if (!user) {
                 console.error(
-                  "Firebase user not found, cannot check storage permission"
+                  "Firebase user not found, cannot access storage. Using default avatar."
                 );
-                return;
+                avatarUrl = DEFAULT_AVATAR_URL;
+              } else {
+                const firebaseToken = await user.getIdToken();
+
+                // Firebase StorageからURLを取得（なければアップロード）
+                // ensureVRMInStorageにはFirebaseトークンを渡す
+                const storageUrl = await ensureVRMInStorage(
+                  modelId,
+                  async () => {
+                    // ダウンロードが必要な場合のコールバック
+                    console.log("VRM cache miss, downloading...", modelId);
+
+                    // アクセストークンを渡してVRMDownloaderをインスタンス化
+                    const accessToken = nextAuthSession?.accessToken;
+                    if (!accessToken) {
+                      console.error(
+                        "VRoid access token is missing. Cannot download model, falling back to default avatar."
+                      );
+                      // エラーをスローせず、nullを返してStorageキャッシュをスキップ
+                      return null;
+                    }
+
+                    const downloader = new VRMDownloader(accessToken);
+                    const result = await downloader.downloadVRM(modelId);
+                    return result.blob;
+                  },
+                  firebaseToken
+                );
+
+                if (storageUrl) {
+                  avatarUrl = storageUrl;
+                  console.log("Using avatar URL from storage:", avatarUrl);
+                } else {
+                  console.warn(
+                    "Storage URL is null, using default avatar:",
+                    DEFAULT_AVATAR_URL
+                  );
+                  avatarUrl = DEFAULT_AVATAR_URL;
+                }
               }
-              const firebaseToken = await user.getIdToken();
-
-              // Firebase StorageからURLを取得（なければアップロード）
-              // ensureVRMInStorageにはFirebaseトークンを渡す
-              avatarUrl = await ensureVRMInStorage(
-                modelId,
-                async () => {
-                  // ダウンロードが必要な場合のコールバック
-                  console.log("VRM cache miss, downloading...", modelId);
-
-                  // アクセストークンを渡してVRMDownloaderをインスタンス化
-                  const accessToken = nextAuthSession?.accessToken;
-                  if (!accessToken) {
-                    console.error("VRoid access token is missing!");
-                    throw new Error(
-                      "VRoid access token is required for downloading"
-                    );
-                  }
-
-                  const downloader = new VRMDownloader(accessToken);
-                  const result = await downloader.downloadVRM(modelId);
-                  return result.blob;
-                },
-                firebaseToken
-              );
-
-              console.log("Using avatar URL from storage:", avatarUrl);
             } catch (err) {
               console.error(
-                "Failed to get download license, falling back to default:",
+                "Failed to get avatar from storage, falling back to default:",
                 err
               );
-              // エラー時はデフォルトを使用（アラートは出さない）
+              // エラー時はデフォルトを使用
+              avatarUrl = DEFAULT_AVATAR_URL;
             }
           }
 
@@ -736,7 +747,6 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
     avatarOffset,
     avatarScale,
     settings.selectedModel,
-    getDownloadLicense,
     user,
     nextAuthSession?.accessToken,
   ]); // avatarOffsetまたはavatarScaleが変更されたときに再実行

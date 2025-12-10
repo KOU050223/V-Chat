@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 // 環境変数の検証
 const requiredEnvVars = {
@@ -67,6 +68,9 @@ export const auth = typeof window !== "undefined" ? getAuth(app) : null;
 
 // Firestore の初期化（サーバーサイドとクライアントサイド両方で使用可能）
 export const db = getFirestore(app);
+
+// Storage の初期化
+export const storage = getStorage(app);
 
 // Firebase App インスタンスのエクスポート（Cloud Functions用）
 export { app };

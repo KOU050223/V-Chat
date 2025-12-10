@@ -6,6 +6,7 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
+import { getStorage, Storage } from "firebase-admin/storage";
 
 let adminApp: App | null = null;
 
@@ -83,6 +84,11 @@ export function getAdminAuth(): Auth {
 // 便利なエイリアス
 export const adminAuth = getAdminAuth();
 export const adminDb = getAdminFirestore();
+
+export function getAdminStorage(): Storage {
+  return getStorage(getAdminApp());
+}
+export const adminStorage = getAdminStorage();
 
 /**
  * 環境変数が正しく設定されているかチェック

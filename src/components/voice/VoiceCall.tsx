@@ -26,6 +26,9 @@ import { BoneRotations, AvatarMetadata } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useVModel } from "@/contexts/VModelContext";
 import { useVRoidModels } from "@/hooks/useVRoidModels";
+import { ensureVRMInStorage } from "@/lib/vrmStorage";
+import { VRMDownloader } from "@/lib/vrmDownloader";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Canvas内でカメラ位置を安全に更新するためのヘルパーコンポーネント
 function CameraUpdater({ position }: { position: [number, number, number] }) {
@@ -539,6 +542,7 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
 
   // VModel Contextから設定を取得
   const { settings } = useVModel();
+  const { user, nextAuthSession } = useAuth(); // AuthContextからユーザー情報とセッションを取得
   const { getDownloadLicense } = useVRoidModels({
     autoFetch: false, // ここでは自動取得しない
   });
@@ -662,10 +666,46 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
           if (settings.selectedModel) {
             try {
               console.log(
-                "Fetching download license for model:",
+                "Fetching download license/cache for model:",
                 settings.selectedModel.id
               );
-              avatarUrl = await getDownloadLicense(settings.selectedModel.id);
+
+              const modelId = settings.selectedModel.id;
+
+              // アバターのアップロードに使用するFirebase IDトークンを取得
+              if (!user) {
+                console.error(
+                  "Firebase user not found, cannot check storage permission"
+                );
+                return;
+              }
+              const firebaseToken = await user.getIdToken();
+
+              // Firebase StorageからURLを取得（なければアップロード）
+              // ensureVRMInStorageにはFirebaseトークンを渡す
+              avatarUrl = await ensureVRMInStorage(
+                modelId,
+                async () => {
+                  // ダウンロードが必要な場合のコールバック
+                  console.log("VRM cache miss, downloading...", modelId);
+
+                  // アクセストークンを渡してVRMDownloaderをインスタンス化
+                  const accessToken = nextAuthSession?.accessToken;
+                  if (!accessToken) {
+                    console.error("VRoid access token is missing!");
+                    throw new Error(
+                      "VRoid access token is required for downloading"
+                    );
+                  }
+
+                  const downloader = new VRMDownloader(accessToken);
+                  const result = await downloader.downloadVRM(modelId);
+                  return result.blob;
+                },
+                firebaseToken
+              );
+
+              console.log("Using avatar URL from storage:", avatarUrl);
             } catch (err) {
               console.error(
                 "Failed to get download license, falling back to default:",
@@ -697,6 +737,8 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
     avatarScale,
     settings.selectedModel,
     getDownloadLicense,
+    user,
+    nextAuthSession?.accessToken,
   ]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
 
   // マイクの切り替え
@@ -867,8 +909,6 @@ export default function VoiceCall({
   roomId,
   participantName,
   onLeave,
-  onStateChange,
-  serverMemberCount,
   className,
 }: VoiceCallProps) {
   const [token, setToken] = useState("");

@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     }
 
     await storageFile.save(buffer, {
-      contentType: file.type || "application/octet-stream", // 実際のMIME typeを使用
+      contentType: "application/octet-stream",
       metadata: {
         customMetadata: {
           modelId: modelId,

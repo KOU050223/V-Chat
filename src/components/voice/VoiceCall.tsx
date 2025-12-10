@@ -13,7 +13,7 @@ import {
   ParticipantLoop,
   useIsSpeaking,
 } from "@livekit/components-react";
-import { ConnectionState, LocalAudioTrack } from "livekit-client";
+import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles";
 import { Mic, MicOff, Settings, X, Video, VideoOff } from "lucide-react";
 import { Button } from "@/components/ui";
@@ -24,6 +24,10 @@ import { AvatarSender } from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
 import { BoneRotations, AvatarMetadata } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
+import { useVModel } from "@/contexts/VModelContext";
+import { ensureVRMInStorage } from "@/lib/vrmStorage";
+import { VRMDownloader } from "@/lib/vrmDownloader";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Canvas内でカメラ位置を安全に更新するためのヘルパーコンポーネント
 function CameraUpdater({ position }: { position: [number, number, number] }) {
@@ -410,11 +414,13 @@ function ParticipantTile({
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
+  selectedModel,
 }: {
   localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset?: { x: number; y: number; z: number };
   myAvatarScale?: number;
+  selectedModel?: { id: string } | null;
 }) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
@@ -428,6 +434,12 @@ function ParticipantTile({
 
   // 自分の場合のみ、ローカルの回転情報を渡す
   const manualRotations = participant.isLocal ? localRotations : undefined;
+
+  // 自分の場合で、かつモデルを選択している場合は、デフォルトモデルを表示せず、メタデータ（動的URL）が設定されるのを待つ
+  const defaultUrl =
+    participant.isLocal && selectedModel
+      ? undefined
+      : "/vrm/vroid_model_6689695945343414173.vrm";
 
   return (
     <div className="relative flex flex-col items-center justify-center p-2 w-full h-full">
@@ -446,7 +458,7 @@ function ParticipantTile({
           {/* <OrbitControls target={[0, 1.4, 0]} /> 安定した表示のためOrbitControlsは無効化（必要に応じて有効化） */}
           <AvatarReceiver
             participant={participant}
-            defaultAvatarUrl="/vrm/vroid_model_6689695945343414173.vrm"
+            defaultAvatarUrl={defaultUrl}
             manualRotations={manualRotations}
             // 自分の場合はローカルの設定を即時反映し、他人の場合はMetadataから読み取る
             localOverrideOffset={
@@ -484,11 +496,13 @@ function ParticipantGrid({
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
+  selectedModel,
 }: {
   localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset: { x: number; y: number; z: number };
   myAvatarScale: number;
+  selectedModel?: { id: string } | null;
 }) {
   const participants = useParticipants();
 
@@ -502,6 +516,7 @@ function ParticipantGrid({
               cameraConfig={cameraConfig}
               myAvatarOffset={myAvatarOffset}
               myAvatarScale={myAvatarScale}
+              selectedModel={selectedModel}
             />
           </div>
         </ParticipantLoop>
@@ -517,23 +532,16 @@ function ParticipantGrid({
 }
 
 // 内部コンポーネント: 実際の通話UIとロジックを担当
-function VoiceCallContent({
-  onLeave,
-  onStateChange,
-  serverMemberCount,
-}: {
-  onLeave?: () => void;
-  onStateChange?: (state: VoiceCallState) => void;
-  serverMemberCount?: number;
-}) {
+function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
   const room = useRoomContext();
   const connectionState = useConnectionState();
-  const { isMicrophoneEnabled, localParticipant, microphoneTrack } =
-    useLocalParticipant();
-  // ローカル参加者の音声レベル
-  const [localAudioLevel, setLocalAudioLevel] = useState(0);
+  const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
   const [showSettings, setShowSettings] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // VModel Contextから設定を取得
+  const { settings } = useVModel();
+  const { user, nextAuthSession } = useAuth(); // AuthContextからユーザー情報とセッションを取得
 
   // アバター統合の状態
   const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
@@ -634,10 +642,6 @@ function VoiceCallContent({
     localStorage.setItem("vchat_avatar_scale", avatarScale.toString());
   }, [avatarScale]);
 
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const animationRef = useRef<number | null>(null);
-
   // 初期メタデータの設定（アバターURL）
   useEffect(() => {
     // 接続済みかつ権限がある場合のみMetadataを設定
@@ -652,9 +656,77 @@ function VoiceCallContent({
     if (localParticipant && room.state === "connected") {
       const updateMeta = async () => {
         try {
-          // TODO: ユーザープロフィールに基づいてavatarUrlを動的にする
+          // デフォルトアバターURL（フォールバック用）
+          const DEFAULT_AVATAR_URL = "/vrm/vroid_model_6689695945343414173.vrm";
+          let avatarUrl = DEFAULT_AVATAR_URL;
+
+          // 選択されたモデルがある場合、そのURLを取得
+          if (settings.selectedModel) {
+            try {
+              console.log(
+                "Fetching download license/cache for model:",
+                settings.selectedModel.id
+              );
+
+              const modelId = settings.selectedModel.id;
+
+              // アバターのアップロードに使用するFirebase IDトークンを取得
+              if (!user) {
+                console.error(
+                  "Firebase user not found, cannot access storage. Using default avatar."
+                );
+                avatarUrl = DEFAULT_AVATAR_URL;
+              } else {
+                const firebaseToken = await user.getIdToken();
+
+                // Firebase StorageからURLを取得（なければアップロード）
+                // ensureVRMInStorageにはFirebaseトークンを渡す
+                const storageUrl = await ensureVRMInStorage(
+                  modelId,
+                  async () => {
+                    // ダウンロードが必要な場合のコールバック
+                    console.log("VRM cache miss, downloading...", modelId);
+
+                    // アクセストークンを渡してVRMDownloaderをインスタンス化
+                    const accessToken = nextAuthSession?.accessToken;
+                    if (!accessToken) {
+                      console.error(
+                        "VRoid access token is missing. Cannot download model, falling back to default avatar."
+                      );
+                      // エラーをスローせず、nullを返してStorageキャッシュをスキップ
+                      return null;
+                    }
+
+                    const downloader = new VRMDownloader(accessToken);
+                    const result = await downloader.downloadVRM(modelId);
+                    return result.blob;
+                  },
+                  firebaseToken
+                );
+
+                if (storageUrl) {
+                  avatarUrl = storageUrl;
+                  console.log("Using avatar URL from storage:", avatarUrl);
+                } else {
+                  console.warn(
+                    "Storage URL is null, using default avatar:",
+                    DEFAULT_AVATAR_URL
+                  );
+                  avatarUrl = DEFAULT_AVATAR_URL;
+                }
+              }
+            } catch (err) {
+              console.error(
+                "Failed to get avatar from storage, falling back to default:",
+                err
+              );
+              // エラー時はデフォルトを使用
+              avatarUrl = DEFAULT_AVATAR_URL;
+            }
+          }
+
           const metadata: AvatarMetadata = {
-            avatarUrl: "/vrm/vroid_model_6689695945343414173.vrm",
+            avatarUrl: avatarUrl,
             offset: avatarOffset, // offsetを含める
             scale: avatarScale, // scaleを含める
           };
@@ -668,7 +740,15 @@ function VoiceCallContent({
       const timer = setTimeout(updateMeta, 500);
       return () => clearTimeout(timer);
     }
-  }, [localParticipant, room.state, avatarOffset, avatarScale]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
+  }, [
+    localParticipant,
+    room.state,
+    avatarOffset,
+    avatarScale,
+    settings.selectedModel,
+    user,
+    nextAuthSession?.accessToken,
+  ]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
 
   // マイクの切り替え
   const toggleMute = useCallback(async () => {
@@ -724,6 +804,7 @@ function VoiceCallContent({
           cameraConfig={cameraConfig}
           myAvatarOffset={avatarOffset}
           myAvatarScale={avatarScale}
+          selectedModel={settings.selectedModel}
         />
       </div>
 
@@ -808,7 +889,7 @@ function VoiceCallContent({
                 className="w-1.5 bg-green-500 rounded-full transition-all duration-75"
                 style={{
                   height: isMicrophoneEnabled
-                    ? `${Math.max(10, Math.min(100, localAudioLevel * (1 + barIndex * 0.2)))}%`
+                    ? `${Math.max(10, 50 + barIndex * 10)}%`
                     : "10%",
                   opacity: isMicrophoneEnabled ? 1 : 0.3,
                 }}
@@ -837,8 +918,6 @@ export default function VoiceCall({
   roomId,
   participantName,
   onLeave,
-  onStateChange,
-  serverMemberCount,
   className,
 }: VoiceCallProps) {
   const [token, setToken] = useState("");
@@ -907,11 +986,7 @@ export default function VoiceCall({
         }}
         className="h-full w-full"
       >
-        <VoiceCallContent
-          onLeave={onLeave}
-          onStateChange={onStateChange}
-          serverMemberCount={serverMemberCount}
-        />
+        <VoiceCallContent onLeave={onLeave} />
         <RoomAudioRenderer />
       </LiveKitRoom>
     </div>

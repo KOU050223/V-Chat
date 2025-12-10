@@ -269,11 +269,36 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
         const response =
           await vroidClient.getCharacterModelDownloadLicense(modelId);
 
-        if (!response.data?.url) {
-          throw new Error("ダウンロードURLが取得できませんでした");
+        console.log(
+          "getCharacterModelDownloadLicense response:",
+          JSON.stringify(response, null, 2)
+        );
+
+        // 新しいAPIフロー: ライセンスIDを取得してプロキシURLを構築
+        if (
+          response.data?.id &&
+          !response.data?.url &&
+          !response.data?.download_url
+        ) {
+          console.log(
+            "Using proxy URL logic with license ID:",
+            response.data.id
+          );
+          // プロキシ経由のURLを返す
+          // 注意: このエンドポイントはAvatarReceiver(VRMViewer)がGETリクエストできるものである必要がある
+          return `/api/vroid/download-vrm?license_id=${response.data.id}&model_id=${modelId}`;
         }
 
-        return response.data.url;
+        const url = response.data?.download_url || response.data?.url;
+
+        if (!url) {
+          // IDもURLもない場合
+          throw new Error(
+            "ダウンロードURLもライセンスIDも取得できませんでした"
+          );
+        }
+
+        return url;
       } catch (error: unknown) {
         const errorMessage =
           error instanceof Error ? error.message : String(error);

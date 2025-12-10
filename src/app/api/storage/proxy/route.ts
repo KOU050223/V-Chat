@@ -6,13 +6,9 @@ import { adminStorage } from "@/lib/firebase-admin";
  * パストラバーサル攻撃を防ぐため、安全な文字のみを許可
  */
 function sanitizeModelId(modelId: string): string | null {
-  // 英数字、ハイフン、アンダースコアのみを許可
-  const safePattern = /^[A-Za-z0-9_-]+$/;
+  // 英数字、ハイフン、アンダースコアのみを許可（1-64文字）
+  const safePattern = /^[A-Za-z0-9_-]{1,64}$/;
   if (!safePattern.test(modelId)) {
-    return null;
-  }
-  // 追加の安全策: 長さ制限（VRoid Hub のモデルIDは通常この範囲内）
-  if (modelId.length > 100) {
     return null;
   }
   return modelId;

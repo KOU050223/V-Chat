@@ -467,24 +467,13 @@ function PostDetailContent({ postId }: { postId: string }) {
 
             {/* ルーム関連ボタン */}
             <div className="flex gap-2">
-              {post.roomId ? (
-                <Button
-                  onClick={() => router.push(`/room/${post.roomId}`)}
-                  className="gap-2"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  ルームに参加
-                </Button>
-              ) : isAuthor ? (
-                <Button
-                  onClick={handleCreateRoom}
-                  disabled={isCreatingRoom}
-                  className="gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  {isCreatingRoom ? "ルーム作成中..." : "ルームを作成"}
-                </Button>
-              ) : null}
+              <Button
+                onClick={() => router.push("/matching")}
+                className="gap-2"
+              >
+                <Users className="w-4 h-4" />
+                マッチングページへ
+              </Button>
             </div>
           </div>
         </Card>

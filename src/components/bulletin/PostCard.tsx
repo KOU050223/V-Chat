@@ -207,21 +207,19 @@ export function PostCard({
             <span className="text-sm">返信</span>
           </div>
 
-          {/* ルームリンク */}
-          {post.roomId && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2 text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/room/${post.roomId}`);
-              }}
-            >
-              <ExternalLink className="w-4 h-4" />
-              <span className="text-sm">ルームへ</span>
-            </Button>
-          )}
+          {/* マッチングリンク */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push("/matching");
+            }}
+          >
+            <Users className="w-4 h-4" />
+            <span className="text-sm">マッチング</span>
+          </Button>
         </div>
 
         {/* 募集人数 */}

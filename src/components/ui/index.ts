@@ -8,5 +8,6 @@ export * from "./input";
 export * from "./label";
 export * from "./LogViewer";
 export * from "./select";
+export * from "./skeleton";
 export * from "./switch";
 export * from "./tabs";

@@ -284,14 +284,29 @@ function PostDetailContent({ postId }: { postId: string }) {
 
   const getCategoryColor = (category: string) => {
     const colors = {
-      雑談: "bg-blue-100 text-blue-800 border-blue-200",
-      ゲーム: "bg-purple-100 text-purple-800 border-purple-200",
-      趣味: "bg-green-100 text-green-800 border-green-200",
-      技術: "bg-orange-100 text-orange-800 border-orange-200",
-      イベント: "bg-pink-100 text-pink-800 border-pink-200",
-      その他: "bg-gray-100 text-gray-800 border-gray-200",
+      雑談: "bg-gradient-to-br from-blue-500 to-blue-600 text-white border-blue-300 hover:from-blue-600 hover:to-blue-700 shadow-blue-200",
+      ゲーム:
+        "bg-gradient-to-br from-purple-500 to-purple-600 text-white border-purple-300 hover:from-purple-600 hover:to-purple-700 shadow-purple-200",
+      趣味: "bg-gradient-to-br from-green-500 to-green-600 text-white border-green-300 hover:from-green-600 hover:to-green-700 shadow-green-200",
+      技術: "bg-gradient-to-br from-orange-500 to-orange-600 text-white border-orange-300 hover:from-orange-600 hover:to-orange-700 shadow-orange-200",
+      イベント:
+        "bg-gradient-to-br from-pink-500 to-pink-600 text-white border-pink-300 hover:from-pink-600 hover:to-pink-700 shadow-pink-200",
+      その他:
+        "bg-gradient-to-br from-gray-500 to-gray-600 text-white border-gray-300 hover:from-gray-600 hover:to-gray-700 shadow-gray-200",
     };
     return colors[category as keyof typeof colors] || colors["その他"];
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const icons = {
+      雑談: "💬",
+      ゲーム: "🎮",
+      趣味: "🎨",
+      技術: "💻",
+      イベント: "🎉",
+      その他: "📌",
+    };
+    return icons[category as keyof typeof icons] || icons["その他"];
   };
 
   if (loading) {
@@ -366,8 +381,12 @@ function PostDetailContent({ postId }: { postId: string }) {
             <div className="flex gap-2">
               <Badge
                 variant="outline"
-                className={getCategoryColor(post.category)}
+                className={cn(
+                  getCategoryColor(post.category),
+                  "transition-all duration-300 hover:scale-110 hover:shadow-lg cursor-default"
+                )}
               >
+                <span className="mr-1">{getCategoryIcon(post.category)}</span>
                 {post.category}
               </Badge>
               <Button variant="ghost" size="sm" onClick={handleShare}>

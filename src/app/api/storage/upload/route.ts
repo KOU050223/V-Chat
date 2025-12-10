@@ -86,6 +86,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // ファイルタイプの検証
+    // VRMファイルは「application/octet-stream」または「model/gltf-binary」として送信される
+    const allowedMimeTypes = [
+      "application/octet-stream",
+      "model/gltf-binary",
+      "model/vrm",
+    ];
+    const hasValidMimeType = allowedMimeTypes.includes(file.type);
+    const hasVrmExtension = file.name.toLowerCase().endsWith(".vrm");
+
+    if (!hasValidMimeType && !hasVrmExtension) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid file type. Only VRM files are allowed. Expected MIME type: application/octet-stream, model/gltf-binary, or .vrm extension",
+        },
+        { status: 400 }
+      );
+    }
+
+    // ファイルサイズの検証 (最大50MB)
+    // VRMファイルは通常5-20MBだが、高品質モデルを考慮して50MBに設定
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: `File size exceeds the maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        },
+        { status: 413 } // 413 Payload Too Large
+      );
+    }
+
+    // 最小ファイルサイズの検証 (1KB以上)
+    // 極端に小さいファイルは不正なファイルの可能性が高い
+    const MIN_FILE_SIZE = 1024; // 1KB
+    if (file.size < MIN_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: `File size is too small. Minimum size: ${MIN_FILE_SIZE / 1024}KB`,
+        },
+        { status: 400 }
+      );
+    }
+
     // 4. ファイルアップロード処理
     const bucket = adminStorage.bucket(bucketName);
     const storageFile = bucket.file(`avatars/${modelId}.vrm`);
@@ -95,6 +139,26 @@ export async function POST(request: NextRequest) {
     // if (exists) { ... }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // VRMファイルの構造検証（マジックバイトチェック）
+    // VRMファイルはglTF 2.0バイナリ形式なので、先頭4バイトが "glTF" (0x676C5446)
+    if (buffer.length >= 4) {
+      const magicBytes = buffer.subarray(0, 4).toString("ascii");
+      if (magicBytes !== "glTF") {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid VRM file structure. File does not appear to be a valid glTF/VRM binary.",
+          },
+          { status: 400 }
+        );
+      }
+    } else {
+      return NextResponse.json(
+        { error: "File is too small to be a valid VRM file" },
+        { status: 400 }
+      );
+    }
 
     await storageFile.save(buffer, {
       contentType: file.type || "application/octet-stream", // 実際のMIME typeを使用

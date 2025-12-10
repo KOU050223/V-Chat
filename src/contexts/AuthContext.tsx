@@ -13,6 +13,7 @@ import {
   signOut as nextAuthSignOut,
   signIn,
 } from "next-auth/react";
+import type { Session } from "next-auth";
 import {
   User,
   onAuthStateChanged,
@@ -30,7 +31,7 @@ import { auth } from "@/lib/firebaseConfig";
 
 interface AuthContextType {
   user: User | null;
-  nextAuthSession: any; // NextAuthセッション
+  nextAuthSession: Session | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (
@@ -79,20 +80,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const isVRoidLinked =
     nextAuthSession?.provider === "vroid" || linkedAccounts.includes("vroid");
 
-  // 開発用ログ（最小限に制限）
-  // デバッグが必要な場合は以下のコメントアウトを解除
-  /*
-  if (process.env.NODE_ENV === 'development') {
-    console.log('AuthProvider state:', {
-      user: user ? 'Firebase user found' : 'No Firebase user',
-      nextAuthSession: nextAuthSession ? 'NextAuth session found' : 'No NextAuth session',
-      nextAuthStatus,
-      loading,
-      isVRoidLinked,
-      linkedAccounts
-    });
-  }
-  */
+  // 開発用ログ(状態変更時のみ実行)
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("AuthProvider state:", {
+        user: user ? "Firebase user found" : "No Firebase user",
+        nextAuthSession: nextAuthSession
+          ? "NextAuth session found"
+          : "No NextAuth session",
+        nextAuthStatus,
+        loading,
+        isVRoidLinked,
+        linkedAccounts,
+      });
+    }
+  }, [
+    user,
+    nextAuthSession,
+    nextAuthStatus,
+    loading,
+    isVRoidLinked,
+    linkedAccounts,
+  ]);
 
   useEffect(() => {
     if (!auth) {
@@ -117,8 +126,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, []);
 
@@ -136,8 +145,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         );
         await updateProfile(userCredential.user, { displayName });
         await sendEmailVerification(userCredential.user);
-      } catch (error: any) {
-        throw new Error(error.message);
+      } catch (error: unknown) {
+        throw new Error((error as Error).message);
       }
     },
     []
@@ -151,8 +160,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, []);
 
@@ -164,8 +173,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       const provider = new GithubAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, []);
 
@@ -183,9 +192,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         // Firebase認証のみの場合は手動リダイレクト
         window.location.href = "/login";
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Logout error:", error);
-      throw new Error(error.message);
+      throw new Error((error as Error).message);
     }
   }, [user, nextAuthSession]);
 
@@ -196,8 +205,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       await sendPasswordResetEmail(auth, email);
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, []);
 
@@ -210,8 +219,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       await sendEmailVerification(user);
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, [user]);
 
@@ -239,8 +248,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       ]);
 
       console.log("VRoidアカウント連携完了");
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, [user]);
 
@@ -256,8 +265,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLinkedAccounts((prev) => prev.filter((acc) => acc !== "vroid"));
 
       console.log("VRoidアカウント連携解除完了");
-    } catch (error: any) {
-      throw new Error(error.message);
+    } catch (error: unknown) {
+      throw new Error((error as Error).message);
     }
   }, [nextAuthSession]);
 

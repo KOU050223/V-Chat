@@ -361,9 +361,10 @@ export const generateLivekitToken = onCall(async (request) => {
     // - canSubscribe: 他のユーザーからの音声・映像の受信
     at.addGrant({
       roomJoin: true,
-      room: roomData.livekitRoomId, // 特定のルームに限定
+      room: roomData.livekitRoomId,
       canPublish: true,
       canSubscribe: true,
+      canUpdateOwnMetadata: true,
     });
 
     const token = await at.toJwt();

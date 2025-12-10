@@ -338,7 +338,20 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async jwt({ token, user, account }) {
-      console.log("JWT callback called:", { user, account, token });
+      if (process.env.NODE_ENV === "development") {
+        console.log("JWT callback called:", {
+          user,
+          account,
+          tokenKeys: Object.keys(token),
+        });
+        console.log("Token state:", {
+          hasAccessToken: !!token.accessToken,
+          hasRefreshToken: !!token.refreshToken,
+          provider: token.provider,
+          exp: token.exp,
+          error: token.error,
+        });
+      }
 
       if (account && user) {
         console.log("Setting tokens from account:", account);
@@ -387,6 +400,18 @@ export const authOptions: NextAuthOptions = {
           const now = Math.floor(Date.now() / 1000);
           const tokenExpiry = (token.exp as number) || 0;
 
+          // 詳細なログを追加
+          if (process.env.NODE_ENV === "development") {
+            console.log("Token expiration check:", {
+              now: new Date(now * 1000).toISOString(),
+              expiry:
+                tokenExpiry > 0
+                  ? new Date(tokenExpiry * 1000).toISOString()
+                  : "unknown",
+              expiresInSeconds: tokenExpiry - now,
+              threshold: 30 * 60,
+            });
+          }
           // トークンが30分以内に期限切れになる場合はリフレッシュを試行
           const TOKEN_REFRESH_THRESHOLD_SECONDS = 30 * 60; // 30分
           if (
@@ -423,20 +448,24 @@ export const authOptions: NextAuthOptions = {
                 token.exp =
                   Math.floor(Date.now() / 1000) + refreshedTokens.expires_in;
               }
+              // リフレッシュ成功時にエラーをクリア
+              token.error = undefined;
             } else {
               console.error(
                 "Token refresh failed:",
                 refreshResponse.status,
                 refreshResponse.statusText
               );
-              // リフレッシュに失敗した場合は既存のトークンを使用
+              // リフレッシュに失敗した場合はエラーを設定
+              token.error = "RefreshAccessTokenError";
             }
           } else {
             console.log("Existing VRoid token is still valid");
           }
         } catch (refreshError) {
           console.error("Token refresh error:", refreshError);
-          // エラーが発生した場合は既存のトークンを使用
+          // エラーが発生した場合はエラーを設定
+          token.error = "RefreshAccessTokenError";
         }
       }
 
@@ -448,6 +477,7 @@ export const authOptions: NextAuthOptions = {
       session.accessToken = token.accessToken as string;
       session.refreshToken = token.refreshToken as string;
       session.provider = token.provider as string;
+      session.error = token.error; // エラー情報をセッションに渡す
 
       // ユーザーIDをセッションに追加（JWT の sub フィールドから）
       if (token.sub && session.user) {

@@ -6,8 +6,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card, Input, Label } from "@/components/ui";
-import { ArrowLeft, Plus, X } from "lucide-react";
+import { Button, Card, Input, Label } from "@/components/ui";
+import { ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { PostCategory, CreatePostRequest } from "@/types/bulletin";
 import { handleError } from "@/lib/utils";
@@ -32,32 +32,7 @@ export default function CreatePostPage() {
     content: "",
     category: "雑談",
     maxParticipants: 4,
-    tags: [],
   });
-
-  const [tagInput, setTagInput] = useState("");
-
-  const handleAddTag = () => {
-    const tag = tagInput.trim();
-    if (
-      tag &&
-      !formData.tags?.includes(tag) &&
-      (formData.tags?.length || 0) < 5
-    ) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...(prev.tags || []), tag],
-      }));
-      setTagInput("");
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags?.filter((tag) => tag !== tagToRemove),
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,57 +192,6 @@ export default function CreatePostPage() {
               <p className="text-xs text-muted-foreground">
                 {formData.content.length}/1000
               </p>
-            </div>
-
-            {/* タグ */}
-            <div className="space-y-2">
-              <Label htmlFor="tags">タグ（最大5個）</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="tags"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddTag();
-                    }
-                  }}
-                  placeholder="タグを入力..."
-                  maxLength={20}
-                  disabled={isSubmitting || (formData.tags?.length || 0) >= 5}
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddTag}
-                  disabled={
-                    !tagInput.trim() ||
-                    (formData.tags?.length || 0) >= 5 ||
-                    isSubmitting
-                  }
-                  className="gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  追加
-                </Button>
-              </div>
-              {formData.tags && formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {formData.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary" className="gap-2">
-                      #{tag}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-destructive"
-                        disabled={isSubmitting}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* エラー表示 */}

@@ -21,20 +21,21 @@ export async function GET(request: NextRequest) {
   try {
     const db = getAdminFirestore();
 
+    // 認証確認（オプショナル - ログインしていなくても投稿は見られる）
+    const authResult = await authenticateRequest(request);
+    const userId = authResult.userId;
+
     const searchParams = request.nextUrl.searchParams;
-    const category = searchParams.get("category") as PostCategory | null;
+    const categoriesParam = searchParams.get("categories");
     const search = searchParams.get("search");
     const sortOrder = (searchParams.get("sortOrder") as SortOrder) || "newest";
+    const limit = parseInt(searchParams.get("limit") || "20", 10);
+    const lastDocId = searchParams.get("lastDocId");
 
     const postsRef = db.collection("bulletin_posts");
+
+    // ソートのみFirestoreで実行（カテゴリフィルターはクライアント側で実行）
     let q: FirebaseFirestore.Query = postsRef;
-
-    // カテゴリフィルター
-    if (category) {
-      q = postsRef.where("category", "==", category);
-    }
-
-    // ソート（Firestoreクエリで実行）
     switch (sortOrder) {
       case "popular":
         q = q.orderBy("likesCount", "desc");
@@ -48,7 +49,52 @@ export async function GET(request: NextRequest) {
         break;
     }
 
+    // ページネーション: カーソルベース
+    if (lastDocId) {
+      const lastDoc = await postsRef.doc(lastDocId).get();
+      if (lastDoc.exists) {
+        q = q.startAfter(lastDoc);
+      }
+    }
+
+    // limit を適用
+    q = q.limit(limit);
+
     const querySnapshot = await q.get();
+
+    // ユーザーのブックマークを取得（ログインしている場合のみ）
+    let bookmarkedPostIds: Set<string> = new Set();
+    if (userId) {
+      const bookmarksSnapshot = await db
+        .collection("user_bookmarks")
+        .where("userId", "==", userId)
+        .get();
+      bookmarkedPostIds = new Set(
+        bookmarksSnapshot.docs.map((doc) => doc.data().postId)
+      );
+    }
+
+    // 返信数を取得
+    const postIds = querySnapshot.docs.map((doc) => doc.id);
+    const replyCountsMap = new Map<string, number>();
+
+    if (postIds.length > 0) {
+      // 各投稿の返信数を並列で取得
+      const replyCountPromises = postIds.map(async (postId) => {
+        const repliesSnapshot = await db
+          .collection("bulletin_replies")
+          .where("postId", "==", postId)
+          .count()
+          .get();
+        return { postId, count: repliesSnapshot.data().count };
+      });
+
+      const replyCounts = await Promise.all(replyCountPromises);
+      replyCounts.forEach(({ postId, count }) => {
+        replyCountsMap.set(postId, count);
+      });
+    }
+
     let posts: BulletinPost[] = querySnapshot.docs.map((doc) => {
       const data = doc.data();
       return {
@@ -64,10 +110,24 @@ export async function GET(request: NextRequest) {
         likes: data.likes || [],
         tags: data.tags || [],
         roomId: data.roomId,
+        replyCount: replyCountsMap.get(doc.id) || 0,
+        isBookmarked: bookmarkedPostIds.has(doc.id),
         createdAt: data.createdAt?.toDate() || new Date(),
         updatedAt: data.updatedAt?.toDate() || new Date(),
       };
     });
+
+    // カテゴリフィルター（クライアント側で実行）
+    if (categoriesParam) {
+      const categories = categoriesParam.split(",").filter((c) => c.trim());
+      if (categories.length > 0) {
+        posts = posts.filter(
+          (post) =>
+            categories.includes(post.category) ||
+            post.tags?.some((tag) => categories.includes(tag))
+        );
+      }
+    }
 
     // 検索フィルター（クライアント側で実行）
     if (search) {
@@ -80,12 +140,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 次のページがあるかチェック
+    const hasMore = querySnapshot.docs.length === limit;
+    const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+
     const response: BulletinApiResponse<BulletinPost[]> = {
       success: true,
       data: posts,
+      message: hasMore ? lastDoc?.id : undefined, // lastDocIdをmessageに格納
     };
 
-    return NextResponse.json(response);
+    // hasMoreをヘッダーに追加
+    return NextResponse.json(response, {
+      headers: {
+        "X-Has-More": hasMore.toString(),
+        "X-Last-Doc-Id": lastDoc?.id || "",
+      },
+    });
   } catch (error) {
     console.error("投稿一覧取得エラー:", error);
     const response: BulletinApiResponse = {

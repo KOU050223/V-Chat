@@ -6,8 +6,8 @@
 
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { Badge, Button, Card, Input, Label } from "@/components/ui";
-import { ArrowLeft, X, Loader2 } from "lucide-react";
+import { Button, Card, Input, Label } from "@/components/ui";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   BulletinPost,
@@ -49,9 +49,7 @@ function EditPostContent({ postId }: { postId: string }) {
     content: "",
     category: "雑談" as PostCategory,
     maxParticipants: 2,
-    tags: [] as string[],
   });
-  const [tagInput, setTagInput] = useState("");
 
   // 投稿データ取得
   useEffect(() => {
@@ -72,7 +70,6 @@ function EditPostContent({ postId }: { postId: string }) {
           content: postData.content,
           category: postData.category,
           maxParticipants: postData.maxParticipants,
-          tags: postData.tags || [],
         });
       } catch (err) {
         setError(
@@ -85,24 +82,6 @@ function EditPostContent({ postId }: { postId: string }) {
 
     fetchPost();
   }, [postId]);
-
-  const handleAddTag = () => {
-    const tag = tagInput.trim();
-    if (tag && !formData.tags.includes(tag) && formData.tags.length < 5) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...prev.tags, tag],
-      }));
-      setTagInput("");
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((tag) => tag !== tagToRemove),
-    }));
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,7 +119,6 @@ function EditPostContent({ postId }: { postId: string }) {
         content: formData.content,
         category: formData.category,
         maxParticipants: formData.maxParticipants,
-        tags: formData.tags,
       };
 
       const response = await fetch(`/api/bulletin/${postId}`, {
@@ -329,56 +307,6 @@ function EditPostContent({ postId }: { postId: string }) {
               <p className="text-xs text-muted-foreground text-right">
                 {formData.content.length}/1000
               </p>
-            </div>
-
-            {/* タグ */}
-            <div className="space-y-2">
-              <Label htmlFor="tags">タグ（最大5個）</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="tags"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddTag();
-                    }
-                  }}
-                  placeholder="タグを入力してEnter"
-                  maxLength={20}
-                  disabled={isSubmitting || formData.tags.length >= 5}
-                />
-                <Button
-                  type="button"
-                  onClick={handleAddTag}
-                  disabled={
-                    !tagInput.trim() ||
-                    formData.tags.length >= 5 ||
-                    isSubmitting
-                  }
-                  variant="secondary"
-                >
-                  追加
-                </Button>
-              </div>
-              {formData.tags.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {formData.tags.map((tag, index) => (
-                    <Badge key={index} variant="secondary" className="gap-2">
-                      #{tag}
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTag(tag)}
-                        className="hover:text-destructive"
-                        disabled={isSubmitting}
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* ボタン */}

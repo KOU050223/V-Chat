@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminStorage, adminAuth } from "@/lib/firebase-admin";
 
+/**
+ * modelIdをサニタイズ・バリデーション
+ * パストラバーサル攻撃を防ぐため、安全な文字のみを許可
+ */
+function sanitizeModelId(modelId: string): string | null {
+  // 英数字、ハイフン、アンダースコアのみを許可
+  const safePattern = /^[A-Za-z0-9_-]+$/;
+  if (!safePattern.test(modelId)) {
+    return null;
+  }
+  // 追加の安全策: 長さ制限（VRoid Hub のモデルIDは通常この範囲内）
+  if (modelId.length > 100) {
+    return null;
+  }
+  return modelId;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. 環境変数の検証
@@ -39,12 +56,24 @@ export async function POST(request: NextRequest) {
 
     // 3. 入力データの検証
     const formData = await request.formData();
-    const modelId = formData.get("modelId");
+    const rawModelId = formData.get("modelId");
     const file = formData.get("file");
 
-    if (!modelId || typeof modelId !== "string") {
+    if (!rawModelId || typeof rawModelId !== "string") {
       return NextResponse.json(
         { error: "Validation Error: modelId is required and must be a string" },
+        { status: 400 }
+      );
+    }
+
+    // modelIdのサニタイズとバリデーション
+    const modelId = sanitizeModelId(rawModelId);
+    if (!modelId) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid modelId format. Only alphanumeric characters, hyphens, and underscores are allowed.",
+        },
         { status: 400 }
       );
     }

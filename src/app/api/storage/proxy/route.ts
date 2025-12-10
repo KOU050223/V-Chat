@@ -1,14 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminStorage } from "@/lib/firebase-admin";
 
+/**
+ * modelIdをサニタイズ・バリデーション
+ * パストラバーサル攻撃を防ぐため、安全な文字のみを許可
+ */
+function sanitizeModelId(modelId: string): string | null {
+  // 英数字、ハイフン、アンダースコアのみを許可
+  const safePattern = /^[A-Za-z0-9_-]+$/;
+  if (!safePattern.test(modelId)) {
+    return null;
+  }
+  // 追加の安全策: 長さ制限（VRoid Hub のモデルIDは通常この範囲内）
+  if (modelId.length > 100) {
+    return null;
+  }
+  return modelId;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const modelId = searchParams.get("modelId");
+    const rawModelId = searchParams.get("modelId");
 
-    if (!modelId) {
+    if (!rawModelId) {
       return NextResponse.json(
         { error: "modelId is required" },
+        { status: 400 }
+      );
+    }
+
+    // modelIdのサニタイズとバリデーション
+    const modelId = sanitizeModelId(rawModelId);
+    if (!modelId) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid modelId format. Only alphanumeric characters, hyphens, and underscores are allowed.",
+        },
         { status: 400 }
       );
     }

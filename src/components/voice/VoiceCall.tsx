@@ -25,7 +25,6 @@ import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
 import { BoneRotations, AvatarMetadata } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useVModel } from "@/contexts/VModelContext";
-import { useVRoidModels } from "@/hooks/useVRoidModels";
 import { ensureVRMInStorage } from "@/lib/vrmStorage";
 import { VRMDownloader } from "@/lib/vrmDownloader";
 import { useAuth } from "@/contexts/AuthContext";

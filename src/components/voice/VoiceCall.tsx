@@ -1188,24 +1188,19 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
         <ScreenShareButton />
 
         {/* チャットボタン */}
-        {(() => {
-          const baseClass =
-            "rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ml-1";
-          const activeClass = "bg-gray-800 text-blue-400 border-blue-500/50";
-          return (
-            <Button
-              onClick={handleToggleChat}
-              variant="outline"
-              size="icon"
-              className={`${baseClass} ${showChat ? activeClass : ""}`}
-              title="チャット (Cmd+/)"
-              aria-label="チャットパネルの表示切り替え"
-              aria-pressed={showChat}
-            >
-              <MessageSquare className="w-5 h-5" />
-            </Button>
-          );
-        })()}
+        <Button
+          onClick={handleToggleChat}
+          variant="outline"
+          size="icon"
+          className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ml-1 ${
+            showChat ? "bg-gray-800 text-blue-400 border-blue-500/50" : ""
+          }`}
+          title="チャット (Cmd+/)"
+          aria-label="チャットパネルの表示切り替え"
+          aria-pressed={showChat}
+        >
+          <MessageSquare className="w-5 h-5" />
+        </Button>
 
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">

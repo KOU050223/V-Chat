@@ -30,7 +30,7 @@ const applySmoothRotation = (
   // VRMシーンの180度回転を考慮してY軸を反転
   tempEuler.set(
     targetRotation.x || 0,
-    -(targetRotation.y || 0), // Y軸反転（VRMシーンの180度回転を考慮）
+    targetRotation.y || 0, // Y軸反転（VRMシーンの180度回転を考慮）
     targetRotation.z || 0,
     "XYZ"
   );
@@ -51,7 +51,7 @@ const applySmoothRotation = (
  * MediaPipeランドマークから頭の回転を直接計算
  * TODO: 将来的に使用予定（現在はコメントアウト中）
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 const _applyHeadRotationFromLandmarks = (
   humanoid: VRMHumanoid,
   landmarks: PoseLandmark[]
@@ -92,9 +92,11 @@ const _applyHeadRotationFromLandmarks = (
   const normalizedZ = headDirZ / length;
 
   // 頭の回転を計算（簡易版）
-  const yaw = Math.atan2(normalizedX, normalizedZ);
-  const pitch = Math.asin(-normalizedY);
+  const yaw = Math.atan2(normalizedX, -normalizedZ);
+  let pitch = Math.asin(-normalizedY);
 
+  const PITCH_OFFSET = 0.3;
+  pitch += PITCH_OFFSET;
   // ロール（左右の傾き）を目の位置から計算
   let roll = 0;
   if (leftEye && rightEye) {
@@ -107,7 +109,7 @@ const _applyHeadRotationFromLandmarks = (
   if (head) {
     tempEuler.set(pitch, yaw, roll);
     tempQuaternion.setFromEuler(tempEuler);
-    head.quaternion.slerp(tempQuaternion, 0.5); // スムーズに適用
+    head.quaternion.slerp(tempQuaternion, 0.1); // スムーズに適用
   }
 
   // 首のボーンにも軽く適用
@@ -184,29 +186,29 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.Spine) {
       const spine = humanoid.getNormalizedBoneNode("spine");
       if (spine) {
-        applySmoothRotation(spine, riggedPose.Spine, 0.25); // 0.3 → 0.25 より滑らかに
+        const spineRotation = {
+          x: (riggedPose.Spine.x || 0) * 0.2, // 前後の傾きを20%に
+          y: (riggedPose.Spine.y || 0) * 0.2, // 左右の回転を20%に
+          z: (riggedPose.Spine.z || 0) * 0.2, // 左右の傾きを20%に
+        };
+        applySmoothRotation(spine, spineRotation, 0.1);
       }
 
       // 上部背骨（Chest）にも補助的な動きを追加
       const chest = humanoid.getNormalizedBoneNode("chest");
       if (chest) {
         const chestRotation = {
-          x: (riggedPose.Spine.x || 0) * 0.5,
-          y: (riggedPose.Spine.y || 0) * 0.5,
-          z: (riggedPose.Spine.z || 0) * 0.5,
+          x: (riggedPose.Spine.x || 0) * 0.1,
+          y: (riggedPose.Spine.y || 0) * 0.1,
+          z: (riggedPose.Spine.z || 0) * 0.1,
         };
-        applySmoothRotation(chest, chestRotation, 0.25);
+        applySmoothRotation(chest, chestRotation, 0.1);
       }
     }
 
-    // 頭（Head）の回転を無効化（一時的）
-    // VRMシーンの180度回転による座標系の問題を回避
-    // TODO: 将来的に座標系を考慮した実装に置き換える
-    /*
     if (landmarks.length > 0) {
-      applyHeadRotationFromLandmarks(humanoid, landmarks);
+      _applyHeadRotationFromLandmarks(humanoid, landmarks);
     }
-    */
 
     // Kalidokitが返すTPose型にはChest, Neck, Headがないため、手動実装は保留
 

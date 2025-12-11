@@ -38,7 +38,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const animationFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
   const lastDetectionTimeRef = useRef<number>(0);
-  const DETECTION_INTERVAL = 100; // 100ms間隔でポーズ検出（10FPS - 精度向上）
+  const DETECTION_INTERVAL = 33; // 100ms間隔でポーズ検出（10FPS - 精度向上）
 
   // MediaPipeの初期化
   useEffect(() => {

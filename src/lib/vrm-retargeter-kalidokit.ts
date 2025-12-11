@@ -24,7 +24,7 @@ const _tempVector3 = new THREE.Vector3();
 const applySmoothRotation = (
   bone: THREE.Object3D,
   targetRotation: { x: number; y: number; z: number },
-  smoothing: number = 0.3 // 0.5 → 0.3 に戻して応答性向上
+  smoothing: number = 0.1 // 0.5 → 0.3 に戻して応答性向上
 ): void => {
   // 再利用可能なオブジェクトを使用（毎回新規作成しない）
   // VRMシーンの180度回転を考慮してY軸を反転
@@ -36,6 +36,13 @@ const applySmoothRotation = (
   );
   tempQuaternion.setFromEuler(tempEuler);
 
+  // 【追加】現在の角度と目標角度の差を計算
+  const angle = bone.quaternion.angleTo(tempQuaternion);
+  // 【追加】変化が小さすぎる場合（例: 2度未満）は更新しない（ノイズ対策）
+  // ※ 0.035ラジアン ≒ 2度
+  if (angle < 0.035) {
+    return;
+  }
   // Slerpを使って滑らかに補間
   bone.quaternion.slerp(tempQuaternion, smoothing);
 };
@@ -207,14 +214,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.LeftUpperArm) {
       const leftUpperArm = humanoid.getNormalizedBoneNode("leftUpperArm");
       if (leftUpperArm) {
-        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.15); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.LeftLowerArm) {
       const leftLowerArm = humanoid.getNormalizedBoneNode("leftLowerArm");
       if (leftLowerArm) {
-        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.15); // 0.3 → 0.2
       }
     }
 
@@ -222,14 +229,14 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.RightUpperArm) {
       const rightUpperArm = humanoid.getNormalizedBoneNode("rightUpperArm");
       if (rightUpperArm) {
-        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.15); // 0.3 → 0.2
       }
     }
 
     if (riggedPose.RightLowerArm) {
       const rightLowerArm = humanoid.getNormalizedBoneNode("rightLowerArm");
       if (rightLowerArm) {
-        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.2); // 0.3 → 0.2
+        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.15); // 0.3 → 0.2
       }
     }
 
@@ -238,28 +245,28 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.LeftUpperLeg) {
       const leftUpperLeg = humanoid.getNormalizedBoneNode("leftUpperLeg");
       if (leftUpperLeg) {
-        applySmoothRotation(leftUpperLeg, riggedPose.LeftUpperLeg, 0.9); // 0.3 → 0.9 超安定化
+        applySmoothRotation(leftUpperLeg, riggedPose.LeftUpperLeg, 0.05); // 0.3 → 0.9 超安定化
       }
     }
 
     if (riggedPose.LeftLowerLeg) {
       const leftLowerLeg = humanoid.getNormalizedBoneNode("leftLowerLeg");
       if (leftLowerLeg) {
-        applySmoothRotation(leftLowerLeg, riggedPose.LeftLowerLeg, 0.9); // 0.3 → 0.9
+        applySmoothRotation(leftLowerLeg, riggedPose.LeftLowerLeg, 0.05); // 0.3 → 0.9
       }
     }
 
     if (riggedPose.RightUpperLeg) {
       const rightUpperLeg = humanoid.getNormalizedBoneNode("rightUpperLeg");
       if (rightUpperLeg) {
-        applySmoothRotation(rightUpperLeg, riggedPose.RightUpperLeg, 0.9); // 0.3 → 0.9
+        applySmoothRotation(rightUpperLeg, riggedPose.RightUpperLeg, 0.05); // 0.3 → 0.9
       }
     }
 
     if (riggedPose.RightLowerLeg) {
       const rightLowerLeg = humanoid.getNormalizedBoneNode("rightLowerLeg");
       if (rightLowerLeg) {
-        applySmoothRotation(rightLowerLeg, riggedPose.RightLowerLeg, 0.9); // 0.3 → 0.9
+        applySmoothRotation(rightLowerLeg, riggedPose.RightLowerLeg, 0.05); // 0.3 → 0.9
       }
     }
   } catch (error) {

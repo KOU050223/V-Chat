@@ -61,6 +61,18 @@ interface VoiceCallProps {
   className?: string; // スタイル調整用
 }
 
+// 型ガード: TrackReferenceかどうかを判定
+function isTrackReference(track: unknown): track is TrackReference {
+  return (
+    typeof track === "object" &&
+    track !== null &&
+    "publication" in track &&
+    "participant" in track &&
+    typeof (track as TrackReference).publication === "object" &&
+    (track as TrackReference).publication !== null
+  );
+}
+
 // デバイス&3D設定用コンポーネント
 function DeviceSettings({
   onClose,
@@ -674,10 +686,12 @@ function ParticipantGrid({
                 />
               </ParticipantLoop>
             </div>
-          ) : focusedItem.type === "screen_share" && focusedTrack ? (
+          ) : focusedItem.type === "screen_share" &&
+            focusedTrack &&
+            isTrackReference(focusedTrack) ? (
             <div className="w-full h-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700">
               <VideoTrack
-                trackRef={focusedTrack as TrackReference}
+                trackRef={focusedTrack}
                 className="w-full h-full object-contain"
               />
             </div>

@@ -14,16 +14,9 @@ import {
   useIsSpeaking,
   useTracks,
   VideoTrack,
-  FocusLayout,
-  FocusLayoutContainer,
-  CarouselLayout,
-  Chat,
 } from "@livekit/components-react";
 import { ConnectionState, Track, Participant } from "livekit-client";
-import {
-  TrackReferenceOrPlaceholder,
-  TrackReference,
-} from "@livekit/components-core";
+import { TrackReference } from "@livekit/components-core";
 import "@livekit/components-styles";
 import {
   Mic,
@@ -429,19 +422,21 @@ function DeviceSettings({
 }
 
 // 参加者個別のタイルコンポーネント
+interface ParticipantTileProps {
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset?: { x: number; y: number; z: number };
+  myAvatarScale?: number;
+  selectedModel?: { id: string } | null;
+}
+
 function ParticipantTile({
   localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
   selectedModel,
-}: {
-  localRotations?: BoneRotations | null;
-  cameraConfig: [number, number, number];
-  myAvatarOffset?: { x: number; y: number; z: number };
-  myAvatarScale?: number;
-  selectedModel?: { id: string } | null;
-}) {
+}: ParticipantTileProps) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
 
@@ -565,13 +560,12 @@ function ScreenShareButton() {
 
 // 画面共有表示コンポーネント
 // 画面共有タイルコンポーネント (Grid Item)
-function ScreenShareTile({
-  trackRef,
-  onClick,
-}: {
+interface ScreenShareTileProps {
   trackRef: TrackReference;
   onClick: (trackRef: TrackReference) => void;
-}) {
+}
+
+function ScreenShareTile({ trackRef, onClick }: ScreenShareTileProps) {
   return (
     <div
       className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all relative group"
@@ -590,19 +584,21 @@ function ScreenShareTile({
 }
 
 // 参加者グリッド表示コンポーネント (Unified Grid & Click-to-Expand)
+interface ParticipantGridProps {
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+  selectedModel?: { id: string } | null;
+}
+
 function ParticipantGrid({
   localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
   selectedModel,
-}: {
-  localRotations?: BoneRotations | null;
-  cameraConfig: [number, number, number];
-  myAvatarOffset: { x: number; y: number; z: number };
-  myAvatarScale: number;
-  selectedModel?: { id: string } | null;
-}) {
+}: ParticipantGridProps) {
   const participants = useParticipants();
   const screenShareTracks = useTracks([Track.Source.ScreenShare]);
 
@@ -733,6 +729,15 @@ function ParticipantGrid({
 
 // ParticipantLoopの中で使うためのラッパーコンポーネント
 // useParticipantContextをして、自身のparticipant情報を取得し、onClickハンドラに渡す
+interface ParticipantTileWrapperProps {
+  onClick: (participant: Participant) => void;
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+  selectedModel?: { id: string } | null;
+}
+
 function ParticipantTileWrapper({
   onClick,
   localRotations,
@@ -740,14 +745,7 @@ function ParticipantTileWrapper({
   myAvatarOffset,
   myAvatarScale,
   selectedModel,
-}: {
-  onClick: (participant: Participant) => void;
-  localRotations?: BoneRotations | null;
-  cameraConfig: [number, number, number];
-  myAvatarOffset: { x: number; y: number; z: number };
-  myAvatarScale: number;
-  selectedModel?: { id: string } | null;
-}) {
+}: ParticipantTileWrapperProps) {
   const participant = useParticipantContext();
   if (!participant) return null;
 
@@ -771,7 +769,11 @@ function ParticipantTileWrapper({
 }
 
 // 内部コンポーネント: 実際の通話UIとロジックを担当
-function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
+interface VoiceCallContentProps {
+  onLeave?: () => void;
+}
+
+function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   const room = useRoomContext();
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();

@@ -15,7 +15,12 @@ import {
   useTracks,
   VideoTrack,
 } from "@livekit/components-react";
-import { ConnectionState, Track, Participant } from "livekit-client";
+import {
+  ConnectionState,
+  Track,
+  Participant,
+  ParticipantEvent,
+} from "livekit-client";
 import { TrackReference } from "@livekit/components-core";
 import "@livekit/components-styles";
 import {
@@ -499,11 +504,75 @@ const ParticipantTile = memo(function ParticipantTile({
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
 
+  // 表示名（Metadataから取得を試みる）
+  const [displayName, setDisplayName] = useState(() => {
+    if (!participant) return "";
+    return (
+      participant.name ||
+      participant.identity.split("-")[0] ||
+      participant.identity
+    );
+  });
+
+  useEffect(() => {
+    if (!participant) return;
+
+    // 状態を同期する関数
+    const syncState = () => {
+      let newName = participant.name;
+
+      // Metadataの優先チェック
+      if (participant.metadata) {
+        try {
+          const meta = JSON.parse(participant.metadata) as AvatarMetadata;
+          if (meta.name) {
+            newName = meta.name;
+          }
+        } catch (e) {
+          console.error("Metadata解析に失敗:", e);
+        }
+      }
+
+      // IDフォールバック
+      if (!newName) {
+        newName = participant.identity.split("-")[0] || participant.identity;
+      }
+
+      setDisplayName(newName);
+    };
+
+    // 初期化時実行
+    syncState();
+
+    // リスナー設定
+    const handleMetadataChanged = () => {
+      syncState();
+    };
+
+    const handleNameChanged = () => {
+      syncState();
+    };
+
+    participant.on(
+      ParticipantEvent.ParticipantMetadataChanged,
+      handleMetadataChanged
+    );
+    participant.on(ParticipantEvent.ParticipantNameChanged, handleNameChanged);
+
+    return () => {
+      participant.off(
+        ParticipantEvent.ParticipantMetadataChanged,
+        handleMetadataChanged
+      );
+      participant.off(
+        ParticipantEvent.ParticipantNameChanged,
+        handleNameChanged
+      );
+    };
+  }, [participant]);
+
   if (!participant) return null;
 
-  // 表示名（ID部分は隠す）
-  const displayName =
-    participant.identity.split("-")[0] || participant.identity;
   const isMicrophoneEnabled = participant.isMicrophoneEnabled;
 
   // 自分の場合のみ、ローカルの回転情報を渡す
@@ -821,10 +890,48 @@ const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
   selectedModel,
 }: ParticipantTileWrapperProps) {
   const participant = useParticipantContext();
-  if (!participant) return null;
 
-  const displayName =
-    participant.identity.split("-")[0] || participant.identity;
+  const [displayName, setDisplayName] = useState(() => {
+    if (!participant) return "";
+    return (
+      participant.name ||
+      participant.identity.split("-")[0] ||
+      participant.identity
+    );
+  });
+
+  useEffect(() => {
+    if (!participant) return;
+
+    // シンプルにマウント時と更新時だけチェック（Wrapperなので詳細な監視は省くか、必要なら追加）
+    // パフォーマンスのため、ここはParticipantTileに任せるのが理想だが、
+    // Wrapperのaria-label用なので、簡易的な更新を行う
+    const updateName = () => {
+      let name = participant.name;
+      if (!name && participant.metadata) {
+        try {
+          const meta = JSON.parse(participant.metadata) as AvatarMetadata;
+          if (meta.name) name = meta.name;
+        } catch (e) {
+          console.error("Failed to parse metadata", e);
+        }
+      }
+      setDisplayName(
+        name || participant.identity.split("-")[0] || participant.identity
+      );
+    };
+    updateName();
+
+    // イベント監視を追加して同期を確実にする
+    participant.on(ParticipantEvent.ParticipantMetadataChanged, updateName);
+    participant.on(ParticipantEvent.ParticipantNameChanged, updateName);
+    return () => {
+      participant.off(ParticipantEvent.ParticipantMetadataChanged, updateName);
+      participant.off(ParticipantEvent.ParticipantNameChanged, updateName);
+    };
+  }, [participant]);
+
+  if (!participant) return null;
 
   return (
     <button
@@ -1064,12 +1171,21 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
             }
           }
 
+          const nameToSend =
+            settings.selectedModel?.character?.name || "Standard Model";
+
           const metadata: AvatarMetadata = {
             avatarUrl: avatarUrl,
             offset: avatarOffset,
             scale: avatarScale,
+            name: nameToSend,
           };
+
           await localParticipant.setMetadata(JSON.stringify(metadata));
+
+          if (nameToSend) {
+            localParticipant.setName(nameToSend).catch(console.error);
+          }
         } catch (e) {
           console.error("Failed to set metadata:", e);
         }

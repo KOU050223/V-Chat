@@ -217,8 +217,6 @@ export function useVRoidModels(options: UseVRoidModelsOptions = {}) {
         const response = await vroidClient.searchCharacterModels({
           keyword,
           count: 20,
-          is_downloadable: true,
-          sort: "relevance",
         });
 
         return response.data;

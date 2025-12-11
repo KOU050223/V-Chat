@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -12,10 +12,23 @@ import {
   useParticipantContext,
   ParticipantLoop,
   useIsSpeaking,
+  useTracks,
+  VideoTrack,
 } from "@livekit/components-react";
-import { ConnectionState } from "livekit-client";
+import { ConnectionState, Track, Participant } from "livekit-client";
+import { TrackReference } from "@livekit/components-core";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X, Video, VideoOff } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Settings,
+  X,
+  Video,
+  VideoOff,
+  Monitor,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -46,6 +59,18 @@ interface VoiceCallProps {
   onStateChange?: (state: VoiceCallState) => void;
   serverMemberCount?: number;
   className?: string; // スタイル調整用
+}
+
+// 型ガード: TrackReferenceかどうかを判定
+function isTrackReference(track: unknown): track is TrackReference {
+  return (
+    typeof track === "object" &&
+    track !== null &&
+    "publication" in track &&
+    "participant" in track &&
+    typeof (track as TrackReference).publication === "object" &&
+    (track as TrackReference).publication !== null
+  );
 }
 
 // デバイス&3D設定用コンポーネント
@@ -409,19 +434,21 @@ function DeviceSettings({
 }
 
 // 参加者個別のタイルコンポーネント
-function ParticipantTile({
-  localRotations,
-  cameraConfig,
-  myAvatarOffset,
-  myAvatarScale,
-  selectedModel,
-}: {
+interface ParticipantTileProps {
   localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset?: { x: number; y: number; z: number };
   myAvatarScale?: number;
   selectedModel?: { id: string } | null;
-}) {
+}
+
+const ParticipantTile = memo(function ParticipantTile({
+  localRotations,
+  cameraConfig,
+  myAvatarOffset,
+  myAvatarScale,
+  selectedModel,
+}: ParticipantTileProps) {
   const participant = useParticipantContext();
   const isSpeaking = useIsSpeaking(participant);
 
@@ -488,42 +515,238 @@ function ParticipantTile({
       </div>
     </div>
   );
+});
+
+// 画面共有ボタンコンポーネント
+function ScreenShareButton() {
+  const { localParticipant } = useLocalParticipant();
+  const [isSharing, setIsSharing] = useState(false);
+
+  // 画面共有の状態を監視
+  useEffect(() => {
+    if (!localParticipant) return;
+
+    const checkScreenShareState = () => {
+      setIsSharing(localParticipant.isScreenShareEnabled);
+    };
+
+    checkScreenShareState();
+
+    // トラックの変更を監視
+    localParticipant.on("trackPublished", checkScreenShareState);
+    localParticipant.on("trackUnpublished", checkScreenShareState);
+
+    return () => {
+      localParticipant.off("trackPublished", checkScreenShareState);
+      localParticipant.off("trackUnpublished", checkScreenShareState);
+    };
+  }, [localParticipant]);
+
+  const toggleScreenShare = async () => {
+    if (!localParticipant) return;
+
+    try {
+      const isEnabled = localParticipant.isScreenShareEnabled;
+      await localParticipant.setScreenShareEnabled(!isEnabled);
+    } catch (error) {
+      console.error("画面共有の切り替えに失敗:", error);
+    }
+  };
+
+  return (
+    <Button
+      onClick={toggleScreenShare}
+      variant="outline"
+      size="lg"
+      className={`rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 border-0 ${
+        isSharing
+          ? "bg-purple-600 hover:bg-purple-700 shadow-[0_0_15px_rgba(147,51,234,0.3)]"
+          : "bg-gray-700 hover:bg-gray-600"
+      }`}
+      title="画面共有"
+    >
+      <Monitor className="w-5 h-5" />
+    </Button>
+  );
 }
 
-// 参加者グリッド表示コンポーネント
+// 画面共有表示コンポーネント
+// 画面共有タイルコンポーネント (Grid Item)
+interface ScreenShareTileProps {
+  trackRef: TrackReference;
+  onClick: (trackRef: TrackReference) => void;
+}
+
+const ScreenShareTile = memo(function ScreenShareTile({
+  trackRef,
+  onClick,
+}: ScreenShareTileProps) {
+  const participantName = trackRef.participant.identity.split("-")[0];
+
+  return (
+    <button
+      type="button"
+      className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all relative group w-full"
+      onClick={() => onClick(trackRef)}
+      aria-label={`${participantName}の画面共有を拡大表示`}
+    >
+      <VideoTrack
+        trackRef={trackRef}
+        className="w-full h-full object-cover pointer-events-none"
+      />
+      <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center pointer-events-none">
+        <Monitor className="w-3 h-3 mr-1" />
+        {participantName} の画面
+      </div>
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
+        <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </button>
+  );
+});
+
+// 参加者グリッド表示コンポーネント (Unified Grid & Click-to-Expand)
+interface ParticipantGridProps {
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+  selectedModel?: { id: string } | null;
+}
+
 function ParticipantGrid({
   localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
   selectedModel,
-}: {
-  localRotations?: BoneRotations | null;
-  cameraConfig: [number, number, number];
-  myAvatarOffset: { x: number; y: number; z: number };
-  myAvatarScale: number;
-  selectedModel?: { id: string } | null;
-}) {
+}: ParticipantGridProps) {
   const participants = useParticipants();
+  const screenShareTracks = useTracks([Track.Source.ScreenShare]);
 
+  // フォーカス（拡大表示）されているアイテムを管理
+  // 識別子ベースで管理: participant.identity または trackRef.publication.trackSid
+  const [focusedItem, setFocusedItem] = useState<{
+    type: "participant" | "screen_share";
+    id: string;
+  } | null>(null);
+
+  // 画面共有または参加者がクリックされたときのハンドラ
+  const handleFocus = useCallback(
+    (
+      type: "participant" | "screen_share",
+      item: Participant | TrackReference
+    ) => {
+      // 識別子を取得
+      const id =
+        type === "participant"
+          ? (item as Participant).identity
+          : (item as TrackReference).publication.trackSid;
+
+      // 既にフォーカスされているものをクリックしたら解除、そうでなければフォーカス
+      if (focusedItem && focusedItem.type === type && focusedItem.id === id) {
+        setFocusedItem(null);
+      } else {
+        setFocusedItem({ type, id });
+      }
+    },
+    [focusedItem]
+  );
+
+  // フォーカスモード（拡大表示）
+  if (focusedItem) {
+    // フォーカスされているアイテムを取得
+    const focusedParticipant =
+      focusedItem.type === "participant"
+        ? participants.find((p) => p.identity === focusedItem.id)
+        : null;
+    const focusedTrack =
+      focusedItem.type === "screen_share"
+        ? screenShareTracks.find(
+            (t) => t.publication.trackSid === focusedItem.id
+          )
+        : null;
+
+    return (
+      <div className="relative w-full h-full flex items-center justify-center bg-gray-900 p-4">
+        <Button
+          className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"
+          onClick={() => setFocusedItem(null)}
+        >
+          <Minimize2 className="w-6 h-6" />
+        </Button>
+
+        <div className="w-full h-full max-w-5xl max-h-[80vh] flex items-center justify-center">
+          {focusedItem.type === "participant" && focusedParticipant ? (
+            <div className="w-full h-full">
+              {/* 拡大時のParticipantTileはParticipantContextが必要なため、単体でラップする構成が少し複雑。
+                    またParticipantTileはuseParticipantContextを使うため、ParticipantLoopなどでラップする必要がある。
+                    ここでは簡易的にParticipantContextを提供するためにLoopを使う（1要素だけ）
+                 */}
+              <ParticipantLoop participants={[focusedParticipant]}>
+                <ParticipantTile
+                  localRotations={localRotations}
+                  cameraConfig={cameraConfig}
+                  myAvatarOffset={myAvatarOffset}
+                  myAvatarScale={myAvatarScale}
+                  selectedModel={selectedModel}
+                />
+              </ParticipantLoop>
+            </div>
+          ) : focusedItem.type === "screen_share" &&
+            focusedTrack &&
+            isTrackReference(focusedTrack) ? (
+            <div className="w-full h-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700">
+              <VideoTrack
+                trackRef={focusedTrack}
+                className="w-full h-full object-contain"
+              />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
+  // グリッドモード (通常表示)
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 h-full flex items-center justify-center">
-      <div className="flex flex-wrap justify-center gap-6 w-full">
+    <div className="w-full max-w-7xl mx-auto p-4 h-full flex items-center justify-center overflow-y-auto">
+      {/* 
+        Grid Layout:
+        - Auto-fit columns based on min-width (e.g. 250px)
+        - Gap for spacing
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full">
+        {/* 1. 画面共有トラックのタイル */}
+        {screenShareTracks.map((trackRef) => (
+          <ScreenShareTile
+            key={trackRef.publication.trackSid}
+            trackRef={trackRef as TrackReference}
+            onClick={(track) => handleFocus("screen_share", track)}
+          />
+        ))}
+
+        {/* 2. 参加者（アバター）のタイル */}
         <ParticipantLoop participants={participants}>
-          <div className="w-64 h-72">
-            <ParticipantTile
-              localRotations={localRotations}
-              cameraConfig={cameraConfig}
-              myAvatarOffset={myAvatarOffset}
-              myAvatarScale={myAvatarScale}
-              selectedModel={selectedModel}
-            />
-          </div>
+          {/* ParticipantLoopは子要素をcloneしてparticipantを注入するため、
+               onClickを直接渡すにはラッパーが必要だが、ParticipantTile自体がコンテキストに依存するため
+               ここでのonClick実装は少し工夫が必要。
+               ParticipantContextを使うため、ParticipantTileをラップするdivにonClickをつけるのが無難だが、
+               ParticipantLoopの直下はContextが提供されるスコープ。
+           */}
+          <ParticipantTileWrapper
+            onClick={(p) => handleFocus("participant", p)}
+            localRotations={localRotations}
+            cameraConfig={cameraConfig}
+            myAvatarOffset={myAvatarOffset}
+            myAvatarScale={myAvatarScale}
+            selectedModel={selectedModel}
+          />
         </ParticipantLoop>
       </div>
 
-      {participants.length === 0 && (
-        <div className="text-center text-gray-500 py-12">
+      {participants.length === 0 && screenShareTracks.length === 0 && (
+        <div className="text-center text-gray-500 py-12 col-span-full">
           参加者を待機しています...
         </div>
       )}
@@ -531,8 +754,58 @@ function ParticipantGrid({
   );
 }
 
+// ParticipantLoopの中で使うためのラッパーコンポーネント
+// useParticipantContextをして、自身のparticipant情報を取得し、onClickハンドラに渡す
+interface ParticipantTileWrapperProps {
+  onClick: (participant: Participant) => void;
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+  selectedModel?: { id: string } | null;
+}
+
+const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
+  onClick,
+  localRotations,
+  cameraConfig,
+  myAvatarOffset,
+  myAvatarScale,
+  selectedModel,
+}: ParticipantTileWrapperProps) {
+  const participant = useParticipantContext();
+  if (!participant) return null;
+
+  const displayName =
+    participant.identity.split("-")[0] || participant.identity;
+
+  return (
+    <button
+      type="button"
+      className="aspect-square w-full h-full cursor-pointer hover:ring-2 hover:ring-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-xl transition-all relative group"
+      onClick={() => onClick(participant)}
+      aria-label={`${displayName}のアバターを拡大表示`}
+    >
+      <ParticipantTile
+        localRotations={localRotations}
+        cameraConfig={cameraConfig}
+        myAvatarOffset={myAvatarOffset}
+        myAvatarScale={myAvatarScale}
+        selectedModel={selectedModel}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-colors pointer-events-none">
+        <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+      </div>
+    </button>
+  );
+});
+
 // 内部コンポーネント: 実際の通話UIとロジックを担当
-function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
+interface VoiceCallContentProps {
+  onLeave?: () => void;
+}
+
+function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   const room = useRoomContext();
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
@@ -880,6 +1153,10 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
             <MicOff className="w-8 h-8" />
           )}
         </Button>
+
+        {/* 画面共有ボタン */}
+        <ScreenShareButton />
+
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">
           <div className="flex items-end gap-1 h-8 mb-1">

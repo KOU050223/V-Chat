@@ -607,11 +607,10 @@ function ParticipantGrid({
   const screenShareTracks = useTracks([Track.Source.ScreenShare]);
 
   // フォーカス（拡大表示）されているアイテムを管理
-  // type: 'participant' | 'screen_share'
-  // id: participant identity or track sid
+  // 識別子ベースで管理: participant.identity または trackRef.publication.trackSid
   const [focusedItem, setFocusedItem] = useState<{
     type: "participant" | "screen_share";
-    item: Participant | TrackReference;
+    id: string;
   } | null>(null);
 
   // 画面共有または参加者がクリックされたときのハンドラ
@@ -619,16 +618,34 @@ function ParticipantGrid({
     type: "participant" | "screen_share",
     item: Participant | TrackReference
   ) => {
+    // 識別子を取得
+    const id =
+      type === "participant"
+        ? (item as Participant).identity
+        : (item as TrackReference).publication.trackSid;
+
     // 既にフォーカスされているものをクリックしたら解除、そうでなければフォーカス
-    if (focusedItem && focusedItem.item === item) {
+    if (focusedItem && focusedItem.type === type && focusedItem.id === id) {
       setFocusedItem(null);
     } else {
-      setFocusedItem({ type, item });
+      setFocusedItem({ type, id });
     }
   };
 
   // フォーカスモード（拡大表示）
   if (focusedItem) {
+    // フォーカスされているアイテムを取得
+    const focusedParticipant =
+      focusedItem.type === "participant"
+        ? participants.find((p) => p.identity === focusedItem.id)
+        : null;
+    const focusedTrack =
+      focusedItem.type === "screen_share"
+        ? screenShareTracks.find(
+            (t) => t.publication.trackSid === focusedItem.id
+          )
+        : null;
+
     return (
       <div className="relative w-full h-full flex items-center justify-center bg-gray-900 p-4">
         <Button
@@ -639,13 +656,13 @@ function ParticipantGrid({
         </Button>
 
         <div className="w-full h-full max-w-5xl max-h-[80vh] flex items-center justify-center">
-          {focusedItem.type === "participant" ? (
+          {focusedItem.type === "participant" && focusedParticipant ? (
             <div className="w-full h-full">
               {/* 拡大時のParticipantTileはParticipantContextが必要なため、単体でラップする構成が少し複雑。
                     またParticipantTileはuseParticipantContextを使うため、ParticipantLoopなどでラップする必要がある。
                     ここでは簡易的にParticipantContextを提供するためにLoopを使う（1要素だけ）
                  */}
-              <ParticipantLoop participants={[focusedItem.item as Participant]}>
+              <ParticipantLoop participants={[focusedParticipant]}>
                 <ParticipantTile
                   localRotations={localRotations}
                   cameraConfig={cameraConfig}
@@ -655,14 +672,14 @@ function ParticipantGrid({
                 />
               </ParticipantLoop>
             </div>
-          ) : (
+          ) : focusedItem.type === "screen_share" && focusedTrack ? (
             <div className="w-full h-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700">
               <VideoTrack
-                trackRef={focusedItem.item as TrackReference}
+                trackRef={focusedTrack as TrackReference}
                 className="w-full h-full object-contain"
               />
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     );
@@ -1028,7 +1045,6 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
           myAvatarScale={avatarScale}
           selectedModel={settings.selectedModel}
         />
-        {/* 画面共有表示（共有中のみ表示） */}
       </div>
 
       {/* エラーメッセージ */}

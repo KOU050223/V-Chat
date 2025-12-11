@@ -581,20 +581,27 @@ const ScreenShareTile = memo(function ScreenShareTile({
   trackRef,
   onClick,
 }: ScreenShareTileProps) {
+  const participantName = trackRef.participant.identity.split("-")[0];
+
   return (
-    <div
-      className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all relative group"
+    <button
+      type="button"
+      className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all relative group w-full"
       onClick={() => onClick(trackRef)}
+      aria-label={`${participantName}の画面共有を拡大表示`}
     >
-      <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
-      <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center">
+      <VideoTrack
+        trackRef={trackRef}
+        className="w-full h-full object-cover pointer-events-none"
+      />
+      <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center pointer-events-none">
         <Monitor className="w-3 h-3 mr-1" />
-        {trackRef.participant.identity.split("-")[0]} の画面
+        {participantName} の画面
       </div>
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors pointer-events-none">
         <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -769,10 +776,15 @@ const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
   const participant = useParticipantContext();
   if (!participant) return null;
 
+  const displayName =
+    participant.identity.split("-")[0] || participant.identity;
+
   return (
     <button
-      className="aspect-square w-full h-full cursor-pointer hover:ring-2 hover:ring-green-500 rounded-xl transition-all relative group"
+      type="button"
+      className="aspect-square w-full h-full cursor-pointer hover:ring-2 hover:ring-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 rounded-xl transition-all relative group"
       onClick={() => onClick(participant)}
+      aria-label={`${displayName}のアバターを拡大表示`}
     >
       <ParticipantTile
         localRotations={localRotations}

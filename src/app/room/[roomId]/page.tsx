@@ -584,15 +584,6 @@ export default function ChatRoom() {
               <Users className="w-4 h-4" />
               <span>{roomInfo?.members || 0}人参加中</span>
             </div>
-            <Button
-              onClick={() => setShowChat(!showChat)}
-              variant={showChat ? "default" : "outline"}
-              size="sm"
-              className="flex items-center bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <MessageCircle className="w-4 h-4 mr-2" />
-              チャット
-            </Button>
             <div className="relative">
               <Button
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -614,7 +605,7 @@ export default function ChatRoom() {
                       ルームIDをコピー
                     </Button>
                     {/* 開発環境でのテスト用に常に表示 */}
-                    {true && (
+                    {process.env.NODE_ENV === "development" && (
                       <Button
                         onClick={handleResetRoom}
                         variant="outline"
@@ -647,60 +638,6 @@ export default function ChatRoom() {
             className="flex-1"
           />
         </div>
-
-        {/* チャットサイドパネル */}
-        {showChat && (
-          <div className="w-80 bg-gray-800 border-l border-gray-700 flex flex-col">
-            <div className="p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white">チャット</h3>
-            </div>
-
-            {/* メッセージエリア */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {messages.map((message) => (
-                <div key={message.id} className="flex items-start space-x-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-                    {message.userName.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="font-semibold text-white text-sm">
-                        {message.userName}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatTime(message.timestamp)}
-                      </span>
-                    </div>
-                    <p className="text-gray-300 text-sm bg-gray-700 rounded-lg px-3 py-2">
-                      {message.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* メッセージ入力エリア */}
-            <div className="p-4 border-t border-gray-700">
-              <form onSubmit={handleSendMessage} className="flex space-x-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="メッセージを入力..."
-                  className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <Button
-                  type="submit"
-                  disabled={!newMessage.trim()}
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 退出確認ダイアログ */}

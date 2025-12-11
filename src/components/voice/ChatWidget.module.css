@@ -1,0 +1,17 @@
+@reference "../../app/globals.css";
+
+.chatContainer {
+  @apply flex-1 overflow-hidden relative;
+}
+
+.chatContainer :global(.lk-chat-form) {
+  @apply bg-gray-900 border-t border-gray-700;
+}
+
+.chatContainer :global(.lk-chat-entry) {
+  @apply bg-gray-800/50 border border-gray-700 rounded-lg mb-2;
+}
+
+.chatContainer :global(.lk-timestamp) {
+  @apply text-gray-500;
+}

@@ -28,7 +28,9 @@ import {
   Monitor,
   Maximize2,
   Minimize2,
+  MessageSquare,
 } from "lucide-react";
+import { ChatWidget } from "./ChatWidget";
 import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -810,7 +812,26 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   const connectionState = useConnectionState();
   const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
   const [showSettings, setShowSettings] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // チャットの表示切り替え（メモ化）
+  const handleToggleChat = useCallback(() => {
+    setShowChat((prev) => !prev);
+  }, []);
+
+  // キーボードショートカット (Ctrl+/ or Cmd+/)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        handleToggleChat();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleToggleChat]);
 
   // VModel Contextから設定を取得
   const { settings } = useVModel();
@@ -1060,7 +1081,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   }
 
   return (
-    <div className="flex flex-col h-full w-full relative">
+    <div className="flex flex-col h-full w-full relative overflow-hidden">
       {/* 送信側のための不可視/ユーティリティコンポーネント */}
       <div className="absolute top-0 right-0 w-32 h-24 opacity-0 hover:opacity-100 transition-opacity z-50 pointer-events-none hover:pointer-events-auto bg-black border border-gray-600">
         {/* カメラプレビュー（デバッグ用の小窓） */}
@@ -1079,6 +1100,15 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
           myAvatarScale={avatarScale}
           selectedModel={settings.selectedModel}
         />
+      </div>
+
+      {/* チャットウィジェット (サイドバー) */}
+      <div
+        className={`absolute top-0 right-0 h-full w-80 sm:w-96 z-40 transition-transform duration-300 ${
+          showChat ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <ChatWidget onClose={handleToggleChat} className="h-full w-full" />
       </div>
 
       {/* エラーメッセージ */}
@@ -1156,6 +1186,21 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
 
         {/* 画面共有ボタン */}
         <ScreenShareButton />
+
+        {/* チャットボタン */}
+        <Button
+          onClick={handleToggleChat}
+          variant="outline"
+          size="icon"
+          className={`rounded-full w-12 h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors ml-1 ${
+            showChat ? "bg-gray-800 text-blue-400 border-blue-500/50" : ""
+          }`}
+          title="チャット (Cmd+/)"
+          aria-label="チャットパネルの表示切り替え"
+          aria-pressed={showChat}
+        >
+          <MessageSquare className="w-5 h-5" />
+        </Button>
 
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">

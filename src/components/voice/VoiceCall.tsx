@@ -113,6 +113,21 @@ function DeviceSettings({
     kind: "videoinput",
   });
 
+  // 選択されたカメラIDが存在しない場合、デフォルトにリセット
+  useEffect(() => {
+    if (activeVideoInputDeviceId && videoInputDevices.length > 0) {
+      const deviceExists = videoInputDevices.some(
+        (device) => device.deviceId === activeVideoInputDeviceId
+      );
+      if (!deviceExists) {
+        console.warn(
+          `選択されたカメラ (${activeVideoInputDeviceId}) が見つかりません。デフォルトに戻します。`
+        );
+        setActiveVideoInputDevice("");
+      }
+    }
+  }, [videoInputDevices, activeVideoInputDeviceId, setActiveVideoInputDevice]);
+
   // ドラッグ処理のロジック
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -202,6 +217,7 @@ function DeviceSettings({
               value={activeVideoInputDeviceId}
               onChange={(e) => setActiveVideoInputDevice(e.target.value)}
             >
+              <option value="">デフォルト</option>
               {videoInputDevices.map((device: MediaDeviceInfo) => (
                 <option key={device.deviceId} value={device.deviceId}>
                   {device.label || `カメラ ${device.deviceId.slice(0, 5)}...`}
@@ -906,12 +922,14 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("vchat_selected_camera_id");
-      if (saved) setSelectedVideoDeviceId(saved);
+      if (saved !== null) {
+        setSelectedVideoDeviceId(saved);
+      }
     }
   }, []);
 
   useEffect(() => {
-    if (selectedVideoDeviceId) {
+    if (typeof window !== "undefined") {
       localStorage.setItem("vchat_selected_camera_id", selectedVideoDeviceId);
     }
   }, [selectedVideoDeviceId]);

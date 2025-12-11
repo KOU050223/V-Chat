@@ -9,7 +9,6 @@ import {
   CardContent,
 } from "@/components/ui";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import VModelSelector from "@/components/vmodel/VModelSelector";
 import SelectedVModelCard from "@/components/vmodel/SelectedVModelCard";
 import VModelSettings from "@/components/vmodel/VModelSettings";
 import {
@@ -215,11 +214,6 @@ export default function Dashboard() {
                   {isVRoidLinked ? (
                     <div className="space-y-4">
                       <SelectedVModelCard />
-                      <VModelSelector
-                        onModelSelect={(model) => {
-                          console.log("選択されたモデル:", model);
-                        }}
-                      />
                     </div>
                   ) : (
                     <div className="text-center py-8 space-y-4">

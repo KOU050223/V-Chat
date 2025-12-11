@@ -84,6 +84,8 @@ function DeviceSettings({
   setAvatarOffset,
   avatarScale,
   setAvatarScale,
+  activeVideoInputDeviceId,
+  setActiveVideoInputDevice,
 }: {
   onClose: () => void;
   cameraConfig: [number, number, number];
@@ -92,6 +94,8 @@ function DeviceSettings({
   setAvatarOffset: (offset: { x: number; y: number; z: number }) => void;
   avatarScale: number;
   setAvatarScale: (scale: number) => void;
+  activeVideoInputDeviceId: string;
+  setActiveVideoInputDevice: (id: string) => void;
 }) {
   const {
     devices: audioInputDevices,
@@ -104,6 +108,10 @@ function DeviceSettings({
     activeDeviceId: activeAudioOutputDeviceId,
     setActiveMediaDevice: setActiveAudioOutputDevice,
   } = useMediaDeviceSelect({ kind: "audiooutput" });
+
+  const { devices: videoInputDevices } = useMediaDeviceSelect({
+    kind: "videoinput",
+  });
 
   // ドラッグ処理のロジック
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -181,6 +189,27 @@ function DeviceSettings({
           <h4 className="text-sm font-semibold text-gray-300">
             オーディオ設定
           </h4>
+          <div className="space-y-2">
+            <label
+              htmlFor="video-input-select"
+              className="text-xs text-gray-400 uppercase font-bold tracking-wider"
+            >
+              カメラ (モーション用)
+            </label>
+            <select
+              id="video-input-select"
+              className="w-full bg-gray-900 border border-gray-600 text-white text-sm rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500"
+              value={activeVideoInputDeviceId}
+              onChange={(e) => setActiveVideoInputDevice(e.target.value)}
+            >
+              {videoInputDevices.map((device: MediaDeviceInfo) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label || `カメラ ${device.deviceId.slice(0, 5)}...`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="space-y-2">
             <label
               htmlFor="audio-input-select"
@@ -870,19 +899,34 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     }
   );
 
+  // カメラデバイスIDの状態
+  const [selectedVideoDeviceId, setSelectedVideoDeviceId] =
+    useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("vchat_selected_camera_id");
+      if (saved) setSelectedVideoDeviceId(saved);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedVideoDeviceId) {
+      localStorage.setItem("vchat_selected_camera_id", selectedVideoDeviceId);
+    }
+  }, [selectedVideoDeviceId]);
+
   const [avatarOffset, setAvatarOffset] = useState<{
     x: number;
     y: number;
     z: number;
   }>(() => {
     const defaultOffset = { x: 0, y: 0, z: 0 };
-    // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("vchat_avatar_offset");
         if (saved) {
           const parsed = JSON.parse(saved);
-          // オブジェクトかつx, y, zプロパティがすべて数値であることを確認
           if (
             parsed &&
             typeof parsed === "object" &&
@@ -905,13 +949,11 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
 
   const [avatarScale, setAvatarScale] = useState<number>(() => {
     const defaultScale = 1.0;
-    // localStorageから復元（利用可能な場合）
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("vchat_avatar_scale");
         if (saved) {
           const parsed = parseFloat(saved);
-          // 有効な数値であることを確認
           if (!isNaN(parsed) && isFinite(parsed)) {
             return parsed;
           }
@@ -938,8 +980,6 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
 
   // 初期メタデータの設定（アバターURL）
   useEffect(() => {
-    // 接続済みかつ権限がある場合のみMetadataを設定
-    // 初期設定後もavatarOffsetの変更に伴い更新する
     console.log(
       "[VoiceCall] Metadata Effect Triggered. RoomState:",
       room.state,
@@ -950,21 +990,17 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     if (localParticipant && room.state === "connected") {
       const updateMeta = async () => {
         try {
-          // デフォルトアバターURL（フォールバック用）
           const DEFAULT_AVATAR_URL = "/vrm/vroid_model_6689695945343414173.vrm";
           let avatarUrl = DEFAULT_AVATAR_URL;
 
-          // 選択されたモデルがある場合、そのURLを取得
           if (settings.selectedModel) {
             try {
               console.log(
                 "Fetching download license/cache for model:",
                 settings.selectedModel.id
               );
-
               const modelId = settings.selectedModel.id;
 
-              // アバターのアップロードに使用するFirebase IDトークンを取得
               if (!user) {
                 console.error(
                   "Firebase user not found, cannot access storage. Using default avatar."
@@ -972,25 +1008,17 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
                 avatarUrl = DEFAULT_AVATAR_URL;
               } else {
                 const firebaseToken = await user.getIdToken();
-
-                // Firebase StorageからURLを取得（なければアップロード）
-                // ensureVRMInStorageにはFirebaseトークンを渡す
                 const storageUrl = await ensureVRMInStorage(
                   modelId,
                   async () => {
-                    // ダウンロードが必要な場合のコールバック
                     console.log("VRM cache miss, downloading...", modelId);
-
-                    // アクセストークンを渡してVRMDownloaderをインスタンス化
                     const accessToken = nextAuthSession?.accessToken;
                     if (!accessToken) {
                       console.error(
                         "VRoid access token is missing. Cannot download model, falling back to default avatar."
                       );
-                      // エラーをスローせず、nullを返してStorageキャッシュをスキップ
                       return null;
                     }
-
                     const downloader = new VRMDownloader(accessToken);
                     const result = await downloader.downloadVRM(modelId);
                     return result.blob;
@@ -1014,15 +1042,14 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
                 "Failed to get avatar from storage, falling back to default:",
                 err
               );
-              // エラー時はデフォルトを使用
               avatarUrl = DEFAULT_AVATAR_URL;
             }
           }
 
           const metadata: AvatarMetadata = {
             avatarUrl: avatarUrl,
-            offset: avatarOffset, // offsetを含める
-            scale: avatarScale, // scaleを含める
+            offset: avatarOffset,
+            scale: avatarScale,
           };
           await localParticipant.setMetadata(JSON.stringify(metadata));
         } catch (e) {
@@ -1030,7 +1057,6 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
         }
       };
 
-      // スライダー操作中の過度な更新を防ぐため、少しデバウンスさせる
       const timer = setTimeout(updateMeta, 500);
       return () => clearTimeout(timer);
     }
@@ -1042,7 +1068,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     settings.selectedModel,
     user,
     nextAuthSession?.accessToken,
-  ]); // avatarOffsetまたはavatarScaleが変更されたときに再実行
+  ]);
 
   // マイクの切り替え
   const toggleMute = useCallback(async () => {
@@ -1057,7 +1083,6 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     try {
       setDisconnectError(null);
       await room.disconnect();
-      // 正常に退出した場合、親コンポーネントに通知
       onLeave?.();
     } catch (error) {
       console.error("Failed to disconnect from LiveKit room:", error);
@@ -1069,7 +1094,6 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
 
   // UIレンダリング
   if (connectionState !== ConnectionState.Connected) {
-    // ... loading UI ...
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
@@ -1088,6 +1112,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
         <AvatarSender
           autoStart={isCameraOn}
           onRotationsUpdate={setLocalRotations}
+          cameraId={selectedVideoDeviceId}
         />
       </div>
 
@@ -1130,6 +1155,8 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
             setAvatarOffset={setAvatarOffset}
             avatarScale={avatarScale}
             setAvatarScale={setAvatarScale}
+            activeVideoInputDeviceId={selectedVideoDeviceId}
+            setActiveVideoInputDevice={setSelectedVideoDeviceId}
           />
         )}
 

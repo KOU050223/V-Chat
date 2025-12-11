@@ -9,11 +9,13 @@ import { MotionDataPacket, BoneRotations } from "@/types/avatar";
 interface AvatarSenderProps {
   autoStart?: boolean;
   onRotationsUpdate?: (rotations: BoneRotations) => void;
+  cameraId?: string; // カメラID (指定がない場合はデフォルト)
 }
 
 export const AvatarSender: React.FC<AvatarSenderProps> = ({
   autoStart = false,
   onRotationsUpdate,
+  cameraId,
 }) => {
   const { localParticipant } = useLocalParticipant();
   const roomContext = useRoomContext(); // ルームコンテキストを使用
@@ -131,9 +133,10 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
   ]);
 
   // 開始/停止制御
+  // カメラIDが変わった場合も再起動する
   useEffect(() => {
     if (isSending && isInitialized) {
-      startCamera();
+      startCamera(cameraId); // cameraIdを渡す
       animationFrameRef.current = requestAnimationFrame(sendLoop);
     } else {
       if (animationFrameRef.current) {
@@ -147,7 +150,7 @@ export const AvatarSender: React.FC<AvatarSenderProps> = ({
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [isSending, isInitialized, startCamera, stopCamera, sendLoop]);
+  }, [isSending, isInitialized, startCamera, stopCamera, sendLoop, cameraId]);
 
   // マウント時の自動開始処理
   useEffect(() => {

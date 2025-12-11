@@ -16,7 +16,7 @@ interface UsePoseEstimationReturn {
   isCameraPermissionGranted: boolean;
   error: string | null;
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
-  startCamera: () => Promise<void>;
+  startCamera: (deviceId?: string) => Promise<void>;
   stopCamera: () => void;
   requestCameraPermission: () => Promise<void>;
 }
@@ -157,52 +157,91 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   }, []);
 
   // カメラの開始
-  const startCamera = useCallback(async () => {
-    try {
-      setError(null);
+  const startCamera = useCallback(
+    async (deviceId?: string) => {
+      try {
+        setError(null);
 
-      // If videoRef is managed by React, it should be set already.
-      // If not, we create a hidden one.
-      if (!videoRef.current) {
-        const video = document.createElement("video");
-        video.style.display = "none";
-        video.autoplay = true;
-        video.playsInline = true;
-        document.body.appendChild(video);
-        videoRef.current = video;
+        // If videoRef is managed by React, it should be set already.
+        // If not, we create a hidden one.
+        if (!videoRef.current) {
+          const video = document.createElement("video");
+          video.style.display = "none";
+          video.autoplay = true;
+          video.playsInline = true;
+          document.body.appendChild(video);
+          videoRef.current = video;
+        }
+
+        // 既存のストリームがあれば停止してから新しいストリームを取得
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+        }
+
+        const constraints: MediaStreamConstraints = {
+          video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            width: { ideal: 480 },
+            height: { ideal: 360 },
+            facingMode: deviceId ? undefined : "user", // deviceId指定時はfacingMode無効
+            frameRate: { ideal: 30, max: 30 },
+          },
+        };
+
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (err) {
+          // 指定されたデバイスIDが不正、または見つからない場合はフォールバック
+          if (
+            deviceId &&
+            (err instanceof OverconstrainedError ||
+              (err instanceof DOMException && err.name === "NotFoundError") ||
+              (err instanceof DOMException &&
+                err.name === "OverconstrainedError"))
+          ) {
+            console.warn(
+              `Preferred camera ${deviceId} not found or overconstrained. Falling back to default.`
+            );
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                width: { ideal: 480 },
+                height: { ideal: 360 },
+                facingMode: "user",
+                frameRate: { ideal: 30, max: 30 },
+              },
+            });
+          } else {
+            throw err;
+          }
+        }
+
+        streamRef.current = stream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Explicitly play to ensure it starts (sometimes required even with autoPlay)
+          await videoRef.current.play().catch((e) => {
+            if (e.name !== "AbortError") {
+              console.warn("Video play error:", e);
+            }
+          });
+        }
+
+        setIsCameraPermissionGranted(true);
+
+        // ポーズ検出ループを開始
+        detectPose();
+      } catch (err) {
+        console.error("カメラアクセスエラー:", err);
+        setError(
+          `カメラにアクセスできませんでした: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+        setIsCameraPermissionGranted(false);
       }
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 480 },
-          height: { ideal: 360 },
-          facingMode: "user",
-          frameRate: { ideal: 30, max: 30 },
-        },
-      });
-
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        // Explicitly play to ensure it starts (sometimes required even with autoPlay)
-        await videoRef.current
-          .play()
-          .catch((e) => console.warn("Video play error:", e));
-      }
-
-      setIsCameraPermissionGranted(true);
-
-      // ポーズ検出ループを開始
-      detectPose();
-    } catch (err) {
-      console.error("カメラアクセスエラー:", err);
-      setError(
-        `カメラにアクセスできませんでした: ${err instanceof Error ? err.message : "Unknown error"}`
-      );
-      setIsCameraPermissionGranted(false);
-    }
-  }, [detectPose]);
+    },
+    [detectPose]
+  );
 
   // カメラの停止
   const stopCamera = useCallback(() => {

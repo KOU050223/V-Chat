@@ -770,7 +770,7 @@ const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
   if (!participant) return null;
 
   return (
-    <div
+    <button
       className="aspect-square w-full h-full cursor-pointer hover:ring-2 hover:ring-green-500 rounded-xl transition-all relative group"
       onClick={() => onClick(participant)}
     >
@@ -784,7 +784,7 @@ const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-colors pointer-events-none">
         <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
       </div>
-    </div>
+    </button>
   );
 });
 

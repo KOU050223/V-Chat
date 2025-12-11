@@ -3,6 +3,7 @@ export interface AvatarMetadata {
   avatarId?: string; // アバターID
   offset?: { x: number; y: number; z: number }; // アバターの位置オフセット（共有）
   scale?: number; // アバターのスケール（デフォルト: 1.0）
+  name?: string; // ユーザーの表示名
 }
 
 // 転送されるボーン回転データ（クォータニオン）

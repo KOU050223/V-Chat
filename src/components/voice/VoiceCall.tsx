@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import {
   LiveKitRoom,
   RoomAudioRenderer,
@@ -430,7 +430,7 @@ interface ParticipantTileProps {
   selectedModel?: { id: string } | null;
 }
 
-function ParticipantTile({
+const ParticipantTile = memo(function ParticipantTile({
   localRotations,
   cameraConfig,
   myAvatarOffset,
@@ -503,7 +503,7 @@ function ParticipantTile({
       </div>
     </div>
   );
-}
+});
 
 // 画面共有ボタンコンポーネント
 function ScreenShareButton() {
@@ -565,7 +565,10 @@ interface ScreenShareTileProps {
   onClick: (trackRef: TrackReference) => void;
 }
 
-function ScreenShareTile({ trackRef, onClick }: ScreenShareTileProps) {
+const ScreenShareTile = memo(function ScreenShareTile({
+  trackRef,
+  onClick,
+}: ScreenShareTileProps) {
   return (
     <div
       className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all relative group"
@@ -581,7 +584,7 @@ function ScreenShareTile({ trackRef, onClick }: ScreenShareTileProps) {
       </div>
     </div>
   );
-}
+});
 
 // 参加者グリッド表示コンポーネント (Unified Grid & Click-to-Expand)
 interface ParticipantGridProps {
@@ -610,23 +613,26 @@ function ParticipantGrid({
   } | null>(null);
 
   // 画面共有または参加者がクリックされたときのハンドラ
-  const handleFocus = (
-    type: "participant" | "screen_share",
-    item: Participant | TrackReference
-  ) => {
-    // 識別子を取得
-    const id =
-      type === "participant"
-        ? (item as Participant).identity
-        : (item as TrackReference).publication.trackSid;
+  const handleFocus = useCallback(
+    (
+      type: "participant" | "screen_share",
+      item: Participant | TrackReference
+    ) => {
+      // 識別子を取得
+      const id =
+        type === "participant"
+          ? (item as Participant).identity
+          : (item as TrackReference).publication.trackSid;
 
-    // 既にフォーカスされているものをクリックしたら解除、そうでなければフォーカス
-    if (focusedItem && focusedItem.type === type && focusedItem.id === id) {
-      setFocusedItem(null);
-    } else {
-      setFocusedItem({ type, id });
-    }
-  };
+      // 既にフォーカスされているものをクリックしたら解除、そうでなければフォーカス
+      if (focusedItem && focusedItem.type === type && focusedItem.id === id) {
+        setFocusedItem(null);
+      } else {
+        setFocusedItem({ type, id });
+      }
+    },
+    [focusedItem]
+  );
 
   // フォーカスモード（拡大表示）
   if (focusedItem) {
@@ -738,7 +744,7 @@ interface ParticipantTileWrapperProps {
   selectedModel?: { id: string } | null;
 }
 
-function ParticipantTileWrapper({
+const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
   onClick,
   localRotations,
   cameraConfig,
@@ -766,7 +772,7 @@ function ParticipantTileWrapper({
       </div>
     </div>
   );
-}
+});
 
 // 内部コンポーネント: 実際の通話UIとロジックを担当
 interface VoiceCallContentProps {

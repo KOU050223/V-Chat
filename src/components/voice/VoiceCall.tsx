@@ -12,10 +12,30 @@ import {
   useParticipantContext,
   ParticipantLoop,
   useIsSpeaking,
+  useTracks,
+  VideoTrack,
+  FocusLayout,
+  FocusLayoutContainer,
+  CarouselLayout,
+  Chat,
 } from "@livekit/components-react";
-import { ConnectionState } from "livekit-client";
+import { ConnectionState, Track, Participant } from "livekit-client";
+import {
+  TrackReferenceOrPlaceholder,
+  TrackReference,
+} from "@livekit/components-core";
 import "@livekit/components-styles";
-import { Mic, MicOff, Settings, X, Video, VideoOff } from "lucide-react";
+import {
+  Mic,
+  MicOff,
+  Settings,
+  X,
+  Video,
+  VideoOff,
+  Monitor,
+  Maximize2,
+  Minimize2,
+} from "lucide-react";
 import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
@@ -490,7 +510,86 @@ function ParticipantTile({
   );
 }
 
-// 参加者グリッド表示コンポーネント
+// 画面共有ボタンコンポーネント
+function ScreenShareButton() {
+  const { localParticipant } = useLocalParticipant();
+  const [isSharing, setIsSharing] = useState(false);
+
+  // 画面共有の状態を監視
+  useEffect(() => {
+    if (!localParticipant) return;
+
+    const checkScreenShareState = () => {
+      setIsSharing(localParticipant.isScreenShareEnabled);
+    };
+
+    checkScreenShareState();
+
+    // トラックの変更を監視
+    localParticipant.on("trackPublished", checkScreenShareState);
+    localParticipant.on("trackUnpublished", checkScreenShareState);
+
+    return () => {
+      localParticipant.off("trackPublished", checkScreenShareState);
+      localParticipant.off("trackUnpublished", checkScreenShareState);
+    };
+  }, [localParticipant]);
+
+  const toggleScreenShare = async () => {
+    if (!localParticipant) return;
+
+    try {
+      const isEnabled = localParticipant.isScreenShareEnabled;
+      await localParticipant.setScreenShareEnabled(!isEnabled);
+    } catch (error) {
+      console.error("画面共有の切り替えに失敗:", error);
+    }
+  };
+
+  return (
+    <Button
+      onClick={toggleScreenShare}
+      variant="outline"
+      size="lg"
+      className={`rounded-full w-14 h-14 flex items-center justify-center transition-all duration-300 border-0 ${
+        isSharing
+          ? "bg-purple-600 hover:bg-purple-700 shadow-[0_0_15px_rgba(147,51,234,0.3)]"
+          : "bg-gray-700 hover:bg-gray-600"
+      }`}
+      title="画面共有"
+    >
+      <Monitor className="w-5 h-5" />
+    </Button>
+  );
+}
+
+// 画面共有表示コンポーネント
+// 画面共有タイルコンポーネント (Grid Item)
+function ScreenShareTile({
+  trackRef,
+  onClick,
+}: {
+  trackRef: TrackReference;
+  onClick: (trackRef: TrackReference) => void;
+}) {
+  return (
+    <div
+      className="aspect-video bg-black rounded-xl border border-gray-700 overflow-hidden shadow-lg cursor-pointer hover:ring-2 hover:ring-blue-500 transition-all relative group"
+      onClick={() => onClick(trackRef)}
+    >
+      <VideoTrack trackRef={trackRef} className="w-full h-full object-cover" />
+      <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm flex items-center">
+        <Monitor className="w-3 h-3 mr-1" />
+        {trackRef.participant.identity.split("-")[0]} の画面
+      </div>
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
+        <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+    </div>
+  );
+}
+
+// 参加者グリッド表示コンポーネント (Unified Grid & Click-to-Expand)
 function ParticipantGrid({
   localRotations,
   cameraConfig,
@@ -505,28 +604,151 @@ function ParticipantGrid({
   selectedModel?: { id: string } | null;
 }) {
   const participants = useParticipants();
+  const screenShareTracks = useTracks([Track.Source.ScreenShare]);
 
+  // フォーカス（拡大表示）されているアイテムを管理
+  // type: 'participant' | 'screen_share'
+  // id: participant identity or track sid
+  const [focusedItem, setFocusedItem] = useState<{
+    type: "participant" | "screen_share";
+    item: Participant | TrackReference;
+  } | null>(null);
+
+  // 画面共有または参加者がクリックされたときのハンドラ
+  const handleFocus = (
+    type: "participant" | "screen_share",
+    item: Participant | TrackReference
+  ) => {
+    // 既にフォーカスされているものをクリックしたら解除、そうでなければフォーカス
+    if (focusedItem && focusedItem.item === item) {
+      setFocusedItem(null);
+    } else {
+      setFocusedItem({ type, item });
+    }
+  };
+
+  // フォーカスモード（拡大表示）
+  if (focusedItem) {
+    return (
+      <div className="relative w-full h-full flex items-center justify-center bg-gray-900 p-4">
+        <Button
+          className="absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/70 text-white rounded-full p-2"
+          onClick={() => setFocusedItem(null)}
+        >
+          <Minimize2 className="w-6 h-6" />
+        </Button>
+
+        <div className="w-full h-full max-w-5xl max-h-[80vh] flex items-center justify-center">
+          {focusedItem.type === "participant" ? (
+            <div className="w-full h-full">
+              {/* 拡大時のParticipantTileはParticipantContextが必要なため、単体でラップする構成が少し複雑。
+                    またParticipantTileはuseParticipantContextを使うため、ParticipantLoopなどでラップする必要がある。
+                    ここでは簡易的にParticipantContextを提供するためにLoopを使う（1要素だけ）
+                 */}
+              <ParticipantLoop participants={[focusedItem.item as Participant]}>
+                <ParticipantTile
+                  localRotations={localRotations}
+                  cameraConfig={cameraConfig}
+                  myAvatarOffset={myAvatarOffset}
+                  myAvatarScale={myAvatarScale}
+                  selectedModel={selectedModel}
+                />
+              </ParticipantLoop>
+            </div>
+          ) : (
+            <div className="w-full h-full bg-black rounded-xl overflow-hidden shadow-2xl border border-gray-700">
+              <VideoTrack
+                trackRef={focusedItem.item as TrackReference}
+                className="w-full h-full object-contain"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // グリッドモード (通常表示)
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 h-full flex items-center justify-center">
-      <div className="flex flex-wrap justify-center gap-6 w-full">
+    <div className="w-full max-w-7xl mx-auto p-4 h-full flex items-center justify-center overflow-y-auto">
+      {/* 
+        Grid Layout:
+        - Auto-fit columns based on min-width (e.g. 250px)
+        - Gap for spacing
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full">
+        {/* 1. 画面共有トラックのタイル */}
+        {screenShareTracks.map((trackRef) => (
+          <ScreenShareTile
+            key={trackRef.publication.trackSid}
+            trackRef={trackRef as TrackReference}
+            onClick={(track) => handleFocus("screen_share", track)}
+          />
+        ))}
+
+        {/* 2. 参加者（アバター）のタイル */}
         <ParticipantLoop participants={participants}>
-          <div className="w-64 h-72">
-            <ParticipantTile
-              localRotations={localRotations}
-              cameraConfig={cameraConfig}
-              myAvatarOffset={myAvatarOffset}
-              myAvatarScale={myAvatarScale}
-              selectedModel={selectedModel}
-            />
-          </div>
+          {/* ParticipantLoopは子要素をcloneしてparticipantを注入するため、
+               onClickを直接渡すにはラッパーが必要だが、ParticipantTile自体がコンテキストに依存するため
+               ここでのonClick実装は少し工夫が必要。
+               ParticipantContextを使うため、ParticipantTileをラップするdivにonClickをつけるのが無難だが、
+               ParticipantLoopの直下はContextが提供されるスコープ。
+           */}
+          <ParticipantTileWrapper
+            onClick={(p) => handleFocus("participant", p)}
+            localRotations={localRotations}
+            cameraConfig={cameraConfig}
+            myAvatarOffset={myAvatarOffset}
+            myAvatarScale={myAvatarScale}
+            selectedModel={selectedModel}
+          />
         </ParticipantLoop>
       </div>
 
-      {participants.length === 0 && (
-        <div className="text-center text-gray-500 py-12">
+      {participants.length === 0 && screenShareTracks.length === 0 && (
+        <div className="text-center text-gray-500 py-12 col-span-full">
           参加者を待機しています...
         </div>
       )}
+    </div>
+  );
+}
+
+// ParticipantLoopの中で使うためのラッパーコンポーネント
+// useParticipantContextをして、自身のparticipant情報を取得し、onClickハンドラに渡す
+function ParticipantTileWrapper({
+  onClick,
+  localRotations,
+  cameraConfig,
+  myAvatarOffset,
+  myAvatarScale,
+  selectedModel,
+}: {
+  onClick: (participant: Participant) => void;
+  localRotations?: BoneRotations | null;
+  cameraConfig: [number, number, number];
+  myAvatarOffset: { x: number; y: number; z: number };
+  myAvatarScale: number;
+  selectedModel?: { id: string } | null;
+}) {
+  const participant = useParticipantContext();
+  if (!participant) return null;
+
+  return (
+    <div
+      className="aspect-square w-full h-full cursor-pointer hover:ring-2 hover:ring-green-500 rounded-xl transition-all relative group"
+      onClick={() => onClick(participant)}
+    >
+      <ParticipantTile
+        localRotations={localRotations}
+        cameraConfig={cameraConfig}
+        myAvatarOffset={myAvatarOffset}
+        myAvatarScale={myAvatarScale}
+        selectedModel={selectedModel}
+      />
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center transition-colors pointer-events-none">
+        <Maximize2 className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+      </div>
     </div>
   );
 }
@@ -806,6 +1028,7 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
           myAvatarScale={avatarScale}
           selectedModel={settings.selectedModel}
         />
+        {/* 画面共有表示（共有中のみ表示） */}
       </div>
 
       {/* エラーメッセージ */}
@@ -880,6 +1103,10 @@ function VoiceCallContent({ onLeave }: { onLeave?: () => void }) {
             <MicOff className="w-8 h-8" />
           )}
         </Button>
+
+        {/* 画面共有ボタン */}
+        <ScreenShareButton />
+
         {/* オーディオビジュアライザー（簡易版） */}
         <div className="flex flex-col items-center justify-center w-32">
           <div className="flex items-end gap-1 h-8 mb-1">

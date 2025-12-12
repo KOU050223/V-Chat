@@ -13,7 +13,7 @@ import {
   JoinRoomRequest,
   JoinRoomResponse,
 } from "@/types/room";
-import { Sparkles, Users, Loader2 } from "lucide-react";
+import { Sparkles, Users, Loader2, Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -147,32 +147,32 @@ export default function RoomManager() {
     }
   };
 
-  // const handleStartMatching = async () => {
-  //   if (!user) {
-  //     setError('ログインが必要です');
-  //     return;
-  //   }
+  const handleStartMatching = async () => {
+    if (!user) {
+      setError("ログインが必要です");
+      return;
+    }
 
-  //   setError(null);
+    setError(null);
 
-  //   await matchingService.startMatching(user.uid, (state) => {
-  //     setMatchingState(state);
+    await matchingService.startMatching(user.uid, (state) => {
+      setMatchingState(state);
 
-  //     if (state.status === 'matched' && state.roomId) {
-  //       // マッチング成功！少し待ってから遷移
-  //       setTimeout(() => {
-  //         router.push(`/room/${state.roomId}`);
-  //       }, 1500);
-  //     } else if (state.status === 'error' && state.error) {
-  //       setError(state.error);
-  //     }
-  //   });
-  // };
+      if (state.status === "matched" && state.roomId) {
+        // マッチング成功！少し待ってから遷移
+        setTimeout(() => {
+          router.push(`/room/${state.roomId}`);
+        }, 1500);
+      } else if (state.status === "error" && state.error) {
+        setError(state.error);
+      }
+    });
+  };
 
-  // const handleCancelMatching = async () => {
-  //   await matchingService.cancelMatching();
-  //   setMatchingState({ status: 'idle' });
-  // };
+  const handleCancelMatching = async () => {
+    await matchingService.cancelMatching();
+    setMatchingState({ status: "idle" });
+  };
 
   const copyRoomId = () => {
     if (createdRoomId) {
@@ -230,20 +230,21 @@ export default function RoomManager() {
           >
             参加
           </button>
-          {/* <button
+          <button
             type="button"
             onClick={() => {
-              setActiveTab('match');
+              setActiveTab("match");
               setError(null);
               setCreatedRoomId(null);
             }}
-            className={`flex-1 py-3 px-2 text-sm md:text-base rounded-lg font-semibold transition-all ${activeTab === 'match'
-              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+            className={`flex-1 py-3 px-2 text-sm md:text-base rounded-lg font-semibold transition-all ${
+              activeTab === "match"
+                ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
           >
             ランダム
-          </button> */}
+          </button>
         </div>
 
         {/* エラー表示 */}
@@ -412,27 +413,28 @@ export default function RoomManager() {
             </button>
           </form>
         )}
-        {/* 
-        // ランダムマッチング
-        {activeTab === 'match' && (
+        {/* ランダムマッチング */}
+        {activeTab === "match" && (
           <div className="space-y-6 text-center">
             <div className="py-4">
               <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className={`w-12 h-12 text-blue-600 ${matchingState.status === 'waiting' ? 'animate-pulse' : ''}`} />
+                <Search
+                  className={`w-12 h-12 text-blue-600 ${matchingState.status === "waiting" ? "animate-pulse" : ""}`}
+                />
               </div>
               <h3 className="text-xl font-bold text-gray-800 mb-2">
                 ランダムマッチング
               </h3>
               <p className="text-gray-600">
-                {matchingState.status === 'waiting'
-                  ? 'マッチング相手を探しています...'
-                  : matchingState.status === 'matched'
-                    ? 'マッチング成立！ルームへ移動します...'
-                    : '世界中の誰かとランダムに通話できます'}
+                {matchingState.status === "waiting"
+                  ? "マッチング相手を探しています..."
+                  : matchingState.status === "matched"
+                    ? "マッチング成立！ルームへ移動します..."
+                    : "世界中の誰かとランダムに通話できます"}
               </p>
             </div>
 
-            {matchingState.status === 'waiting' ? (
+            {matchingState.status === "waiting" ? (
               <button
                 type="button"
                 onClick={handleCancelMatching}
@@ -440,7 +442,7 @@ export default function RoomManager() {
               >
                 キャンセル
               </button>
-            ) : matchingState.status === 'matched' ? (
+            ) : matchingState.status === "matched" ? (
               <div className="w-full py-3 px-6 bg-green-100 text-green-700 font-semibold rounded-lg">
                 移動中...
               </div>
@@ -456,7 +458,6 @@ export default function RoomManager() {
             )}
           </div>
         )}
-        */}
 
         {/* 戻るボタン */}
         <button

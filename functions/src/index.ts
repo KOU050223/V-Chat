@@ -592,8 +592,8 @@ export const findMatch = onCall(async (request) => {
 
         const roomData = {
           roomId,
-          name: "Matching Room",
-          description: "Random matching",
+          name: "ランダムマッチング",
+          description: "ランダムな相手とマッチング！",
           isPrivate: true,
           createdBy: "system",
           participants: [userId, matchPartner.userId],
@@ -616,6 +616,7 @@ export const findMatch = onCall(async (request) => {
           status: "matched",
           roomId,
           matchedAt: admin.firestore.FieldValue.serverTimestamp(),
+          partnerId: userId,
         });
 
         // 自分のドキュメントは削除

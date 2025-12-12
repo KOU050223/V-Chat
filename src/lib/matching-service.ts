@@ -90,39 +90,29 @@ export class MatchingService {
         return;
       }
 
+      const startTime = Date.now();
+
       // 2. 待機状態になった場合、Firestoreを監視
       const queueRef = doc(this.db, "matching_queue", userId);
 
       this.unsubscribe = onSnapshot(queueRef, (snapshot) => {
         if (!snapshot.exists()) {
-          // ドキュメントが削除された = マッチング成立して削除された？
-          // 今回のbackend実装では、マッチング成立時に update({ status: 'matched' }) してから
-          // クライアントが確認後に削除するフロー、または
-          // 相手がトランザクションで削除した場合は検知できない可能性がある。
-          // しかし、backend実装では `tx.delete(queueRef.doc(userId))` をしているため、
-          // 自分がマッチング成立させた側でなければ、ドキュメントは消える。
-
-          // 修正: Backend実装を確認すると、
-          // マッチング成立させた側（A）は、相手（B）のドキュメントを更新し、自分のドキュメントを削除する。
-          // 相手（B）は、自分のドキュメントが更新されるのを待つ。
-
-          // なので、自分がAの場合: findMatchの戻り値で matched が返る。
-          // 自分がBの場合: 待機中にドキュメントが更新されるはず。
-
-          // もしドキュメントが消えたら？ -> エラーか、あるいは他で処理されたか。
-          // ここでは一旦エラー扱いにするが、本来は永続化ログを見るべき。
-          // ただし、Backend実装で `tx.delete(queueRef.doc(userId))` しているので、
-          // 自分がマッチング成立させた場合はここに来る前に return しているはず。
-          // 自分が待機中にドキュメントが消えた = 誰かがマッチング成立させて消してくれた？
-          // いえ、Backend実装では `tx.update(partnerDocRef, { status: "matched" ... })` しているので、
-          // パートナー（待機側）のドキュメントは消えずに更新されるはず。
-          // 自分のドキュメントを消すのは、自分が能動的にマッチングさせた場合のみ。
-
           return;
         }
 
         const queueData = snapshot.data();
         if (queueData?.status === "matched" && queueData.roomId) {
+          // マッチング成立日時をチェック（古いマッチング情報の残骸を無視する）
+          if (queueData.matchedAt) {
+            const matchedAtMillis = queueData.matchedAt.toMillis();
+            // startMatching呼び出しより前のマッチング情報は無視
+            // (タイムスタンプのズレを考慮して少し余裕を持たせても良いが、基本的には等号で十分なはず)
+            if (matchedAtMillis < startTime) {
+              console.log("Ignored stale match data:", queueData);
+              return;
+            }
+          }
+
           onStateChange({
             status: "matched",
             roomId: queueData.roomId,

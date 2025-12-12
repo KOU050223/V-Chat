@@ -2,6 +2,9 @@ import { Metadata, ResolvingMetadata } from "next";
 import { getAdminFirestore } from "@/lib/firebase-admin";
 import ClientPage from "./ClientPage";
 
+// Firebase Adminを使用するためNode.jsランタイムを明示的に指定
+export const runtime = "nodejs";
+
 type Props = {
   params: Promise<{ postId: string }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -41,8 +44,8 @@ export async function generateMetadata(
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://v-chat.uomi.dev";
-  const absoluteUrl = `${baseUrl}/bulletin/${postId}`;
-  const absoluteImageUrl = `${baseUrl}/v-chat_icon.png`;
+  const absoluteUrl = new URL(`/bulletin/${postId}`, baseUrl).toString();
+  const absoluteImageUrl = new URL("/v-chat_icon.png", baseUrl).toString();
 
   return {
     title: title,

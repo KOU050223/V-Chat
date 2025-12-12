@@ -19,10 +19,29 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://v-chat.uomi.dev";
+// 安全なURL構築: 不正な形式の場合はフォールバック
+function createSafeMetadataBaseUrl(): URL {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://v-chat.uomi.dev";
+  const fallbackUrl = "https://v-chat.uomi.dev";
+
+  try {
+    return new URL(baseUrl);
+  } catch {
+    // スキームが欠けている可能性があるため、httpsを追加して再試行
+    try {
+      return new URL(`https://${baseUrl}`);
+    } catch {
+      // それでも失敗する場合は、既知の安全なデフォルトにフォールバック
+      console.warn(
+        `Invalid NEXT_PUBLIC_BASE_URL: ${baseUrl}, falling back to ${fallbackUrl}`
+      );
+      return new URL(fallbackUrl);
+    }
+  }
+}
 
 export const metadata: Metadata = {
-  metadataBase: new URL(baseUrl),
+  metadataBase: createSafeMetadataBaseUrl(),
   title: "V-Chat - 3Dアバターチャット",
   description:
     "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",

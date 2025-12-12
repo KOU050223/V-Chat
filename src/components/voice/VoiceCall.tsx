@@ -51,6 +51,8 @@ import { useVModel } from "@/contexts/VModelContext";
 import { ensureVRMInStorage } from "@/lib/vrmStorage";
 import { VRMDownloader } from "@/lib/vrmDownloader";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { RoomEvent } from "livekit-client";
 
 // Canvas内でカメラ位置を安全に更新するためのヘルパーコンポーネント
 function CameraUpdater({ position }: { position: [number, number, number] }) {
@@ -991,6 +993,47 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   // VModel Contextから設定を取得
   const { settings } = useVModel();
   const { user, nextAuthSession } = useAuth(); // AuthContextからユーザー情報とセッションを取得
+  const { toast } = useToast();
+
+  // 参加者の入退室監視
+  useEffect(() => {
+    if (!room) return;
+
+    const handleParticipantConnected = (participant: Participant) => {
+      const name =
+        participant.name ||
+        participant.identity.split("-")[0] ||
+        "ゲストユーザー";
+      toast({
+        title: "参加者が入室しました",
+        description: `${name} さんが入室しました`,
+        duration: 3000,
+      });
+    };
+
+    const handleParticipantDisconnected = (participant: Participant) => {
+      const name =
+        participant.name ||
+        participant.identity.split("-")[0] ||
+        "ゲストユーザー";
+      toast({
+        title: "参加者が退室しました",
+        description: `${name} さんが退室しました`,
+        duration: 3000,
+      });
+    };
+
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
+
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      room.off(
+        RoomEvent.ParticipantDisconnected,
+        handleParticipantDisconnected
+      );
+    };
+  }, [room, toast]);
 
   // アバター統合の状態
   const [localRotations, setLocalRotations] = useState<BoneRotations | null>(

@@ -18,5 +18,14 @@ service cloud.firestore {
       allow update: if false;
       allow delete: if false;
     }
+
+    // マッチング待機列のルール
+    match /matching_queue/{userId} {
+      // 自分のドキュメントのみ読み取り可能
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      
+      // 書き込みはCloud Functions経由で行うため許可しない
+      allow create, update, delete: if false;
+    }
   }
 }

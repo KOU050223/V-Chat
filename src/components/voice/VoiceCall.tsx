@@ -1218,25 +1218,36 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   const avatarSenderRef = useRef<AvatarSenderHandle>(null);
 
   // 退出処理
+  // 信頼性の高いクリーンアップ関数
+  const performCleanup = useCallback(async () => {
+    console.log("Starting cleanup sequence...");
+
+    // 1. AvatarSenderのカメラを停止
+    if (avatarSenderRef.current) {
+      avatarSenderRef.current.stopCamera();
+    }
+    setIsCameraOn(false);
+
+    // 2. LiveKitのローカルトラックを明示的に停止
+    if (room && room.localParticipant) {
+      room.localParticipant.trackPublications.forEach((publication) => {
+        if (publication.track) {
+          publication.track.stop();
+        }
+      });
+    }
+
+    // 3. ルームから切断
+    if (room && room.state === ConnectionState.Connected) {
+      await room.disconnect();
+    }
+  }, [room]);
+
+  // 退出処理 (ボタンクリック時)
   const handleDisconnect = useCallback(async () => {
     try {
-      // カメラを明示的に停止
-      if (avatarSenderRef.current) {
-        avatarSenderRef.current.stopCamera();
-      }
-      setIsCameraOn(false);
-
-      // LiveKitのローカルトラックを明示的に停止 (カメラ/マイクのハードウェア解放)
-      if (room && room.localParticipant) {
-        room.localParticipant.trackPublications.forEach((publication) => {
-          if (publication.track) {
-            publication.track.stop();
-          }
-        });
-      }
-
       setDisconnectError(null);
-      await room.disconnect();
+      await performCleanup();
       onLeave?.();
     } catch (error) {
       console.error("Failed to disconnect from LiveKit room:", error);
@@ -1244,7 +1255,25 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
         "退室処理中にエラーが発生しました。もう一度お試しください。"
       );
     }
-  }, [room, onLeave]);
+  }, [performCleanup, onLeave]);
+
+  // コンポーネントのアンマウントとブラウザ終了の処理
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // 信頼性の高い非同期処理は難しいため、可能な限り同期的にクリーンアップを試みる
+      if (avatarSenderRef.current) {
+        avatarSenderRef.current.stopCamera();
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // アンマウント時に確実にクリーンアップを実行
+      performCleanup().catch((e) => console.error("Unmount cleanup failed", e));
+    };
+  }, [performCleanup]);
 
   // UIレンダリング
   if (connectionState !== ConnectionState.Connected) {

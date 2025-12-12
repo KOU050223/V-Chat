@@ -13,14 +13,16 @@ import { DebugSkeleton } from "@/components/vrm/DebugSkeleton";
 import { useThree, useFrame } from "@react-three/fiber";
 import { retargetPoseToVRM } from "@/lib/vrm-retargeter";
 import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import * as THREE from "three";
 
 // カメラ制御コンポーネント
 const CameraController: React.FC<{
   view: CameraView;
   onViewChangeComplete: () => void;
-}> = ({ view, onViewChangeComplete }) => {
+   
+  controlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>;
+}> = ({ view, onViewChangeComplete, controlsRef }) => {
   const { camera } = useThree();
 
   useEffect(() => {
@@ -44,9 +46,16 @@ const CameraController: React.FC<{
     camera.position.copy(targetPos);
     camera.lookAt(0, 1, 0);
 
+    // OrbitControlsのターゲットも更新して同期させる
+    // これを行わないと、ユーザー操作時にカメラが元のターゲット位置にスナップしてしまう
+    if (controlsRef.current) {
+      controlsRef.current.target.set(0, 1, 0);
+      controlsRef.current.update();
+    }
+
     // 完了通知
     onViewChangeComplete();
-  }, [view, camera, onViewChangeComplete]);
+  }, [view, camera, onViewChangeComplete, controlsRef]);
 
   return null;
 };
@@ -141,6 +150,12 @@ export default function VRMMotionDemoPage() {
   const [showSkeleton, setShowSkeleton] = useState(false);
   const [cameraView, setCameraView] = useState<CameraView>("reset");
 
+  // OrbitControlsへの参照
+   
+  const controlsRef = useRef<React.ElementRef<typeof OrbitControls> | null>(
+    null
+  );
+
   return (
     <div className="h-screen w-full bg-gray-900">
       {/* ローディングオーバーレイ */}
@@ -230,6 +245,7 @@ export default function VRMMotionDemoPage() {
         <CameraController
           view={cameraView}
           onViewChangeComplete={() => setCameraView("reset")}
+          controlsRef={controlsRef}
         />
 
         {/* VRMモーション同期ビューア */}
@@ -244,6 +260,7 @@ export default function VRMMotionDemoPage() {
 
         {/* カメラコントロール */}
         <OrbitControls
+          ref={controlsRef}
           target={[0, 1, 0]}
           enablePan={true}
           enableZoom={true}

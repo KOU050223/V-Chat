@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+// Forced update check
+
 import * as THREE from "three";
 import { PoseLandmark } from "@/hooks/usePoseEstimation";
 
@@ -7,6 +8,7 @@ interface DebugSkeletonProps {
   landmarks: PoseLandmark[] | null;
   position?: [number, number, number];
   scale?: number;
+  yOffset?: number; // Added yOffset prop
   visible?: boolean;
 }
 
@@ -14,6 +16,7 @@ export const DebugSkeleton: React.FC<DebugSkeletonProps> = ({
   landmarks,
   position = [0, 0, 0],
   scale = 1,
+  yOffset = 1, // Default to 1 to match typically normalized MediaPipe coordinates (0-1)
   visible = true,
 }) => {
   // MediaPipe Pose Connections (Simplified)
@@ -67,6 +70,23 @@ export const DebugSkeleton: React.FC<DebugSkeletonProps> = ({
     []
   );
 
+  // Clean up resources on unmount
+  React.useEffect(() => {
+    return () => {
+      jointGeometry.dispose();
+      boneMaterial.dispose();
+      leftJointMaterial.dispose();
+      rightJointMaterial.dispose();
+      centerJointMaterial.dispose();
+    };
+  }, [
+    jointGeometry,
+    boneMaterial,
+    leftJointMaterial,
+    rightJointMaterial,
+    centerJointMaterial,
+  ]);
+
   if (!visible || !landmarks || landmarks.length === 0) return null;
 
   return (
@@ -94,7 +114,7 @@ export const DebugSkeleton: React.FC<DebugSkeletonProps> = ({
             material={material}
             position={[
               -lm.x * scale, // Mirror X for correct 3D facing
-              -lm.y * scale + scale, // Flip Y (MediaPipe is top-down 0-1) + offset to stand
+              -lm.y * scale + yOffset, // Flip Y (MediaPipe is top-down 0-1) + offset to stand
               -lm.z * scale,
             ]}
           />
@@ -116,12 +136,12 @@ export const DebugSkeleton: React.FC<DebugSkeletonProps> = ({
 
         const startPos = new THREE.Vector3(
           -startLm.x * scale,
-          -startLm.y * scale + scale,
+          -startLm.y * scale + yOffset,
           -startLm.z * scale
         );
         const endPos = new THREE.Vector3(
           -endLm.x * scale,
-          -endLm.y * scale + scale,
+          -endLm.y * scale + yOffset,
           -endLm.z * scale
         );
 

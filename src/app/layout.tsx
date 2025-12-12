@@ -19,8 +19,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://v-chat.uomi.dev";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://v-chat-kou.vercel.app"),
+  metadataBase: new URL(baseUrl),
   title: "V-Chat - 3Dアバターチャット",
   description:
     "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",

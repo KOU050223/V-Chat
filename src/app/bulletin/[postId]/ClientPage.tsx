@@ -221,6 +221,7 @@ function PostDetailContent({ postId }: { postId: string }) {
     if (!user || !post || post.authorId !== user.uid) return;
 
     setIsCreatingRoom(true);
+    let createdRoomId: string | null = null;
 
     try {
       // 1. Cloud Functionsを使用してルームを作成
@@ -233,7 +234,19 @@ function PostDetailContent({ postId }: { postId: string }) {
         isPrivate: false,
       });
 
-      const { roomId } = createRoomResult.data as { roomId: string };
+      // ランタイム検証: roomIdが正しい形式か確認
+      const resultData = createRoomResult.data;
+      if (
+        !resultData ||
+        typeof resultData !== "object" ||
+        !("roomId" in resultData) ||
+        typeof resultData.roomId !== "string" ||
+        !resultData.roomId.trim()
+      ) {
+        throw new Error("ルーム作成レスポンスが不正な形式です");
+      }
+
+      createdRoomId = resultData.roomId;
 
       // 2. 作成されたルームIDをこの投稿に紐付けるAPIを呼び出す
       const idToken = await user.getIdToken();
@@ -244,7 +257,7 @@ function PostDetailContent({ postId }: { postId: string }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ roomId }),
+        body: JSON.stringify({ roomId: createdRoomId }),
       });
 
       const linkData = await linkResponse.json();
@@ -258,15 +271,33 @@ function PostDetailContent({ postId }: { postId: string }) {
         prev
           ? {
               ...prev,
-              roomId: roomId,
+              roomId: createdRoomId || undefined,
               updatedAt: new Date(),
             }
           : null
       );
 
       // ルームページに遷移
-      router.push(`/room/${roomId}`);
+      router.push(`/room/${createdRoomId}`);
     } catch (err) {
+      // ルームが作成されたが紐付けに失敗した場合、ロールバック
+      if (createdRoomId) {
+        try {
+          console.warn(
+            `ルーム紐付け失敗、ルームID ${createdRoomId} のロールバックを試行中...`
+          );
+          const functions = getFunctions(app, "us-central1");
+          const deleteRoomFunction = httpsCallable(functions, "deleteRoom");
+          await deleteRoomFunction({ roomId: createdRoomId });
+          console.log(`ルームID ${createdRoomId} を正常に削除しました`);
+        } catch (rollbackErr) {
+          console.error(
+            `ルームID ${createdRoomId} の削除に失敗しました:`,
+            rollbackErr
+          );
+          // ロールバックエラーは元のエラーをマスクしない
+        }
+      }
       alert(handleError("ルーム作成エラー", err));
     } finally {
       setIsCreatingRoom(false);

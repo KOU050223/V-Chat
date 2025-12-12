@@ -18,6 +18,18 @@ import type {
 } from "@/types/room";
 import type { VoiceCallState } from "@/types/voice";
 
+// ヘルパー関数: ユーザーIDを抽出
+function getUserId(
+  user: ReturnType<typeof useAuth>["user"],
+  nextAuthSession: ReturnType<typeof useAuth>["nextAuthSession"]
+): string | null {
+  const currentUser = user || nextAuthSession?.user;
+  if (!currentUser) return null;
+
+  const typedUser = currentUser as { uid?: string; id?: string };
+  return typedUser.uid || typedUser.id || null;
+}
+
 export default function ChatRoom() {
   const params = useParams();
   const router = useRouter();
@@ -159,12 +171,7 @@ export default function ChatRoom() {
     // 必要な情報が揃うまで待機
     if (isLoading || !roomInfo) return;
 
-    const currentUser = user || nextAuthSession?.user;
-    if (!currentUser) return; // 認証待ち、または未ログイン
-
-    const userId =
-      (currentUser as { uid?: string; id?: string }).uid ||
-      (currentUser as { uid?: string; id?: string }).id;
+    const userId = getUserId(user, nextAuthSession);
     if (!userId) return;
 
     // 既に参加者リストに含まれているかチェック
@@ -550,10 +557,7 @@ export default function ChatRoom() {
                     onClick={() => {
                       joinAttemptedRef.current = false;
                       setJoinError(null);
-                      const u = user || nextAuthSession?.user;
-                      const uid =
-                        (u as { uid?: string; id?: string })?.uid ||
-                        (u as { uid?: string; id?: string })?.id;
+                      const uid = getUserId(user, nextAuthSession);
                       if (uid) joinRoom(uid);
                     }}
                   >

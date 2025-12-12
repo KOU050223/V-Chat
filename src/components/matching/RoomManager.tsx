@@ -14,6 +14,8 @@ import {
   JoinRoomResponse,
 } from "@/types/room";
 import { Sparkles, Users, Loader2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 type TabType = "create" | "join" | "match";
 
@@ -75,10 +77,10 @@ export default function RoomManager() {
       const data = result.data;
       setCreatedRoomId(data.roomId);
 
-      // 3秒後に自動的にルームに遷移
+      // 5秒後に自動的にルームに遷移
       timeoutRef.current = setTimeout(() => {
         router.push(`/room/${data.roomId}`);
-      }, 3000);
+      }, 5000);
     } catch (err: unknown) {
       const message = handleFirebaseFunctionError(
         "ルーム作成エラー",
@@ -181,6 +183,16 @@ export default function RoomManager() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
+      <style jsx global>{`
+        @keyframes progress {
+          from {
+            width: 0%;
+          }
+          to {
+            width: 100%;
+          }
+        }
+      `}</style>
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <h1 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
           V-Chat ルーム管理
@@ -243,31 +255,43 @@ export default function RoomManager() {
 
         {/* ルーム作成成功表示 */}
         {createdRoomId && activeTab === "create" && (
-          <div className="mb-6 p-6 bg-green-50 border border-green-200 rounded-lg">
-            <h3 className="font-bold text-green-800 mb-2">
-              ルームを作成しました！
-            </h3>
-            <p className="text-sm text-green-700 mb-3">
-              以下のルームIDを相手に共有してください
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={createdRoomId}
-                readOnly
-                className="flex-1 px-4 py-3 bg-white border border-green-300 rounded-lg font-mono text-xl text-center"
-              />
-              <button
-                type="button"
-                onClick={copyRoomId}
-                className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                コピー
-              </button>
-            </div>
-            <p className="text-sm text-green-600 mt-3 text-center">
-              3秒後に自動的にルームに移動します...
-            </p>
+          <div className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="pt-6 pb-6 flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                  <Sparkles className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="font-bold text-xl text-green-800 mb-2">
+                  ルームを作成しました！
+                </h3>
+                <p className="text-sm text-green-700 mb-6">
+                  以下のルームIDを相手に共有してください
+                </p>
+
+                <div className="flex gap-2 w-full max-w-xs mb-6">
+                  <input
+                    type="text"
+                    value={createdRoomId}
+                    readOnly
+                    className="flex-1 px-4 py-2 bg-white border border-green-300 rounded-l-md font-mono text-center text-lg shadow-sm"
+                  />
+                  <Button
+                    type="button"
+                    onClick={copyRoomId}
+                    className="rounded-l-none bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    コピー
+                  </Button>
+                </div>
+
+                <div className="w-full bg-green-200 h-1.5 rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 animate-[progress_5s_ease-in-out_forwards] w-0" />
+                </div>
+                <p className="text-xs text-green-600 mt-2 font-medium">
+                  5秒後に自動的にルームに移動します...
+                </p>
+              </CardContent>
+            </Card>
           </div>
         )}
 

@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   Button,
   Card,
   CardContent,
@@ -36,6 +37,10 @@ export default function Dashboard() {
 
   // 現在のユーザー情報を取得（Firebase または NextAuth）
   const currentUser = user || nextAuthSession?.user;
+
+  // ユーザーの表示名と画像URLを取得
+  const userName = user?.displayName || nextAuthSession?.user?.name || "User";
+  const userImage = user?.photoURL || nextAuthSession?.user?.image;
 
   const handleLogout = async () => {
     try {
@@ -119,12 +124,9 @@ export default function Dashboard() {
                   </DialogContent>
                 </Dialog>
                 <Avatar className="h-9 w-9">
+                  <AvatarImage src={userImage || undefined} alt={userName} />
                   <AvatarFallback className="text-sm font-medium">
-                    {currentUser && "displayName" in currentUser
-                      ? currentUser.displayName?.charAt(0)
-                      : currentUser?.name?.charAt(0) ||
-                        currentUser?.email?.charAt(0) ||
-                        "U"}
+                    {userName.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
                 <Button variant="ghost" size="sm" onClick={handleLogout}>

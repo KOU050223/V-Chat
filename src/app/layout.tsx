@@ -20,6 +20,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://v-chat-kou.vercel.app"),
   title: "V-Chat - 3Dアバターチャット",
   description:
     "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",
@@ -27,6 +28,30 @@ export const metadata: Metadata = {
     icon: "/v-chat_icon.png",
     shortcut: "/v-chat_icon.png",
     apple: "/v-chat_icon.png",
+  },
+  openGraph: {
+    type: "website",
+    locale: "ja_JP",
+    url: "/",
+    siteName: "V-Chat",
+    title: "V-Chat - 3Dアバターチャット",
+    description:
+      "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",
+    images: [
+      {
+        url: "/v-chat_icon.png",
+        width: 512,
+        height: 512,
+        alt: "V-Chat Icon",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary",
+    title: "V-Chat - 3Dアバターチャット",
+    description:
+      "3Dモデルを用いて顔を相手に見せることなくカジュアルなコミュニケーション",
+    images: ["/v-chat_icon.png"],
   },
 };
 

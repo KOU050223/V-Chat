@@ -1229,11 +1229,13 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     setIsCameraOn(false);
 
     // 2. LiveKitのローカルトラックを明示的に停止
-    if (room && room.localParticipant) {
+    if (
+      room &&
+      room.localParticipant &&
+      room.localParticipant.trackPublications
+    ) {
       room.localParticipant.trackPublications.forEach((publication) => {
-        if (publication.track) {
-          publication.track.stop();
-        }
+        publication.track?.stop();
       });
     }
 

@@ -1216,32 +1216,45 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
   }, [localParticipant, isMicrophoneEnabled]);
 
   const avatarSenderRef = useRef<AvatarSenderHandle>(null);
+  const isCleaningUpRef = useRef(false);
 
   // 退出処理
-  // 信頼性の高いクリーンアップ関数
+  // 信頼性の高いクリーンアップ関数（再入防止ガード付き）
   const performCleanup = useCallback(async () => {
+    // 再入防止: 既にクリーンアップ実行中の場合は何もしない
+    if (isCleaningUpRef.current) {
+      console.log("Cleanup already in progress, skipping...");
+      return;
+    }
+
+    isCleaningUpRef.current = true;
     console.log("Starting cleanup sequence...");
 
-    // 1. AvatarSenderのカメラを停止
-    if (avatarSenderRef.current) {
-      avatarSenderRef.current.stopCamera();
-    }
-    setIsCameraOn(false);
+    try {
+      // 1. AvatarSenderのカメラを停止
+      if (avatarSenderRef.current) {
+        avatarSenderRef.current.stopCamera();
+      }
+      setIsCameraOn(false);
 
-    // 2. LiveKitのローカルトラックを明示的に停止
-    if (
-      room &&
-      room.localParticipant &&
-      room.localParticipant.trackPublications
-    ) {
-      room.localParticipant.trackPublications.forEach((publication) => {
-        publication.track?.stop();
-      });
-    }
+      // 2. LiveKitのローカルトラックを明示的に停止
+      if (
+        room &&
+        room.localParticipant &&
+        room.localParticipant.trackPublications
+      ) {
+        room.localParticipant.trackPublications.forEach((publication) => {
+          publication.track?.stop();
+        });
+      }
 
-    // 3. ルームから切断
-    if (room && room.state === ConnectionState.Connected) {
-      await room.disconnect();
+      // 3. ルームから切断
+      if (room && room.state === ConnectionState.Connected) {
+        await room.disconnect();
+      }
+    } finally {
+      // クリーンアップ完了後もフラグは維持（再実行を防ぐ）
+      console.log("Cleanup sequence completed");
     }
   }, [room]);
 
@@ -1261,7 +1274,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
 
   // コンポーネントのアンマウントとブラウザ終了の処理
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const handleBeforeUnload = () => {
       // 信頼性の高い非同期処理は難しいため、可能な限り同期的にクリーンアップを試みる
       if (avatarSenderRef.current) {
         avatarSenderRef.current.stopCamera();

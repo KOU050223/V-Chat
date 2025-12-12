@@ -93,31 +93,29 @@ const _applyHeadRotationFromLandmarks = (
     const faceDirZ = nose.z - earMidZ;
 
     // Yaw (左右の首振り) - XZ平面での角度
-    // MediaPipe World座標系では、カメラ正面を向いているとき Z < 0
-    // atan2(0, -1) = PI (180度) となるため、PIを引いて0度基準にする
+    // Yaw (左右の首振り)
+    // 鏡像にするため符号を反転させる (以前の -PI 補正を含めて符号反転)
+    // rawYaw - PI が 正面=0 だったので、 -(rawYaw - PI) = PI - rawYaw
     const rawYaw = Math.atan2(faceDirX, faceDirZ);
-    yaw = rawYaw - Math.PI;
+    yaw = -(rawYaw - Math.PI);
 
-    // 正規化 (-PI ~ PI)
+    // 正規化
     if (yaw < -Math.PI) yaw += Math.PI * 2;
     if (yaw > Math.PI) yaw -= Math.PI * 2;
 
-    // Pitch (頷き) - Y成分と奥行きの関係
-    // 3D座標系ではYが上か下か確認が必要（Mediapipe WorldはYが下向き、Zがカメラ方向？）
-    // 実測調整:
+    // Pitch (頷き)
+    // 3D座標系: Y下向き(+) -> atan2で(+) -> VRM Pitch Down(+)
+    // 以前の反転(-)を削除し、正しい方向(上を向いたら-Pitch)にする
     const depth = Math.sqrt(faceDirX * faceDirX + faceDirZ * faceDirZ);
     pitch = Math.atan2(faceDirY, depth);
 
-    // 補正: MediaPipe World座標系の調整
-    // 一般的に -Pitch で自然になることが多い
-    // デフォルトで少し下を向いてしまうため、オフセット(0.2ラジアン≒11度)を追加して補正
-    pitch = -pitch - 0.2;
+    // オフセットは後段で適用
 
-    // Roll (首の傾げ) - 目の傾きから計算
-    // World座標系では Y軸が上下
+    // Roll (首の傾げ)
+    // 鏡像にするため反転が必要かもしれないが、まずはYaw/Pitchを優先
     const eyeDiffY = leftEye.y - rightEye.y;
     const eyeDiffX = leftEye.x - rightEye.x;
-    roll = -Math.atan2(eyeDiffY, eyeDiffX); // 符号は要調整
+    roll = Math.atan2(eyeDiffY, eyeDiffX); // 符号反転なしで試行
   } else {
     // === 従来の簡易計算 (Fallback) ===
     // 既存ロジックを維持しつつ、少し整理
@@ -162,13 +160,22 @@ const _applyHeadRotationFromLandmarks = (
   // 頭のボーンに適用
   const head = humanoid.getNormalizedBoneNode("head");
   if (head) {
+    // 補正: デフォルトで少し下を向いてしまうため、オフセットを引いて補正
+    // (Pitchが正=下向き なので、引くことで上向きに補正)
+    const correctedPitch = pitch - 0.4;
+
     tempEuler.set(
-      pitch * PITCH_SENSITIVITY,
+      correctedPitch * PITCH_SENSITIVITY,
       yaw * YAW_SENSITIVITY,
-      roll * ROLL_SENSITIVITY
+      roll * ROLL_SENSITIVITY // Rollも反転なしで試行
     );
     tempQuaternion.setFromEuler(tempEuler);
-    head.quaternion.slerp(tempQuaternion, 0.2); // 少し早めに追従
+
+    // ノイズ対策: 変化が小さい場合は更新しない (1度未満は無視)
+    const angle = head.quaternion.angleTo(tempQuaternion);
+    if (angle > 0.02) {
+      head.quaternion.slerp(tempQuaternion, 0.1); // 0.2 -> 0.1 にしてスムーズに
+    }
   }
 
   // 首のボーンにも軽く適用
@@ -208,11 +215,11 @@ export const retargetPoseToVRMWithKalidokit = (
     // worldLandmarksも変換（3D空間座標）
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-        x: landmark.x,
-        y: landmark.y,
-        z: landmark.z,
-        visibility: landmark.visibility,
-      }))
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility,
+        }))
       : poseLandmarks;
 
     // Kalidokitでポーズを解析
@@ -367,11 +374,11 @@ export const calculateRiggedPose = (
 
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-        x: landmark.x,
-        y: landmark.y,
-        z: landmark.z,
-        visibility: landmark.visibility,
-      }))
+          x: landmark.x,
+          y: landmark.y,
+          z: landmark.z,
+          visibility: landmark.visibility,
+        }))
       : poseLandmarks;
 
     const riggedPose = Kalidokit.Pose.solve(

@@ -163,16 +163,22 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
         }
 
         // Face detection
-        if (faceLandmarkerRef.current) {
-          const faceResult = faceLandmarkerRef.current.detectForVideo(
-            video,
-            timestamp
-          );
+        const faceLandmarker = faceLandmarkerRef.current;
+        if (faceLandmarker && video.videoWidth > 0 && video.videoHeight > 0) {
+          try {
+            const faceResult = faceLandmarker.detectForVideo(video, timestamp);
 
-          if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
-            setFaceLandmarks(faceResult.faceLandmarks[0]);
-          } else {
-            setFaceLandmarks(null);
+            if (
+              faceResult.faceLandmarks &&
+              faceResult.faceLandmarks.length > 0
+            ) {
+              setFaceLandmarks(faceResult.faceLandmarks[0]);
+            } else {
+              setFaceLandmarks(null);
+            }
+          } catch (faceErr) {
+            // Suppress face detection errors to prevent crashing the whole app
+            console.warn("Face detection error (transient):", faceErr);
           }
         }
       } catch (err) {

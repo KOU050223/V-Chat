@@ -220,28 +220,40 @@ export const retargetPoseToVRMWithKalidokit = (
         const blinkR = faceRig.eye.r;
 
         // Apply to VRM ExpressionManager
-        // VRM 1.0 standard preset names are camelCase: 'blink', 'blinkLeft', 'blinkRight'
         const blinkValL = 1 - blinkL;
         const blinkValR = 1 - blinkR;
+
+        // Mirroring: Swap Left/Right
+        // User Left Eye (blinkValL) -> Avatar Right Eye (TargetRight)
+        // User Right Eye (blinkValR) -> Avatar Left Eye (TargetLeft)
+        const targetRight = blinkValL;
+        const targetLeft = blinkValR;
+
+        // Split Logic to avoid additive distortion while supporting legacy "Blink"
+        const combinedBlink = Math.min(targetLeft, targetRight);
+        const remLeft = targetLeft - combinedBlink;
+        const remRight = targetRight - combinedBlink;
 
         // Log available expressions once for debugging
         if (Math.random() < 0.01) {
           // Low frequency log
           console.log("VRM Expressions:", vrm.expressionManager.expressionMap);
-          console.log("Blink L/R:", blinkValL, blinkValR);
+          console.log("Blink Split:", {
+            combined: combinedBlink,
+            left: remLeft,
+            right: remRight,
+          });
         }
 
-        // Try standard VRM 1.0 preset names
-        vrm.expressionManager.setValue("blinkLeft", blinkValL);
-        vrm.expressionManager.setValue("blinkRight", blinkValR);
+        // VRM 1.0 standard (blink, blinkLeft, blinkRight)
+        vrm.expressionManager.setValue("blink", combinedBlink);
+        vrm.expressionManager.setValue("blinkLeft", remLeft);
+        vrm.expressionManager.setValue("blinkRight", remRight);
 
-        // Also set main 'blink' if needed (using max of both or just average)
-        vrm.expressionManager.setValue("blink", Math.max(blinkValL, blinkValR));
-
-        // Legacy / Fallback names (just in case)
-        vrm.expressionManager.setValue("Blink", Math.max(blinkValL, blinkValR));
-        vrm.expressionManager.setValue("BlinkL", blinkValL);
-        vrm.expressionManager.setValue("BlinkR", blinkValR);
+        // VRM 0.0 legacy (Blink, BlinkL, BlinkR)
+        vrm.expressionManager.setValue("Blink", combinedBlink);
+        vrm.expressionManager.setValue("BlinkL", remLeft);
+        vrm.expressionManager.setValue("BlinkR", remRight);
 
         // Apply Mouth
         // Kalidokit mouth: { x, y, shape: { A, E, I, O, U } }

@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { VRM, VRMHumanBoneName } from "@pixiv/three-vrm";
 import { VRMViewer } from "@/components/vrm/VRMViewer";
-import { Participant, DataPacket_Kind, ParticipantEvent } from "livekit-client";
+import { Participant, ParticipantEvent } from "livekit-client";
 import {
   MotionDataPacket,
   QuaternionArray,
@@ -30,6 +30,7 @@ interface AvatarReceiverProps {
   participant: Participant;
   defaultAvatarUrl?: string;
   manualRotations?: BoneRotations | null; // ローカルプレビュー用ループバック
+  manualBlendShapes?: Record<string, number> | null; // ローカルプレビュー用の表情データ
   localOverrideOffset?: { x: number; y: number; z: number }; // ローカル即時反映用のオフセット上書き
   localOverrideScale?: number; // ローカル即時反映用のスケール上書き
 }
@@ -38,6 +39,7 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
   participant,
   defaultAvatarUrl,
   manualRotations,
+  manualBlendShapes,
   localOverrideOffset,
   localOverrideScale,
 }) => {
@@ -53,6 +55,8 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
 
   // アニメーション補間用のターゲット回転情報
   const targetRotations = useRef<Record<string, THREE.Quaternion>>({});
+  // アニメーション補間用のターゲットブレンドシェイプ情報
+  const targetBlendShapes = useRef<Record<string, number>>({});
 
   // MetadataからVRM URLを取得
   useEffect(() => {
@@ -136,6 +140,14 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
             }
           });
         }
+
+        // ターゲットブレンドシェイプ情報を更新
+        if (data.v === 1 && data.b) {
+          targetBlendShapes.current = { ...data.b };
+        } else if (data.v === 0) {
+          // カメラオフ時はリセット
+          targetBlendShapes.current = {};
+        }
       } catch (err) {
         console.error("Error decoding motion data", err);
       }
@@ -157,6 +169,13 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
     if (manualRotations) {
       // ローカルは30fpsで更新されるため、補間なしで即時適用
       applyBoneRotations(vrm, manualRotations);
+
+      // ローカルの表情データ（目ぱち・口ぱち）も即時適用
+      if (manualBlendShapes && vrm.expressionManager) {
+        Object.entries(manualBlendShapes).forEach(([name, value]) => {
+          vrm.expressionManager!.setValue(name, value);
+        });
+      }
     }
     // ネットワークデータ (ターゲット回転へのLerp補間)
     else if (isCameraActive) {
@@ -171,6 +190,26 @@ export const AvatarReceiver: React.FC<AvatarReceiverProps> = ({
           }
         }
       );
+
+      // ブレンドシェイプの適用
+      if (vrm.expressionManager) {
+        const smoothing = 0.5; // 0.0-1.0 (大きいほど速い)
+        const lerpFactor = 10 * delta * smoothing;
+
+        // ターゲットにある各シェイプを適用
+        Object.entries(targetBlendShapes.current).forEach(
+          ([name, targetValue]) => {
+            const currentValue = vrm.expressionManager!.getValue(name) || 0;
+            // 補間
+            const newValue = THREE.MathUtils.lerp(
+              currentValue,
+              targetValue,
+              Math.min(lerpFactor, 1.0)
+            );
+            vrm.expressionManager!.setValue(name, newValue);
+          }
+        );
+      }
     }
 
     vrm.update(delta);

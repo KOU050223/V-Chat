@@ -1,0 +1,12 @@
+[
+  {
+    "origin": ["*"],
+    "method": ["GET", "PUT", "POST", "HEAD", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "x-goog-meta-modelid",
+      "x-goog-meta-uploadedat"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

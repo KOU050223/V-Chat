@@ -30,31 +30,84 @@ export async function uploadVRMToStorage(
   token: string
 ): Promise<string> {
   try {
-    const formData = new FormData();
-    formData.append("modelId", modelId);
-    formData.append("file", blob, `${modelId}.vrm`);
+    console.log(`Getting Signed URL for VRM upload: ${modelId}`);
 
-    console.log(`Uploading VRM to Storage (via Server): ${modelId}`);
-
-    const res = await fetch("/api/storage/upload", {
+    // 1. 署名付きURLの取得
+    const signedUrlRes = await fetch("/api/storage/upload", {
       method: "POST",
       headers: {
+        "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: formData,
+      body: JSON.stringify({
+        modelId,
+        contentType: blob.type || "application/octet-stream",
+      }),
     });
 
-    if (!res.ok) {
-      let errorMessage = res.statusText;
+    if (!signedUrlRes.ok) {
+      let errorMessage = signedUrlRes.statusText;
       try {
-        const errorData = await res.json();
+        const errorData = await signedUrlRes.json();
         if (errorData.error) {
           errorMessage = errorData.error;
         }
       } catch {
-        // JSON parse failed, use statusText
+        // JSON parse failed
       }
-      throw new Error(`Failed to upload VRM: ${res.status} ${errorMessage}`);
+      throw new Error(
+        `Failed to get upload URL: ${signedUrlRes.status} ${errorMessage}`
+      );
+    }
+
+    const data: unknown = await signedUrlRes.json();
+
+    // Validate response shape
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("uploadUrl" in data) ||
+      typeof (data as { uploadUrl: unknown }).uploadUrl !== "string" ||
+      !("uploadedAt" in data) ||
+      typeof (data as { uploadedAt: unknown }).uploadedAt !== "string"
+    ) {
+      throw new Error(
+        "Invalid response from upload API: missing uploadUrl or uploadedAt"
+      );
+    }
+
+    const { uploadUrl, uploadedAt } = data as {
+      uploadUrl: string;
+      uploadedAt: string;
+    };
+
+    // 2. Storageへ直接アップロード (PUT)
+    console.log(`Uploading VRM to Storage (via Signed URL): ${modelId}`);
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": blob.type || "application/octet-stream",
+        "x-goog-meta-modelId": modelId,
+        "x-goog-meta-uploadedAt": uploadedAt,
+      },
+      body: blob,
+    });
+
+    if (!uploadRes.ok) {
+      let errorDetails = uploadRes.statusText;
+      try {
+        // レスポンスボディがある場合のみ読み取る
+        const responseText = await uploadRes.text();
+        if (responseText) {
+          errorDetails = responseText;
+        }
+      } catch {
+        // レスポンスボディの読み取りに失敗した場合はstatusTextを使用 (何もしない)
+      }
+      throw new Error(
+        `Failed to upload to Storage: ${uploadRes.status} ${errorDetails}`
+      );
     }
 
     const encodedId = encodeURIComponent(modelId);

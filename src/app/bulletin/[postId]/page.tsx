@@ -40,6 +40,10 @@ export async function generateMetadata(
     console.error("OGP Metadata Fetch Error:", error);
   }
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://v-chat.uomi.dev";
+  const absoluteUrl = `${baseUrl}/bulletin/${postId}`;
+  const absoluteImageUrl = `${baseUrl}/v-chat_icon.png`;
+
   return {
     title: title,
     description: description,
@@ -48,11 +52,11 @@ export async function generateMetadata(
       description: description,
       type: "article",
       locale: "ja_JP",
-      url: `/bulletin/${postId}`,
+      url: absoluteUrl,
       siteName: "V-Chat",
       images: [
         {
-          url: "/v-chat_icon.png", // TODO: Custom OG Image generation if needed
+          url: absoluteImageUrl,
           width: 512,
           height: 512,
         },
@@ -62,7 +66,7 @@ export async function generateMetadata(
       card: "summary",
       title: title,
       description: description,
-      images: ["/v-chat_icon.png"],
+      images: [absoluteImageUrl],
     },
   };
 }

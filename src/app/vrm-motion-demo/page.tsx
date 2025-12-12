@@ -3,12 +3,53 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { VRMViewer } from "@/components/vrm/VRMViewer";
-import { MotionSyncUI, useMotionSync } from "@/components/vrm/MotionSyncViewer";
+import {
+  MotionSyncUI,
+  useMotionSync,
+  type CameraView,
+} from "@/components/vrm/MotionSyncViewer";
 import { CameraPreview } from "@/components/vrm/CameraPreview";
-import { useFrame } from "@react-three/fiber";
+import { DebugSkeleton } from "@/components/vrm/DebugSkeleton";
+import { useThree, useFrame } from "@react-three/fiber";
 import { retargetPoseToVRM } from "@/lib/vrm-retargeter";
 import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import * as THREE from "three";
+
+// カメラ制御コンポーネント
+const CameraController: React.FC<{
+  view: CameraView;
+  onViewChangeComplete: () => void;
+}> = ({ view, onViewChangeComplete }) => {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if (view === "reset") return;
+
+    const targetPos = new THREE.Vector3();
+
+    switch (view) {
+      case "front":
+        targetPos.set(0, 1.4, 1.5); // 近づける
+        break;
+      case "back":
+        targetPos.set(0, 1.4, -1.5);
+        break;
+      case "side":
+        targetPos.set(1.5, 1.4, 0);
+        break;
+    }
+
+    // アニメーションなしで即座に移動 (OrbitControlsとの競合を避けるため)
+    camera.position.copy(targetPos);
+    camera.lookAt(0, 1, 0);
+
+    // 完了通知
+    onViewChangeComplete();
+  }, [view, camera, onViewChangeComplete]);
+
+  return null;
+};
 
 // Canvas内でモーション同期を行うコンポーネント
 const MotionSyncRenderer: React.FC<{
@@ -17,7 +58,15 @@ const MotionSyncRenderer: React.FC<{
   motionSyncState: ReturnType<typeof useMotionSync>;
   useKalidokit: boolean;
   setIsVRMLoading: (loading: boolean) => void;
-}> = ({ vrmUrl, position, motionSyncState, useKalidokit, setIsVRMLoading }) => {
+  showSkeleton: boolean; // Skeleton toggle
+}> = ({
+  vrmUrl,
+  position,
+  motionSyncState,
+  useKalidokit,
+  setIsVRMLoading,
+  showSkeleton,
+}) => {
   // コンポーネントマウント時にローディング状態をリセット
   useEffect(() => {
     setIsVRMLoading(true);
@@ -55,14 +104,23 @@ const MotionSyncRenderer: React.FC<{
   });
 
   return (
-    <VRMViewer
-      vrmUrl={vrmUrl}
-      onVRMLoaded={(vrm) => {
-        motionSyncState.handleVRMLoaded(vrm);
-        setIsVRMLoading(false);
-      }}
-      position={position}
-    />
+    <>
+      <VRMViewer
+        vrmUrl={vrmUrl}
+        onVRMLoaded={(vrm) => {
+          motionSyncState.handleVRMLoaded(vrm);
+          setIsVRMLoading(false);
+        }}
+        position={position}
+      />
+
+      {/* デバッグ用スケルトン */}
+      <DebugSkeleton
+        landmarks={motionSyncState.landmarks}
+        visible={showSkeleton}
+        position={[1.2, 0, 0]} // アバターの右側に表示
+      />
+    </>
   );
 };
 
@@ -77,6 +135,10 @@ export default function VRMMotionDemoPage() {
 
   // ローディング状態
   const [isVRMLoading, setIsVRMLoading] = useState(true);
+
+  // デバッグ機能の状態
+  const [showSkeleton, setShowSkeleton] = useState(false);
+  const [cameraView, setCameraView] = useState<CameraView>("reset");
 
   return (
     <div className="h-screen w-full bg-gray-900">
@@ -163,6 +225,12 @@ export default function VRMMotionDemoPage() {
         {/* グリッド床 */}
         <gridHelper args={[10, 10]} />
 
+        {/* コントローラ */}
+        <CameraController
+          view={cameraView}
+          onViewChangeComplete={() => setCameraView("reset")}
+        />
+
         {/* VRMモーション同期ビューア */}
         <MotionSyncRenderer
           vrmUrl="/vrm/vroid_model_6689695945343414173.vrm" // VRoidモデルファイルのパス
@@ -170,6 +238,7 @@ export default function VRMMotionDemoPage() {
           motionSyncState={motionSyncState}
           useKalidokit={useKalidokit}
           setIsVRMLoading={setIsVRMLoading}
+          showSkeleton={showSkeleton}
         />
 
         {/* カメラコントロール */}
@@ -196,6 +265,9 @@ export default function VRMMotionDemoPage() {
         onStopMotionSync={motionSyncState.handleStopMotionSync}
         onRequestCameraPermission={motionSyncState.requestCameraPermission}
         enablePoseDebug={true}
+        showSkeleton={showSkeleton}
+        onToggleSkeleton={setShowSkeleton}
+        onCameraViewChange={setCameraView}
       />
 
       {/* カメラプレビュー（右下） */}

@@ -48,76 +48,139 @@ const applySmoothRotation = (
 };
 
 /**
- * MediaPipeランドマークから頭の回転を直接計算
- * TODO: 将来的に使用予定（現在はコメントアウト中）
+ * MediaPipeランドマークから頭の回転を直接計算 (World Landmarks対応版)
  */
-
 const _applyHeadRotationFromLandmarks = (
   humanoid: VRMHumanoid,
-  landmarks: PoseLandmark[]
+  landmarks: PoseLandmark[],
+  worldLandmarks: PoseLandmark[] | null = null
 ): void => {
   // 顔のランドマークインデックス
   const NOSE = 0;
+  const LEFT_EAR = 7;
+  const RIGHT_EAR = 8;
   const LEFT_EYE = 2;
   const RIGHT_EYE = 5;
-  const LEFT_SHOULDER = 11;
-  const RIGHT_SHOULDER = 12;
 
-  const nose = landmarks[NOSE];
-  const leftEye = landmarks[LEFT_EYE];
-  const rightEye = landmarks[RIGHT_EYE];
-  const leftShoulder = landmarks[LEFT_SHOULDER];
-  const rightShoulder = landmarks[RIGHT_SHOULDER];
+  // 3D座標を使用するか、2Dのみを使用するか
+  // worldLandmarksの方が回転計算には正確
+  const use3D = worldLandmarks && worldLandmarks.length > 0;
+  const sourceLandmarks = use3D ? worldLandmarks! : landmarks;
 
-  if (!nose || !leftShoulder || !rightShoulder) return;
+  const nose = sourceLandmarks[NOSE];
+  const leftEar = sourceLandmarks[LEFT_EAR];
+  const rightEar = sourceLandmarks[RIGHT_EAR];
+  const leftEye = sourceLandmarks[LEFT_EYE];
+  const rightEye = sourceLandmarks[RIGHT_EYE];
 
-  // 肩の中点を計算
-  const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
-  const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
-  const shoulderCenterZ = (leftShoulder.z + rightShoulder.z) / 2;
+  if (!nose || !leftEye || !rightEye) return;
 
-  // 頭の方向ベクトル（鼻から肩の中点へ）
-  const headDirX = nose.x - shoulderCenterX;
-  const headDirY = -(nose.y - shoulderCenterY); // Y軸反転
-  const headDirZ = nose.z - shoulderCenterZ;
-
-  // ベクトルを正規化
-  const length = Math.sqrt(
-    headDirX * headDirX + headDirY * headDirY + headDirZ * headDirZ
-  );
-  if (length < 0.01) return;
-
-  const normalizedX = headDirX / length;
-  const normalizedY = headDirY / length;
-  const normalizedZ = headDirZ / length;
-
-  // 頭の回転を計算（簡易版）
-  const yaw = Math.atan2(normalizedX, -normalizedZ);
-  let pitch = Math.asin(-normalizedY);
-
-  const PITCH_OFFSET = 0.3;
-  pitch += PITCH_OFFSET;
-  // ロール（左右の傾き）を目の位置から計算
+  let yaw = 0;
+  let pitch = 0;
   let roll = 0;
-  if (leftEye && rightEye) {
+
+  if (use3D && leftEar && rightEar) {
+    // === 3D World Landmarks を使用した計算 ===
+
+    // 耳の中点
+    const earMidX = (leftEar.x + rightEar.x) / 2;
+    const earMidY = (leftEar.y + rightEar.y) / 2;
+    const earMidZ = (leftEar.z + rightEar.z) / 2;
+
+    // 顔の方向ベクトル（耳の中点 -> 鼻）
+    const faceDirX = nose.x - earMidX;
+    const faceDirY = nose.y - earMidY;
+    const faceDirZ = nose.z - earMidZ;
+
+    // Yaw (左右の首振り) - XZ平面での角度
+    // MediaPipe World座標系では、カメラ正面を向いているとき Z < 0
+    // atan2(0, -1) = PI (180度) となるため、PIを引いて0度基準にする
+    const rawYaw = Math.atan2(faceDirX, faceDirZ);
+    yaw = rawYaw - Math.PI;
+
+    // 正規化 (-PI ~ PI)
+    if (yaw < -Math.PI) yaw += Math.PI * 2;
+    if (yaw > Math.PI) yaw -= Math.PI * 2;
+
+    // Pitch (頷き) - Y成分と奥行きの関係
+    // 3D座標系ではYが上か下か確認が必要（Mediapipe WorldはYが下向き、Zがカメラ方向？）
+    // 実測調整:
+    const depth = Math.sqrt(faceDirX * faceDirX + faceDirZ * faceDirZ);
+    pitch = Math.atan2(faceDirY, depth);
+
+    // 補正: MediaPipe World座標系の調整
+    // 一般的に -Pitch で自然になることが多い
+    // デフォルトで少し下を向いてしまうため、オフセット(0.2ラジアン≒11度)を追加して補正
+    pitch = -pitch - 0.2;
+
+    // Roll (首の傾げ) - 目の傾きから計算
+    // World座標系では Y軸が上下
     const eyeDiffY = leftEye.y - rightEye.y;
-    roll = Math.atan2(eyeDiffY, leftEye.x - rightEye.x);
+    const eyeDiffX = leftEye.x - rightEye.x;
+    roll = -Math.atan2(eyeDiffY, eyeDiffX); // 符号は要調整
+  } else {
+    // === 従来の簡易計算 (Fallback) ===
+    // 既存ロジックを維持しつつ、少し整理
+    const LEFT_SHOULDER = 11;
+    const RIGHT_SHOULDER = 12;
+    const leftShoulder = landmarks[LEFT_SHOULDER];
+    const rightShoulder = landmarks[RIGHT_SHOULDER];
+
+    if (!leftShoulder || !rightShoulder) return;
+
+    const shoulderCenterX = (leftShoulder.x + rightShoulder.x) / 2;
+    const shoulderCenterY = (leftShoulder.y + rightShoulder.y) / 2;
+    const shoulderCenterZ = (leftShoulder.z + rightShoulder.z) / 2;
+
+    const headDirX = nose.x - shoulderCenterX;
+    const headDirY = -(nose.y - shoulderCenterY);
+    const headDirZ = nose.z - shoulderCenterZ;
+
+    const length = Math.sqrt(
+      headDirX * headDirX + headDirY * headDirY + headDirZ * headDirZ
+    );
+    if (length < 0.01) return;
+
+    const normalizedX = headDirX / length;
+    const normalizedY = headDirY / length;
+    const normalizedZ = headDirZ / length;
+
+    yaw = Math.atan2(normalizedX, -normalizedZ);
+    pitch = Math.asin(-normalizedY) + 0.3;
+
+    if (leftEye && rightEye) {
+      const eyeDiffY = leftEye.y - rightEye.y;
+      roll = Math.atan2(eyeDiffY, leftEye.x - rightEye.x);
+    }
   }
+
+  // 感度調整 (1.0 = 100%)
+  const YAW_SENSITIVITY = 1.0;
+  const PITCH_SENSITIVITY = 1.0;
+  const ROLL_SENSITIVITY = 1.0;
 
   // 頭のボーンに適用
   const head = humanoid.getNormalizedBoneNode("head");
   if (head) {
-    tempEuler.set(pitch, yaw, roll);
+    tempEuler.set(
+      pitch * PITCH_SENSITIVITY,
+      yaw * YAW_SENSITIVITY,
+      roll * ROLL_SENSITIVITY
+    );
     tempQuaternion.setFromEuler(tempEuler);
-    head.quaternion.slerp(tempQuaternion, 0.1); // スムーズに適用
+    head.quaternion.slerp(tempQuaternion, 0.2); // 少し早めに追従
   }
 
   // 首のボーンにも軽く適用
   const neck = humanoid.getNormalizedBoneNode("neck");
   if (neck) {
-    tempEuler.set(pitch * 0.3, yaw * 0.3, roll * 0.3); // 頭の30%
+    tempEuler.set(
+      pitch * 0.3 * PITCH_SENSITIVITY,
+      yaw * 0.3 * YAW_SENSITIVITY,
+      roll * 0.3 * ROLL_SENSITIVITY
+    );
     tempQuaternion.setFromEuler(tempEuler);
-    neck.quaternion.slerp(tempQuaternion, 0.5);
+    neck.quaternion.slerp(tempQuaternion, 0.4);
   }
 };
 
@@ -145,11 +208,11 @@ export const retargetPoseToVRMWithKalidokit = (
     // worldLandmarksも変換（3D空間座標）
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-          x: landmark.x,
-          y: landmark.y,
-          z: landmark.z,
-          visibility: landmark.visibility,
-        }))
+        x: landmark.x,
+        y: landmark.y,
+        z: landmark.z,
+        visibility: landmark.visibility,
+      }))
       : poseLandmarks;
 
     // Kalidokitでポーズを解析
@@ -207,7 +270,7 @@ export const retargetPoseToVRMWithKalidokit = (
     }
 
     if (landmarks.length > 0) {
-      _applyHeadRotationFromLandmarks(humanoid, landmarks);
+      _applyHeadRotationFromLandmarks(humanoid, landmarks, worldLandmarks);
     }
 
     // Kalidokitが返すTPose型にはChest, Neck, Headがないため、手動実装は保留
@@ -304,11 +367,11 @@ export const calculateRiggedPose = (
 
     const worldLandmarksFormatted = worldLandmarks
       ? worldLandmarks.map((landmark) => ({
-          x: landmark.x,
-          y: landmark.y,
-          z: landmark.z,
-          visibility: landmark.visibility,
-        }))
+        x: landmark.x,
+        y: landmark.y,
+        z: landmark.z,
+        visibility: landmark.visibility,
+      }))
       : poseLandmarks;
 
     const riggedPose = Kalidokit.Pose.solve(

@@ -3,19 +3,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  ArrowLeft,
-  Send,
-  Users,
-  MessageCircle,
-  MoreVertical,
-} from "lucide-react";
+import { ArrowLeft, Users, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui";
 import VoiceCall from "@/components/voice/VoiceCall";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
 import { handleFirebaseFunctionError } from "@/lib/utils";
-import { getFirestore, doc, getDoc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import type {
   JoinRoomRequest,
   JoinRoomResponse,
@@ -23,6 +17,18 @@ import type {
   RoomDisplayInfo,
 } from "@/types/room";
 import type { VoiceCallState } from "@/types/voice";
+
+// ヘルパー関数: ユーザーIDを抽出
+function getUserId(
+  user: ReturnType<typeof useAuth>["user"],
+  nextAuthSession: ReturnType<typeof useAuth>["nextAuthSession"]
+): string | null {
+  const currentUser = user || nextAuthSession?.user;
+  if (!currentUser) return null;
+
+  const typedUser = currentUser as { uid?: string; id?: string };
+  return typedUser.uid || typedUser.id || null;
+}
 
 export default function ChatRoom() {
   const params = useParams();
@@ -69,87 +75,10 @@ export default function ChatRoom() {
     cleanupOldSessionData();
   }, [roomId]);
 
-  // useRefで初回参加済みフラグを管理
-  const hasJoinedRef = useRef(false);
-
-  // ルーム情報が取得できたら参加処理を実行（HMR対応）
-  useEffect(() => {
-    if (roomInfo && !isLoading && !hasJoinedRef.current) {
-      // セッションストレージから既存の参加状態をチェック
-      const sessionJoinKey = `room-${roomId}-joined`;
-      const hasJoined = sessionStorage.getItem(sessionJoinKey);
-      const existingUserKeys = Object.keys(sessionStorage).filter((key) =>
-        key.startsWith(`room-${roomId}-user-`)
-      );
-
-      console.log(
-        "🔍 Checking join status - hasJoined:",
-        hasJoined,
-        "existingUserKeys:",
-        existingUserKeys.length
-      );
-
-      // 開発環境でのHMR対応：既に参加済みの場合は再参加をスキップ
-      if (
-        process.env.NODE_ENV === "development" &&
-        (hasJoined || existingUserKeys.length > 0)
-      ) {
-        console.log(
-          "🔧 DEV MODE: HMR DETECTED - Skipping joinRoom() - already joined"
-        );
-        console.log("Session join status:", hasJoined);
-        console.log("Existing user keys:", existingUserKeys);
-        return;
-      }
-
-      // 本番環境または初回参加の場合のみjoinRoomを実行
-      if (!hasJoined && existingUserKeys.length === 0) {
-        console.log("🚀 EXECUTING: joinRoom()");
-        joinRoom();
-        hasJoinedRef.current = true; //フラグを立てる
-      }
-    }
-  }, [isLoading, roomId]);
-
-  // ページを離れる時に参加者数を減らす（通常のクリーンアップ）
-  useEffect(() => {
-    return () => {
-      // 開発環境でのHMR時はleaveRoomをスキップ
-      if (process.env.NODE_ENV === "development") {
-        console.log(
-          "🔧 DEV MODE: HMR DETECTED - Skipping leaveRoom() on cleanup"
-        );
-        return;
-      }
-
-      if (roomInfo) {
-        leaveRoom();
-      }
-    };
-  }, []); // 依存配列を空にしてHMRによる再実行を防ぐ
-
-  // ブラウザ閉じる・タブ閉じる・リロード時の退出処理
-  // Note: beforeunload時にCloud Functionsを呼び出すことはできないため、
-  // 通常のleaveRoom()での退出処理に依存します
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log("Page unloading, clearing session...");
-
-      // セッションストレージをクリア
-      const hasJoined = sessionStorage.getItem(`room-${roomId}-joined`);
-      if (hasJoined) {
-        sessionStorage.removeItem(`room-${roomId}-joined`);
-      }
-    };
-
-    // イベントリスナーを追加
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      // クリーンアップ時にもイベントリスナーを削除
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, [roomId]);
+  const [isJoined, setIsJoined] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [participants, setParticipants] = useState<string[]>([]);
+  const joinAttemptedRef = useRef(false);
 
   // リアルタイムでルーム情報を監視（Firestore onSnapshot）
   useEffect(() => {
@@ -164,14 +93,14 @@ export default function ChatRoom() {
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data();
+          const memberList = (data.participants as string[]) || [];
 
           // 開発環境でのみデバッグ情報を出力
           if (process.env.NODE_ENV === "development") {
             console.log("🔄 Real-time Room Update:", {
               roomId,
               status: data.status,
-              participantCount: data.participants?.length || 0,
-              name: data.name,
+              participants: memberList,
             });
           }
 
@@ -180,28 +109,20 @@ export default function ChatRoom() {
             name: data.name || "不明なルーム",
             description: data.description || "",
             isPrivate: data.isPrivate || false,
-            members: data.participants?.length || 0,
+            members: memberList.length,
           });
+          setParticipants(memberList);
+          setIsLoading(false);
         } else {
           console.warn("Room not found in Firestore:", roomId);
-          setRoomInfo({
-            roomId: roomId,
-            name: "不明なルーム",
-            description: "ルーム情報を取得できませんでした",
-            isPrivate: false,
-            members: 0,
-          });
+          setJoinError("ルームが見つかりません");
+          setIsLoading(false);
         }
       },
       (error) => {
         console.error("Failed to listen to room updates:", error);
-        setRoomInfo({
-          roomId: roomId,
-          name: "不明なルーム",
-          description: "ルーム情報を取得できませんでした",
-          isPrivate: false,
-          members: 0,
-        });
+        setJoinError("ルーム情報の取得に失敗しました");
+        setIsLoading(false);
       }
     );
 
@@ -209,102 +130,79 @@ export default function ChatRoom() {
     return () => unsubscribe();
   }, [roomId]);
 
-  // 参加処理のデバウンス用
-  const joinAttemptRef = useRef<boolean>(false);
-  const lastJoinTimeRef = useRef<number>(0);
-
   // ルームに参加する処理（Firebase Cloud Functions版）
-  const joinRoom = async () => {
-    try {
-      // デバウンス：短時間での重複実行を防ぐ
-      const now = Date.now();
-      if (joinAttemptRef.current || now - lastJoinTimeRef.current < 2000) {
-        console.log("🔧 JOIN DEBOUNCED - Skipping duplicate join attempt");
-        return;
+  const joinRoom = useCallback(
+    async (userId: string) => {
+      if (joinAttemptedRef.current) return;
+      joinAttemptedRef.current = true;
+
+      try {
+        setJoinError(null);
+        console.log("Calling joinRoom function for:", roomId);
+
+        const functions = getFunctions(app, "us-central1");
+        const joinRoomFunction = httpsCallable<
+          JoinRoomRequest,
+          JoinRoomResponse
+        >(functions, "joinRoom");
+
+        await joinRoomFunction({ roomId: roomId });
+        console.log("Successfully called joinRoom function");
+
+        // 注意: isJoinedはここですぐにtrueにしない。
+        // FirestoreのonSnapshotがparticipantsの更新を検知したタイミングでtrueになる。
+        // これにより、確実に権限がバックエンドに反映されてからVoiceCallがレンダリングされる。
+      } catch (error) {
+        console.error("Error joining room:", error);
+        const message = handleFirebaseFunctionError(
+          "ルーム参加エラー",
+          error,
+          "ルームへの参加に失敗しました"
+        );
+        setJoinError(message);
+        joinAttemptedRef.current = false; // リトライ可能にする
       }
+    },
+    [roomId]
+  );
 
-      joinAttemptRef.current = true;
-      lastJoinTimeRef.current = now;
+  // ルーム参加状態の管理と自動参加処理
+  useEffect(() => {
+    // 必要な情報が揃うまで待機
+    if (isLoading || !roomInfo) return;
 
-      const roomJoinKey = `room-${roomId}-joined`;
-      const hasJoined = sessionStorage.getItem(roomJoinKey);
+    const userId = getUserId(user, nextAuthSession);
+    if (!userId) return;
 
-      // 既に参加済みの場合はスキップ
-      if (hasJoined) {
-        console.log("⚠️ Already joined this room");
-        joinAttemptRef.current = false;
-        return;
+    // 既に参加者リストに含まれているかチェック
+    const isUserInRoom = participants.includes(userId);
+
+    if (isUserInRoom) {
+      // 既に参加済みなら状態を更新して終了
+      if (!isJoined) {
+        console.log(
+          "✅ User is already in participants list. Ready to join VoiceCall."
+        );
+        setIsJoined(true);
       }
-
-      // ルーム情報を取得して、ルーム作成者かチェック
-      const db = getFirestore(app);
-      const roomRef = doc(db, "rooms", roomId);
-      const roomSnap = await getDoc(roomRef);
-
-      if (roomSnap.exists()) {
-        const roomData = roomSnap.data();
-        const currentUserId = user?.uid || nextAuthSession?.user?.id;
-
-        // currentUserIdが未定義の場合は早期リターン
-        // Note: roomJoinKeyは削除せず、ログイン後の再参加を可能にする
-        if (!currentUserId) {
-          console.warn("⚠️ currentUserId is undefined - cannot join room");
-          console.warn("💡 Please sign in to join the room");
-          joinAttemptRef.current = false;
-          // TODO: ミドルウェアレベルでの認証チェックを実装し、
-          // 未認証ユーザーをログインページにリダイレクトすることを検討
-          return;
-        }
-
-        // ルーム作成者の場合は、既にparticipantsに含まれているためjoinRoomをスキップ
-        if (roomData.createdBy === currentUserId) {
-          console.log(
-            "👑 Room creator - skipping joinRoom, already in participants"
-          );
-          sessionStorage.setItem(roomJoinKey, "true");
-          joinAttemptRef.current = false;
-          return;
-        }
-
-        // 既にparticipantsに含まれている場合もスキップ
-        if (roomData.participants?.includes(currentUserId)) {
-          console.log("✅ Already in participants - skipping joinRoom");
-          sessionStorage.setItem(roomJoinKey, "true");
-          joinAttemptRef.current = false;
-          return;
-        }
-      }
-
-      console.log("Joining room via Cloud Functions:", roomId);
-
-      // Firebase Cloud Functionsでルームに参加
-      const functions = getFunctions(app, "us-central1");
-      const joinRoomFunction = httpsCallable<JoinRoomRequest, JoinRoomResponse>(
-        functions,
-        "joinRoom"
-      );
-
-      const result = await joinRoomFunction({
-        roomId: roomId,
-      });
-
-      const data = result.data;
-      console.log("Successfully joined room:", data);
-
-      // セッション情報を保存
-      sessionStorage.setItem(roomJoinKey, "true");
-    } catch (error) {
-      const message = handleFirebaseFunctionError(
-        "ルーム参加エラー",
-        error,
-        "ルームへの参加に失敗しました"
-      );
-      console.error("Error joining room:", message);
-    } finally {
-      // デバウンスフラグをリセット
-      joinAttemptRef.current = false;
+      return;
     }
-  };
+
+    // まだ参加していない、かつエラーが出ていない場合に参加処理を実行
+    if (!isJoined && !joinError && !joinAttemptedRef.current) {
+      console.log("🚀 User not in participants list. Initiating joinRoom...");
+      joinRoom(userId);
+    }
+  }, [
+    participants,
+    isLoading,
+    roomInfo,
+    user,
+    nextAuthSession,
+    isJoined,
+    joinError,
+    joinRoom,
+  ]);
 
   const fetchMessages = async () => {
     try {
@@ -629,14 +527,53 @@ export default function ChatRoom() {
         <div
           className={`flex-1 flex flex-col ${showChat ? "mr-80" : ""} relative`}
         >
-          <VoiceCall
-            roomId={roomId}
-            participantName={participantName}
-            onLeave={handleVoiceCallLeave}
-            onStateChange={handleVoiceCallStateChange}
-            serverMemberCount={roomInfo?.members}
-            className="flex-1"
-          />
+          {isJoined ? (
+            <VoiceCall
+              roomId={roomId}
+              participantName={participantName}
+              onLeave={handleVoiceCallLeave}
+              onStateChange={handleVoiceCallStateChange}
+              serverMemberCount={roomInfo?.members}
+              className="flex-1"
+            />
+          ) : joinError ? (
+            <div className="flex-1 flex items-center justify-center bg-gray-900 text-white">
+              <div className="text-center p-6 bg-gray-800 rounded-xl border border-red-500/50 max-w-md">
+                <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ArrowLeft className="w-6 h-6 text-red-400" />
+                </div>
+                <h3 className="text-lg font-bold mb-2 text-red-400">
+                  参加エラー
+                </h3>
+                <p className="text-gray-300 mb-6">{joinError}</p>
+                <div className="flex gap-4 justify-center">
+                  <Button
+                    onClick={() => router.push("/bulletin")}
+                    variant="outline"
+                  >
+                    戻る
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      joinAttemptedRef.current = false;
+                      setJoinError(null);
+                      const uid = getUserId(user, nextAuthSession);
+                      if (uid) joinRoom(uid);
+                    }}
+                  >
+                    再試行
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center bg-gray-900 text-white">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p>ルームに参加中...</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

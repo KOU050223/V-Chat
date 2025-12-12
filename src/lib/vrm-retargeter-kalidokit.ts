@@ -479,24 +479,26 @@ export const retargetPoseToVRMWithKalidokit = (
     */
 
     // 背骨（Spine）の回転 - 体の傾きを主に表現
+    // ユーザー要望によりトラッキングを強化: 0.4 -> 0.7 (より大きく動くように)
     if (riggedPose.Spine) {
       const spine = humanoid.getNormalizedBoneNode("spine");
       if (spine) {
         const spineRotation = {
-          x: (riggedPose.Spine.x || 0) * 0.4, // 前後の傾きを20% -> 40%
-          y: (riggedPose.Spine.y || 0) * 0.4, // 左右の回転を20% -> 40%
-          z: (riggedPose.Spine.z || 0) * 0.4, // 左右の傾きを20% -> 40%
+          x: (riggedPose.Spine.x || 0) * 0.7,
+          y: (riggedPose.Spine.y || 0) * 0.7,
+          z: (riggedPose.Spine.z || 0) * 0.7,
         };
         applySmoothRotation(spine, spineRotation, 0.1);
       }
 
       // 上部背骨（Chest）にも補助的な動きを追加
+      // 0.2 -> 0.3 に強化
       const chest = humanoid.getNormalizedBoneNode("chest");
       if (chest) {
         const chestRotation = {
-          x: (riggedPose.Spine.x || 0) * 0.2, // Increased from 0.1
-          y: (riggedPose.Spine.y || 0) * 0.2, // Increased from 0.1
-          z: (riggedPose.Spine.z || 0) * 0.2, // Increased from 0.1
+          x: (riggedPose.Spine.x || 0) * 0.3,
+          y: (riggedPose.Spine.y || 0) * 0.3,
+          z: (riggedPose.Spine.z || 0) * 0.3,
         };
         applySmoothRotation(chest, chestRotation, 0.1);
       }
@@ -513,11 +515,11 @@ export const retargetPoseToVRMWithKalidokit = (
     if (pose.LeftShoulder) {
       const leftShoulder = humanoid.getNormalizedBoneNode("leftShoulder");
       if (leftShoulder) {
-        // 肩の動きは少し抑えめにしないと貫通しやすいので0.5くらい
+        // 肩の動きを強化: 0.5 -> 0.7
         const rotation = {
-          x: (pose.LeftShoulder.x || 0) * 0.5,
-          y: (pose.LeftShoulder.y || 0) * 0.5,
-          z: (pose.LeftShoulder.z || 0) * 0.5,
+          x: (pose.LeftShoulder.x || 0) * 0.7,
+          y: (pose.LeftShoulder.y || 0) * 0.7,
+          z: (pose.LeftShoulder.z || 0) * 0.7,
         };
         applySmoothRotation(leftShoulder, rotation, 0.2);
       }
@@ -527,9 +529,9 @@ export const retargetPoseToVRMWithKalidokit = (
       const rightShoulder = humanoid.getNormalizedBoneNode("rightShoulder");
       if (rightShoulder) {
         const rotation = {
-          x: (pose.RightShoulder.x || 0) * 0.5,
-          y: (pose.RightShoulder.y || 0) * 0.5,
-          z: (pose.RightShoulder.z || 0) * 0.5,
+          x: (pose.RightShoulder.x || 0) * 0.7,
+          y: (pose.RightShoulder.y || 0) * 0.7,
+          z: (pose.RightShoulder.z || 0) * 0.7,
         };
         applySmoothRotation(rightShoulder, rotation, 0.2);
       }
@@ -687,9 +689,9 @@ export const calculateRiggedPose = (
     if (riggedPose.Spine) {
       // Infer chest from spine
       const chestRot = {
-        x: (riggedPose.Spine.x || 0) * 0.5,
-        y: (riggedPose.Spine.y || 0) * 0.5,
-        z: (riggedPose.Spine.z || 0) * 0.5,
+        x: (riggedPose.Spine.x || 0) * 0.3, // Matched local: 0.3
+        y: (riggedPose.Spine.y || 0) * 0.3,
+        z: (riggedPose.Spine.z || 0) * 0.3,
       };
       rotations.chest = toQuaternion(chestRot);
     }
@@ -702,18 +704,18 @@ export const calculateRiggedPose = (
 
     if (pose.LeftShoulder) {
       const scaled = {
-        x: (pose.LeftShoulder.x || 0) * 0.5,
-        y: (pose.LeftShoulder.y || 0) * 0.5,
-        z: (pose.LeftShoulder.z || 0) * 0.5,
+        x: (pose.LeftShoulder.x || 0) * 0.7, // Matched local: 0.7
+        y: (pose.LeftShoulder.y || 0) * 0.7,
+        z: (pose.LeftShoulder.z || 0) * 0.7,
       };
       rotations.leftShoulder = toQuaternion(scaled);
     }
 
     if (pose.RightShoulder) {
       const scaled = {
-        x: (pose.RightShoulder.x || 0) * 0.5,
-        y: (pose.RightShoulder.y || 0) * 0.5,
-        z: (pose.RightShoulder.z || 0) * 0.5,
+        x: (pose.RightShoulder.x || 0) * 0.7, // Matched local: 0.7
+        y: (pose.RightShoulder.y || 0) * 0.7,
+        z: (pose.RightShoulder.z || 0) * 0.7,
       };
       rotations.rightShoulder = toQuaternion(scaled);
     }

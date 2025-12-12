@@ -7,6 +7,7 @@ import SessionProvider from "@/components/providers/SessionProvider";
 import { CleanupServiceProvider } from "@/components/providers/CleanupServiceProvider";
 import GrowthBookProvider from "@/components/providers/GrowthBookProvider";
 import { LoggerProvider } from "@/components/LoggerProvider";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,6 +52,7 @@ export default function RootLayout({
               <AuthProvider>
                 <VModelProvider>
                   <GrowthBookProvider>{children}</GrowthBookProvider>
+                  <Toaster />
                 </VModelProvider>
               </AuthProvider>
             </SessionProvider>

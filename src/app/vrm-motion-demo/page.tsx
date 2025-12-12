@@ -13,7 +13,7 @@ import { DebugSkeleton } from "@/components/vrm/DebugSkeleton";
 import { useThree, useFrame } from "@react-three/fiber";
 import { retargetPoseToVRM } from "@/lib/vrm-retargeter";
 import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import * as THREE from "three";
 
 // カメラ制御コンポーネント
@@ -89,7 +89,8 @@ const MotionSyncRenderer: React.FC<{
           retargetPoseToVRMWithKalidokit(
             vrm,
             motionSyncState.landmarks,
-            motionSyncState.worldLandmarks
+            motionSyncState.worldLandmarks,
+            motionSyncState.faceLandmarks
           );
         } else {
           retargetPoseToVRM(vrm, motionSyncState.landmarks);

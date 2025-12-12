@@ -6,7 +6,7 @@
 import * as Kalidokit from "kalidokit";
 import * as THREE from "three";
 import type { VRM, VRMHumanoid } from "@pixiv/three-vrm";
-import type { PoseLandmark } from "@/hooks/usePoseEstimation";
+import type { PoseLandmark, FaceLandmark } from "@/hooks/usePoseEstimation";
 import { BoneRotations, QuaternionArray } from "@/types/avatar";
 
 /**
@@ -197,13 +197,57 @@ const _applyHeadRotationFromLandmarks = (
 export const retargetPoseToVRMWithKalidokit = (
   vrm: VRM,
   landmarks: PoseLandmark[],
-  worldLandmarks: PoseLandmark[] | null = null
+  worldLandmarks: PoseLandmark[] | null = null,
+  faceLandmarks: FaceLandmark[] | null = null
 ): void => {
   if (!vrm.humanoid || landmarks.length === 0) {
     return;
   }
 
   try {
+    // --- Facial Expression Retargeting ---
+    if (faceLandmarks && faceLandmarks.length > 0) {
+      const faceRig = Kalidokit.Face.solve(faceLandmarks, {
+        runtime: "mediapipe",
+        imageSize: { width: 640, height: 480 },
+      });
+
+      if (faceRig && vrm.expressionManager) {
+        // Apply Blink
+        // Kalidokit results: { l: 0-1, r: 0-1 } (0=Open, 1=Closed)
+        // VRM Blink: 0=Open, 1=Closed
+        const blinkL = faceRig.eye.l;
+        const blinkR = faceRig.eye.r;
+
+        // Apply to VRM ExpressionManager
+        vrm.expressionManager.setValue("blink_l", 1 - blinkL); // Kalidokit seems to return 1 for open? Check docs.
+        // Documentation says: 1 is open, 0 is closed for Kalidokit?
+        // Wait, Kalidokit docs: "0 - 1 Refers to the openness of the eye"
+        // VRM Blink: 1.0 is Closed.
+        // So VRM Blink = 1 - Kalidokit Openness.
+
+        // Let's verify Kalidokit output. Usually it matches standard blendshapes.
+        // If Kalidokit "l" is "Eye Openness":
+        // VRM "Blink" = 1 - l
+        vrm.expressionManager.setValue("blink_left", 1 - blinkL);
+        vrm.expressionManager.setValue("blink_right", 1 - blinkR);
+
+        // Apply Mouth
+        // Kalidokit mouth: { x, y, shape: { A, E, I, O, U } }
+        const mouthShape = faceRig.mouth.shape;
+
+        // VRM AEIOU
+        vrm.expressionManager.setValue("aa", mouthShape.A);
+        vrm.expressionManager.setValue("ih", mouthShape.I);
+        vrm.expressionManager.setValue("ou", mouthShape.U);
+        vrm.expressionManager.setValue("ee", mouthShape.E);
+        vrm.expressionManager.setValue("oh", mouthShape.O);
+
+        // If satisfied, we can also use general mouth open if vowels aren't good
+        // vrm.expressionManager.setValue("neutral", ...);
+      }
+    }
+
     // MediaPipeのランドマークをKalidokitの形式に変換
     const poseLandmarks = landmarks.map((landmark) => ({
       x: landmark.x,

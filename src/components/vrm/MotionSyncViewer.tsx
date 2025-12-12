@@ -24,6 +24,7 @@ export const useMotionSync = (
   const {
     landmarks,
     worldLandmarks,
+    faceLandmarks,
     isInitialized,
     isLoading,
     isCameraPermissionGranted,
@@ -107,6 +108,7 @@ export const useMotionSync = (
     vrmRef,
     landmarks,
     worldLandmarks,
+    faceLandmarks,
     isInitialized,
     isLoading,
     isCameraPermissionGranted,
@@ -155,8 +157,14 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
   onMotionSync,
 }) => {
   // モーション同期フックを使用
-  const { vrmRef, landmarks, worldLandmarks, isMotionActive, handleVRMLoaded } =
-    useMotionSync(autoStart, onMotionSync);
+  const {
+    vrmRef,
+    landmarks,
+    worldLandmarks,
+    faceLandmarks,
+    isMotionActive,
+    handleVRMLoaded,
+  } = useMotionSync(autoStart, onMotionSync);
 
   // フレームごとの更新処理
   useFrame((_state, delta) => {
@@ -170,8 +178,15 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
       // ポーズデータが有効な場合、VRMに適用（Kalidokit使用）
       // worldLandmarksを渡すことで正確な3D回転を計算
       const currentWorldLandmarks = worldLandmarks; // クロージャーでキャプチャ
+      const currentFaceLandmarks = faceLandmarks; // トップレベルから取得した値を使用
+
       if (landmarks && landmarks.length > 0) {
-        retargetPoseToVRMWithKalidokit(vrm, landmarks, currentWorldLandmarks);
+        retargetPoseToVRMWithKalidokit(
+          vrm,
+          landmarks,
+          currentWorldLandmarks,
+          currentFaceLandmarks
+        );
       }
 
       // VRMの更新

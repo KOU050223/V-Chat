@@ -58,10 +58,26 @@ export async function POST(
     const userId = authResult.userId;
     const db = getAdminFirestore();
 
+    // リクエストボディからroomIdを取得
+    const body = await request.json();
+    const { roomId } = body;
+
+    if (!roomId) {
+      return NextResponse.json(
+        { success: false, error: "ルームIDが必要です" },
+        { status: 400 }
+      );
+    }
+
     // Firestoreトランザクションで原子的にroomIdを設定
     const result = await db.runTransaction(async (transaction) => {
       const postRef = db.collection("bulletin_posts").doc(postId);
-      const postDoc = await transaction.get(postRef);
+      const roomRef = db.collection("rooms").doc(roomId);
+
+      const [postDoc, roomDoc] = await Promise.all([
+        transaction.get(postRef),
+        transaction.get(roomRef),
+      ]);
 
       // 投稿の存在確認
       if (!postDoc.exists) {
@@ -78,19 +94,27 @@ export async function POST(
         throw new Error("ルームを作成する権限がありません");
       }
 
-      // すでにルームが作成されている場合
-      if (postData.roomId) {
+      // ルームの存在確認
+      if (!roomDoc.exists) {
+        throw new Error("指定されたルームが見つかりません");
+      }
+
+      const roomData = roomDoc.data();
+      // ルーム作成者確認（他人のルームを勝手に紐付けないように）
+      if (roomData?.createdBy !== userId) {
+        throw new Error("このルームを紐付ける権限がありません");
+      }
+
+      // すでにこのルームが紐付けられている場合
+      if (postData.roomId === roomId) {
         return {
-          roomId: postData.roomId,
+          roomId,
           post: buildBulletinPost(postDoc.id, postData),
           isNew: false,
         };
       }
 
-      // ルームID生成
-      const roomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-
-      // トランザクション内で更新
+      // 投稿ドキュメントを更新
       transaction.update(postRef, {
         roomId,
         updatedAt: Timestamp.now(),

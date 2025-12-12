@@ -15,9 +15,7 @@ import {
   Users,
   Calendar,
   MessageCircle,
-  ExternalLink,
   Loader2,
-  Plus,
   Share2,
   Edit,
   Trash2,
@@ -26,6 +24,8 @@ import { BulletinPost, BulletinReply } from "@/types/bulletin";
 import { useAuth } from "@/contexts/AuthContext";
 import { handleError } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebaseConfig";
 
 interface PageProps {
   params: Promise<{
@@ -211,20 +211,34 @@ function PostDetailContent({ postId }: { postId: string }) {
     setIsCreatingRoom(true);
 
     try {
-      // Firebase ID トークンを取得
-      const idToken = await user.getIdToken();
+      // 1. Cloud Functionsを使用してルームを作成
+      const functions = getFunctions(app, "us-central1");
+      const createRoomFunction = httpsCallable(functions, "createRoom");
 
-      const response = await fetch(`/api/bulletin/${postId}/create-room`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-        },
+      const createRoomResult = await createRoomFunction({
+        name: post.title,
+        description: post.content.substring(0, 100),
+        isPrivate: false,
       });
 
-      const data = await response.json();
+      const { roomId } = createRoomResult.data as { roomId: string };
 
-      if (!data.success) {
-        throw new Error(data.error || "ルームの作成に失敗しました");
+      // 2. 作成されたルームIDをこの投稿に紐付けるAPIを呼び出す
+      const idToken = await user.getIdToken();
+
+      const linkResponse = await fetch(`/api/bulletin/${postId}/create-room`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ roomId }),
+      });
+
+      const linkData = await linkResponse.json();
+
+      if (!linkData.success) {
+        throw new Error(linkData.error || "ルームの紐付けに失敗しました");
       }
 
       // 投稿を更新
@@ -232,14 +246,14 @@ function PostDetailContent({ postId }: { postId: string }) {
         prev
           ? {
               ...prev,
-              roomId: data.data.roomId,
+              roomId: roomId,
               updatedAt: new Date(),
             }
           : null
       );
 
       // ルームページに遷移
-      router.push(`/room/${data.data.roomId}`);
+      router.push(`/room/${roomId}`);
     } catch (err) {
       alert(handleError("ルーム作成エラー", err));
     } finally {
@@ -485,14 +499,30 @@ function PostDetailContent({ postId }: { postId: string }) {
             )}
 
             {/* ルーム関連ボタン */}
+            {/* ルーム関連ボタン */}
             <div className="flex gap-2">
-              <Button
-                onClick={() => router.push("/matching")}
-                className="gap-2"
-              >
-                <Users className="w-4 h-4" />
-                マッチングページへ
-              </Button>
+              {post.roomId ? (
+                <Button
+                  onClick={() => router.push(`/room/${post.roomId}`)}
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all"
+                >
+                  <Users className="w-4 h-4" />
+                  ルームに参加
+                </Button>
+              ) : isAuthor ? (
+                <Button
+                  onClick={handleCreateRoom}
+                  disabled={isCreatingRoom}
+                  className="gap-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white shadow-md hover:shadow-lg transition-all"
+                >
+                  {isCreatingRoom ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Users className="w-4 h-4" />
+                  )}
+                  {isCreatingRoom ? "作成中..." : "ルームを作成"}
+                </Button>
+              ) : null}
             </div>
           </div>
         </Card>

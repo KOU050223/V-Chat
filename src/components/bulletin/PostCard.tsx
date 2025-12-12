@@ -8,14 +8,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { BulletinPost } from "@/types/bulletin";
 import { Avatar, Badge, Button, Card } from "@/components/ui";
-import {
-  Heart,
-  MessageCircle,
-  Users,
-  Calendar,
-  ExternalLink,
-  Bookmark,
-} from "lucide-react";
+import { Heart, MessageCircle, Users, Calendar, Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -228,18 +221,20 @@ export function PostCard({
             </span>
           </div>
 
-          {/* マッチングリンク */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-0.5 h-6 px-1.5 text-primary"
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push("/matching");
-            }}
-          >
-            <ExternalLink className="w-3 h-3" />
-          </Button>
+          {/* ルーム参加ボタン */}
+          {post.roomId && (
+            <Button
+              size="sm"
+              className="gap-1 h-6 px-2 text-[10px] bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white border-0 shadow-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                router.push(`/room/${post.roomId}`);
+              }}
+            >
+              <Users className="w-3 h-3" />
+              参加
+            </Button>
+          )}
         </div>
 
         {/* 募集人数 */}

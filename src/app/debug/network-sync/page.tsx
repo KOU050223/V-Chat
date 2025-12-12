@@ -13,7 +13,7 @@ import { app } from "@/lib/firebaseConfig";
 import { AvatarSender } from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
 import { Button } from "@/components/ui";
-import { BoneRotations } from "@/types/avatar";
+import { AvatarMotionState } from "@/types/avatar";
 
 export default function NetworkSyncDebugPage() {
   const [token, setToken] = useState("");
@@ -211,10 +211,8 @@ export default function NetworkSyncDebugPage() {
 
 function DebugContent() {
   const participants = useParticipants();
-  const [localRotations, setLocalRotations] = useState<{
-    bones: BoneRotations;
-    blendShapes: Record<string, number>;
-  } | null>(null); // State for local preview
+  const [localRotations, setLocalRotations] =
+    useState<AvatarMotionState | null>(null); // State for local preview
 
   // ...
 
@@ -253,10 +251,7 @@ function DebugContent() {
 function ParticipantWrapper({
   localRotations,
 }: {
-  localRotations?: {
-    bones: BoneRotations;
-    blendShapes: Record<string, number>;
-  } | null;
+  localRotations?: AvatarMotionState | null;
 }) {
   const p = useParticipantContext();
 
@@ -284,10 +279,7 @@ const DebugAvatarCanvasWrapper = ({
   manualRotations,
 }: {
   participant: Participant;
-  manualRotations?: {
-    bones: BoneRotations;
-    blendShapes: Record<string, number>;
-  } | null;
+  manualRotations?: AvatarMotionState | null;
 }) => {
   return (
     <>
@@ -316,10 +308,7 @@ const DebugAvatar = ({
 }: {
   participant: Participant;
   defaultAvatarUrl: string;
-  manualRotations?: {
-    bones: BoneRotations;
-    blendShapes: Record<string, number>;
-  } | null;
+  manualRotations?: AvatarMotionState | null;
 }) => {
   return (
     <AvatarReceiver

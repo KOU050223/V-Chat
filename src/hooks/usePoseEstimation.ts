@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { PoseLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import {
+  PoseLandmarker,
+  FaceLandmarker,
+  FilesetResolver,
+} from "@mediapipe/tasks-vision";
 
 export interface PoseLandmark {
   x: number;
@@ -8,9 +12,16 @@ export interface PoseLandmark {
   visibility?: number;
 }
 
+export interface FaceLandmark {
+  x: number;
+  y: number;
+  z: number;
+}
+
 interface UsePoseEstimationReturn {
   landmarks: PoseLandmark[] | null;
   worldLandmarks: PoseLandmark[] | null;
+  faceLandmarks: FaceLandmark[] | null;
   isInitialized: boolean;
   isLoading: boolean;
   isCameraPermissionGranted: boolean;
@@ -26,6 +37,9 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const [worldLandmarks, setWorldLandmarks] = useState<PoseLandmark[] | null>(
     null
   );
+  const [faceLandmarks, setFaceLandmarks] = useState<FaceLandmark[] | null>(
+    null
+  );
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCameraPermissionGranted, setIsCameraPermissionGranted] =
@@ -33,16 +47,17 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   const [error, setError] = useState<string | null>(null);
 
   const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastTimestampRef = useRef<number>(0);
   const lastDetectionTimeRef = useRef<number>(0);
-  const DETECTION_INTERVAL = 100; // 100ms間隔でポーズ検出（10FPS - 精度向上）
+  const DETECTION_INTERVAL = 33; // 100ms間隔でポーズ検出（10FPS - 精度向上）
 
   // MediaPipeの初期化
   useEffect(() => {
-    const initializePoseLandmarker = async () => {
+    const initializeLandmarkers = async () => {
       try {
         setIsLoading(true);
         setError(null);
@@ -51,6 +66,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
         );
 
+        // PoseLandmarker初期化
         poseLandmarkerRef.current = await PoseLandmarker.createFromOptions(
           vision,
           {
@@ -66,6 +82,21 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
           }
         );
 
+        // FaceLandmarker初期化
+        faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(
+          vision,
+          {
+            baseOptions: {
+              modelAssetPath:
+                "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "GPU",
+            },
+            outputFaceBlendshapes: true,
+            runningMode: "VIDEO",
+            numFaces: 1,
+          }
+        );
+
         setIsInitialized(true);
       } catch (err) {
         console.error("MediaPipe初期化エラー:", err);
@@ -77,18 +108,25 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
       }
     };
 
-    initializePoseLandmarker();
+    initializeLandmarkers();
 
     return () => {
       if (poseLandmarkerRef.current) {
         poseLandmarkerRef.current.close();
+      }
+      if (faceLandmarkerRef.current) {
+        faceLandmarkerRef.current.close();
       }
     };
   }, []);
 
   // ポーズ推定のループ（フレームレート制御付き）
   const detectPose = useCallback(() => {
-    if (!poseLandmarkerRef.current || !videoRef.current) {
+    if (
+      !poseLandmarkerRef.current ||
+      !faceLandmarkerRef.current ||
+      !videoRef.current
+    ) {
       return;
     }
 
@@ -106,24 +144,49 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
         lastTimestampRef.current = timestamp;
         lastDetectionTimeRef.current = currentTime;
 
-        const result = poseLandmarkerRef.current.detectForVideo(
+        // ポーズ検出
+        const poseResult = poseLandmarkerRef.current.detectForVideo(
           video,
           timestamp
         );
 
-        if (result.landmarks && result.landmarks.length > 0) {
-          setLandmarks(result.landmarks[0]);
+        if (poseResult.landmarks && poseResult.landmarks.length > 0) {
+          setLandmarks(poseResult.landmarks[0]);
         } else {
           setLandmarks(null);
         }
 
-        if (result.worldLandmarks && result.worldLandmarks.length > 0) {
-          setWorldLandmarks(result.worldLandmarks[0]);
+        if (poseResult.worldLandmarks && poseResult.worldLandmarks.length > 0) {
+          setWorldLandmarks(poseResult.worldLandmarks[0]);
         } else {
           setWorldLandmarks(null);
         }
+
+        // Face detection
+        const faceLandmarker = faceLandmarkerRef.current;
+        if (faceLandmarker && video.videoWidth > 0 && video.videoHeight > 0) {
+          try {
+            const faceResult = faceLandmarker.detectForVideo(video, timestamp);
+
+            if (
+              faceResult.faceLandmarks &&
+              faceResult.faceLandmarks.length > 0
+            ) {
+              setFaceLandmarks(faceResult.faceLandmarks[0]);
+            } else {
+              setFaceLandmarks(null);
+            }
+          } catch (faceErr) {
+            // Suppress face detection errors to prevent crashing the whole app
+            console.warn("Face detection error (transient):", faceErr);
+            setFaceLandmarks(null);
+          }
+        }
       } catch (err) {
         console.error("ポーズ検出エラー:", err);
+        setLandmarks(null);
+        setWorldLandmarks(null);
+        setFaceLandmarks(null);
       }
     }
 
@@ -280,6 +343,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
 
     setLandmarks(null);
     setWorldLandmarks(null);
+    setFaceLandmarks(null);
   }, []);
 
   // クリーンアップ
@@ -292,6 +356,7 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
   return {
     landmarks,
     worldLandmarks,
+    faceLandmarks,
     isInitialized,
     isLoading,
     isCameraPermissionGranted,

@@ -9,6 +9,8 @@ import {
 import { retargetPoseToVRMWithKalidokit } from "@/lib/vrm-retargeter-kalidokit";
 import { resetVRMPose } from "@/lib/vrm-retargeter";
 
+export type CameraView = "front" | "back" | "side" | "reset";
+
 // モーション同期のロジックを管理するカスタムフック
 export const useMotionSync = (
   autoStart = false,
@@ -22,6 +24,7 @@ export const useMotionSync = (
   const {
     landmarks,
     worldLandmarks,
+    faceLandmarks,
     isInitialized,
     isLoading,
     isCameraPermissionGranted,
@@ -105,6 +108,7 @@ export const useMotionSync = (
     vrmRef,
     landmarks,
     worldLandmarks,
+    faceLandmarks,
     isInitialized,
     isLoading,
     isCameraPermissionGranted,
@@ -139,6 +143,9 @@ interface MotionSyncUIProps {
   onStopMotionSync: () => void;
   onRequestCameraPermission: () => void;
   enablePoseDebug?: boolean;
+  showSkeleton?: boolean;
+  onToggleSkeleton?: (show: boolean) => void;
+  onCameraViewChange?: (view: CameraView) => void;
 }
 
 export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
@@ -150,8 +157,14 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
   onMotionSync,
 }) => {
   // モーション同期フックを使用
-  const { vrmRef, landmarks, worldLandmarks, isMotionActive, handleVRMLoaded } =
-    useMotionSync(autoStart, onMotionSync);
+  const {
+    vrmRef,
+    landmarks,
+    worldLandmarks,
+    faceLandmarks,
+    isMotionActive,
+    handleVRMLoaded,
+  } = useMotionSync(autoStart, onMotionSync);
 
   // フレームごとの更新処理
   useFrame((_state, delta) => {
@@ -165,8 +178,15 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
       // ポーズデータが有効な場合、VRMに適用（Kalidokit使用）
       // worldLandmarksを渡すことで正確な3D回転を計算
       const currentWorldLandmarks = worldLandmarks; // クロージャーでキャプチャ
+      const currentFaceLandmarks = faceLandmarks; // トップレベルから取得した値を使用
+
       if (landmarks && landmarks.length > 0) {
-        retargetPoseToVRMWithKalidokit(vrm, landmarks, currentWorldLandmarks);
+        retargetPoseToVRMWithKalidokit(
+          vrm,
+          landmarks,
+          currentWorldLandmarks,
+          currentFaceLandmarks
+        );
       }
 
       // VRMの更新
@@ -200,6 +220,9 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
   onStopMotionSync,
   onRequestCameraPermission,
   enablePoseDebug = false,
+  showSkeleton = false,
+  onToggleSkeleton,
+  onCameraViewChange,
 }) => {
   // デバッグ情報の表示
   const renderDebugInfo = () => {
@@ -268,6 +291,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
         {/* カメラ許可ボタン */}
         {!isCameraPermissionGranted && (
           <button
+            type="button"
             onClick={onRequestCameraPermission}
             style={{
               padding: "12px 24px",
@@ -287,40 +311,117 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
 
         {/* モーション同期ボタン */}
         {isCameraPermissionGranted && (
-          <div style={{ display: "flex", gap: "10px" }}>
-            {!isMotionActive ? (
-              <button
-                onClick={onStartMotionSync}
-                disabled={!isInitialized || isLoading || !vrmLoaded}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "14px",
-                  backgroundColor: "#4CAF50",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                  opacity: !isInitialized || isLoading || !vrmLoaded ? 0.5 : 1,
-                }}
-              >
-                {isLoading ? "初期化中..." : "モーション同期開始"}
-              </button>
-            ) : (
-              <button
-                onClick={onStopMotionSync}
-                style={{
-                  padding: "10px 20px",
-                  fontSize: "14px",
-                  backgroundColor: "#f44336",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "5px",
-                  cursor: "pointer",
-                }}
-              >
-                モーション同期停止
-              </button>
-            )}
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              alignItems: "center",
+            }}
+          >
+            {/* Debug Controls */}
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                backgroundColor: "rgba(0,0,0,0.6)",
+                padding: "8px",
+                borderRadius: "8px",
+              }}
+            >
+              {onToggleSkeleton && (
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    color: "white",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={showSkeleton}
+                    onChange={(e) => onToggleSkeleton(e.target.checked)}
+                  />
+                  骨格表示
+                </label>
+              )}
+
+              {onCameraViewChange && (
+                <>
+                  <div
+                    style={{
+                      width: "1px",
+                      height: "16px",
+                      backgroundColor: "rgba(255,255,255,0.3)",
+                      margin: "0 4px",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onCameraViewChange("front")}
+                    style={viewButtonStyle}
+                  >
+                    正面
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCameraViewChange("side")}
+                    style={viewButtonStyle}
+                  >
+                    横
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCameraViewChange("back")}
+                    style={viewButtonStyle}
+                  >
+                    背面
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              {!isMotionActive ? (
+                <button
+                  type="button"
+                  onClick={onStartMotionSync}
+                  disabled={!isInitialized || isLoading || !vrmLoaded}
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    backgroundColor: "#4CAF50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                    opacity:
+                      !isInitialized || isLoading || !vrmLoaded ? 0.5 : 1,
+                  }}
+                >
+                  {isLoading ? "初期化中..." : "モーション同期開始"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onStopMotionSync}
+                  style={{
+                    padding: "10px 20px",
+                    fontSize: "14px",
+                    backgroundColor: "#f44336",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "5px",
+                    cursor: "pointer",
+                  }}
+                >
+                  モーション同期停止
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -354,4 +455,14 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
       */}
     </>
   );
+};
+
+const viewButtonStyle = {
+  background: "none",
+  border: "1px solid rgba(255,255,255,0.5)",
+  borderRadius: "4px",
+  color: "white",
+  fontSize: "10px",
+  padding: "2px 6px",
+  cursor: "pointer",
 };

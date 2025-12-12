@@ -211,9 +211,10 @@ export default function NetworkSyncDebugPage() {
 
 function DebugContent() {
   const participants = useParticipants();
-  const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
-    null
-  ); // State for local preview
+  const [localRotations, setLocalRotations] = useState<{
+    bones: BoneRotations;
+    blendShapes: Record<string, number>;
+  } | null>(null); // State for local preview
 
   // ...
 
@@ -252,7 +253,10 @@ function DebugContent() {
 function ParticipantWrapper({
   localRotations,
 }: {
-  localRotations?: BoneRotations | null;
+  localRotations?: {
+    bones: BoneRotations;
+    blendShapes: Record<string, number>;
+  } | null;
 }) {
   const p = useParticipantContext();
 
@@ -280,7 +284,10 @@ const DebugAvatarCanvasWrapper = ({
   manualRotations,
 }: {
   participant: Participant;
-  manualRotations?: BoneRotations | null;
+  manualRotations?: {
+    bones: BoneRotations;
+    blendShapes: Record<string, number>;
+  } | null;
 }) => {
   return (
     <>
@@ -309,13 +316,17 @@ const DebugAvatar = ({
 }: {
   participant: Participant;
   defaultAvatarUrl: string;
-  manualRotations?: BoneRotations | null;
+  manualRotations?: {
+    bones: BoneRotations;
+    blendShapes: Record<string, number>;
+  } | null;
 }) => {
   return (
     <AvatarReceiver
       participant={participant}
       defaultAvatarUrl={defaultAvatarUrl}
-      manualRotations={manualRotations}
+      manualRotations={manualRotations?.bones}
+      manualBlendShapes={manualRotations?.blendShapes}
     />
   );
 };

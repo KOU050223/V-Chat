@@ -107,7 +107,7 @@ const _applyHeadRotationFromLandmarks = (
     // 3D座標系: Y下向き(+) -> atan2で(+) -> VRM Pitch Down(+)
     // 以前の反転(-)を削除し、正しい方向(上を向いたら-Pitch)にする
     const depth = Math.sqrt(faceDirX * faceDirX + faceDirZ * faceDirZ);
-    pitch = Math.atan2(faceDirY, depth);
+    pitch = -Math.atan2(faceDirY, depth); // ユーザー報告に基づき反転 (上を向いたら上、下を向いたら下)
 
     // オフセットは後段で適用
 
@@ -160,9 +160,9 @@ const _applyHeadRotationFromLandmarks = (
   // 頭のボーンに適用
   const head = humanoid.getNormalizedBoneNode("head");
   if (head) {
-    // 補正: デフォルトで少し下を向いてしまうため、オフセットを引いて補正
-    // (Pitchが正=下向き なので、引くことで上向きに補正)
-    const correctedPitch = pitch - 0.4;
+    // 補正: デフォルトの向きを調整
+    // ピッチ反転に伴い、オフセットも調整。まずは0（真正面）に戻す
+    const correctedPitch = pitch;
 
     tempEuler.set(
       correctedPitch * PITCH_SENSITIVITY,

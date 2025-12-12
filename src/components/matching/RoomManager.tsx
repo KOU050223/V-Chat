@@ -285,7 +285,7 @@ export default function RoomManager() {
                 </div>
 
                 <div className="w-full bg-green-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 animate-[progress_3s_ease-in-out_forwards] w-0" />
+                  <div className="h-full bg-green-500 animate-[progress_5s_ease-in-out_forwards] w-0" />
                 </div>
                 <p className="text-xs text-green-600 mt-2 font-medium">
                   5秒後に自動的にルームに移動します...

@@ -45,11 +45,7 @@ import {
   AvatarSenderHandle,
 } from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
-import {
-  BoneRotations,
-  AvatarMetadata,
-  AvatarMotionState,
-} from "@/types/avatar";
+import { AvatarMetadata, AvatarMotionState } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useVModel } from "@/contexts/VModelContext";
 import { ensureVRMInStorage } from "@/lib/vrmStorage";

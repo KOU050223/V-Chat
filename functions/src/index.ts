@@ -29,7 +29,11 @@ function generateRoomShortId(): string {
   const randomBytes = crypto.randomBytes(6);
   // バイト列を整数に変換してbase36変換、8文字にパディング
   const randomValue = randomBytes.readUIntBE(0, 6);
-  return randomValue.toString(36).padStart(8, '0').substring(0, 8).toUpperCase();
+  return randomValue
+    .toString(36)
+    .padStart(8, "0")
+    .substring(0, 8)
+    .toUpperCase();
 }
 
 // LiveKit環境変数の定義
@@ -84,6 +88,10 @@ export const createRoom = onCall(async (request) => {
         participants: [userId],
         status: "active",
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        // 72時間後（3日後）に削除されるようにTTLを設定
+        expiresAt: admin.firestore.Timestamp.fromMillis(
+          Date.now() + 72 * 60 * 60 * 1000
+        ),
         livekitRoomId,
       };
 
@@ -590,6 +598,10 @@ export const findMatch = onCall(async (request) => {
           participants: [userId, matchPartner.userId],
           status: "active",
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          // 72時間後（3日後）に削除されるようにTTLを設定
+          expiresAt: admin.firestore.Timestamp.fromMillis(
+            Date.now() + 72 * 60 * 60 * 1000
+          ),
           livekitRoomId,
         };
 
@@ -612,10 +624,9 @@ export const findMatch = onCall(async (request) => {
         return {
           status: "matched",
           roomId,
-          partnerId: matchPartner.userId
+          partnerId: matchPartner.userId,
         };
       });
-
     } else {
       // 3. 待機列に追加（マッチ相手が見つからなかった場合）
       // 自分の待機ドキュメントを作成/更新
@@ -628,14 +639,16 @@ export const findMatch = onCall(async (request) => {
 
       return {
         status: "waiting",
-        message: "待機列に追加しました"
+        message: "待機列に追加しました",
       };
     }
-
   } catch (error) {
     // トランザクション失敗（パートナーが取られたなど）の場合も、
     // 基本的には待機列に追加して待つようにする
-    logger.warn("Matching transaction failed or partner unavailable, adding to queue:", error);
+    logger.warn(
+      "Matching transaction failed or partner unavailable, adding to queue:",
+      error
+    );
 
     await queueRef.doc(userId).set({
       userId,
@@ -646,7 +659,7 @@ export const findMatch = onCall(async (request) => {
 
     return {
       status: "waiting",
-      message: "待機列に追加しました"
+      message: "待機列に追加しました",
     };
   }
 });

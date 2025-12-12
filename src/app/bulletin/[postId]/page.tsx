@@ -26,8 +26,14 @@ export async function generateMetadata(
     if (docSnap.exists) {
       const data = docSnap.data();
       if (data) {
-        title = `${data.title} - V-Chat 掲示板`;
-        description = data.content?.substring(0, 100) || "投稿の詳細";
+        title =
+          data.title && typeof data.title === "string"
+            ? `${data.title} - V-Chat 掲示板`
+            : "掲示板 - V-Chat";
+        description =
+          data.content && typeof data.content === "string"
+            ? data.content.substring(0, 100)
+            : "投稿の詳細";
       }
     }
   } catch (error) {

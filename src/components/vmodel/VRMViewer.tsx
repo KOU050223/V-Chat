@@ -97,14 +97,27 @@ export default function VRMViewer({
       vrmRef.current = vrm;
       sceneRef.current?.add(vrm.scene);
 
-      // VRMの位置調整
-      vrm.scene.position.set(0, -1, 0);
-
-      // VRMサイズの正規化
+      // バウンディングボックスを計算して位置とサイズを調整
       const box = new THREE.Box3().setFromObject(vrm.scene);
-      const size = box.getSize(new THREE.Vector3()).length();
-      const scale = 2 / size;
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+
+      // モデルの中心を原点(0,0,0)に移動
+      // これにより、モデルの原点がどこにあっても画面中央に表示されるようになります
+      vrm.scene.position.x += vrm.scene.position.x - center.x;
+      vrm.scene.position.y += vrm.scene.position.y - center.y;
+      vrm.scene.position.z += vrm.scene.position.z - center.z;
+
+      // 画面に収まるようにスケール調整
+      // カメラ距離3.0、FOV75の場合、表示範囲の高さは約4.6
+      // 少し余裕を持たせて高さ4.0程度に収まるようにする
+      const maxSize = Math.max(size.x, size.y, size.z);
+      const scale = 4.0 / maxSize;
       vrm.scene.scale.setScalar(scale);
+
+      // Y座標の微調整（中心を原点にしているので、少し下げた方が足元が落ち着く場合があるが、
+      // OrbitControlsのターゲットが(0,0,0)なので、中心(0,0,0)が最も安全）
+      // vrm.scene.position.y -= size.y * scale * 0.1; // オプション
 
       onLoadComplete?.(vrm);
       setLoading(false);
@@ -231,7 +244,11 @@ export default function VRMViewer({
           });
 
           if (!licenseResponse.ok) {
-            throw new Error("Failed to get download license");
+            const errorData = await licenseResponse.json().catch(() => ({}));
+            throw new Error(
+              errorData.error ||
+                `Failed to get download license: ${licenseResponse.status}`
+            );
           }
 
           const licenseData = await licenseResponse.json();

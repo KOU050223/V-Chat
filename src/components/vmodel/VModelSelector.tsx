@@ -24,7 +24,8 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui";
-import { Heart, Download, Search, RefreshCw } from "lucide-react";
+import { Heart, Download, Search, RefreshCw, Eye } from "lucide-react";
+import VRMViewer from "./VRMViewer";
 
 interface VModelSelectorProps {
   onModelSelect?: (model: VRoidCharacterModel | null) => void;
@@ -55,6 +56,9 @@ export default function VModelSelector({
   const [searchLoading, setSearchLoading] = useState(false);
   const [downloadingModels, setDownloadingModels] = useState<Set<string>>(
     new Set()
+  );
+  const [previewModel, setPreviewModel] = useState<VRoidCharacterModel | null>(
+    null
   );
 
   const handleDownload = async (modelId: string) => {
@@ -205,6 +209,10 @@ export default function VModelSelector({
     onModelSelect?.(model);
   };
 
+  const handlePreview = (model: VRoidCharacterModel) => {
+    setPreviewModel(model);
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -280,6 +288,7 @@ export default function VModelSelector({
                     onSelect={handleModelSelect}
                     onDownload={handleDownload}
                     onToggleHeart={handleToggleHeart}
+                    onPreview={handlePreview}
                     downloadingModels={downloadingModels}
                   />
                 )}
@@ -302,6 +311,7 @@ export default function VModelSelector({
                   onSelect={handleModelSelect}
                   onDownload={handleDownload}
                   onToggleHeart={handleToggleHeart}
+                  onPreview={handlePreview}
                   downloadingModels={downloadingModels}
                 />
               )}
@@ -340,6 +350,7 @@ export default function VModelSelector({
                     onSelect={handleModelSelect}
                     onDownload={handleDownload}
                     onToggleHeart={handleToggleHeart}
+                    onPreview={handlePreview}
                     downloadingModels={downloadingModels}
                   />
                 </>
@@ -354,6 +365,31 @@ export default function VModelSelector({
           </Tabs>
         </div>
       </DialogContent>
+
+      {/* Preview Dialog */}
+      <Dialog
+        open={!!previewModel}
+        onOpenChange={(open) => !open && setPreviewModel(null)}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              モデルプレビュー:{" "}
+              {previewModel?.name || previewModel?.character.name}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center p-4">
+            {previewModel && (
+              <VRMViewer
+                modelId={previewModel.id}
+                width={500}
+                height={500}
+                className="w-full max-w-[500px] border rounded-lg overflow-hidden"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
@@ -364,6 +400,7 @@ interface VModelGridProps {
   onSelect: (model: VRoidCharacterModel) => void;
   onDownload: (modelId: string) => void;
   onToggleHeart: (modelId: string, isHearted: boolean) => void;
+  onPreview: (model: VRoidCharacterModel) => void;
   downloadingModels: Set<string>;
 }
 
@@ -373,6 +410,7 @@ function VModelGrid({
   onSelect,
   onDownload,
   onToggleHeart,
+  onPreview,
   downloadingModels,
 }: VModelGridProps) {
   if (models.length === 0) {
@@ -393,6 +431,7 @@ function VModelGrid({
           onSelect={() => onSelect(model)}
           onDownload={onDownload}
           onToggleHeart={onToggleHeart}
+          onPreview={onPreview}
           isDownloading={downloadingModels.has(model.id)}
         />
       ))}
@@ -406,6 +445,7 @@ interface VModelCardProps {
   onSelect: () => void;
   onDownload: (modelId: string) => void;
   onToggleHeart: (modelId: string, isHearted: boolean) => void;
+  onPreview: (model: VRoidCharacterModel) => void;
   isDownloading: boolean;
 }
 
@@ -415,6 +455,7 @@ function VModelCard({
   onSelect,
   onDownload,
   onToggleHeart,
+  onPreview,
   isDownloading,
 }: VModelCardProps) {
   return (
@@ -468,6 +509,18 @@ function VModelCard({
               onClick={onSelect}
             >
               {isSelected ? "選択中" : "選択"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPreview(model);
+              }}
+              title="プレビュー"
+            >
+              <Eye className="h-4 w-4" />
             </Button>
 
             {model.is_downloadable && (

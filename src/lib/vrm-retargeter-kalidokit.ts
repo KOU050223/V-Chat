@@ -23,26 +23,32 @@ const _tempVector3 = new THREE.Vector3();
  */
 const applySmoothRotation = (
   bone: THREE.Object3D,
-  targetRotation: { x: number; y: number; z: number },
-  smoothing: number = 0.1 // 0.5 → 0.3 に戻して応答性向上
+  targetRotation: { x: number; y: number; z: number; w?: number },
+  smoothing: number = 0.1
 ): void => {
-  // 再利用可能なオブジェクトを使用（毎回新規作成しない）
-  // VRMシーンの180度回転を考慮してY軸を反転
-  tempEuler.set(
-    targetRotation.x || 0,
-    targetRotation.y || 0, // Y軸反転（VRMシーンの180度回転を考慮）
-    targetRotation.z || 0,
-    "XYZ"
-  );
-  tempQuaternion.setFromEuler(tempEuler);
-
-  // 【追加】現在の角度と目標角度の差を計算
-  const angle = bone.quaternion.angleTo(tempQuaternion);
-  // 【追加】変化が小さすぎる場合（例: 2度未満）は更新しない（ノイズ対策）
-  // ※ 0.035ラジアン ≒ 2度
-  if (angle < 0.035) {
-    return;
+  // Quaternionかどうかを判定 (wが存在するか)
+  if (targetRotation.w !== undefined) {
+    // Quaternionとして直接適用
+    // Kalidokitの出力がVRM互換であると仮定
+    tempQuaternion.set(
+      targetRotation.x,
+      targetRotation.y,
+      targetRotation.z,
+      targetRotation.w
+    );
+  } else {
+    // Euler回転として適用
+    // VRMシーンの180度回転を考慮してY軸を反転
+    tempEuler.set(
+      targetRotation.x || 0,
+      -(targetRotation.y || 0), // Y軸反転
+      targetRotation.z || 0,
+      "XYZ"
+    );
+    tempQuaternion.setFromEuler(tempEuler);
   }
+
+  // ノイズ対策の閾値チェックは無効化中
   // Slerpを使って滑らかに補間
   bone.quaternion.slerp(tempQuaternion, smoothing);
 };
@@ -504,12 +510,12 @@ export const retargetPoseToVRMWithKalidokit = (
       }
     }
 
-    // 肩（Shoulder）のトラッキング追加
-    // 肩をすくめる動作などを反映
-    // Cast to access optional Shoulder properties
+    // Cast to access optional Shoulder/Hand properties
     const pose = riggedPose as unknown as {
       LeftShoulder?: { x: number; y: number; z: number };
       RightShoulder?: { x: number; y: number; z: number };
+      LeftHand?: { x: number; y: number; z: number };
+      RightHand?: { x: number; y: number; z: number };
     };
 
     if (pose.LeftShoulder) {
@@ -547,30 +553,77 @@ export const retargetPoseToVRMWithKalidokit = (
     if (riggedPose.LeftUpperArm) {
       const leftUpperArm = humanoid.getNormalizedBoneNode("leftUpperArm");
       if (leftUpperArm) {
-        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.15); // 0.3 → 0.2
+        applySmoothRotation(leftUpperArm, riggedPose.LeftUpperArm, 0.4); // 0.15 -> 0.4
       }
+    } else {
+      // debug logging for tracking loss
+      if (Math.random() < 0.01) console.log("LeftUpperArm tracking lost");
     }
 
     if (riggedPose.LeftLowerArm) {
       const leftLowerArm = humanoid.getNormalizedBoneNode("leftLowerArm");
       if (leftLowerArm) {
-        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.15); // 0.3 → 0.2
+        applySmoothRotation(leftLowerArm, riggedPose.LeftLowerArm, 0.4); // 0.15 -> 0.4
       }
+    } else {
+      if (Math.random() < 0.01) console.log("LeftLowerArm tracking lost");
     }
 
     // 右腕（応答性と精度を向上）
     if (riggedPose.RightUpperArm) {
       const rightUpperArm = humanoid.getNormalizedBoneNode("rightUpperArm");
       if (rightUpperArm) {
-        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.15); // 0.3 → 0.2
+        // DEBUG: Check values
+        if (Math.random() < 0.01) {
+          console.log("RightUpperArm Rig:", riggedPose.RightUpperArm);
+          console.log("RightUpperArm Bone:", rightUpperArm.rotation);
+        }
+        applySmoothRotation(rightUpperArm, riggedPose.RightUpperArm, 0.4); // 0.15 -> 0.4
+      } else {
+        console.warn("RightUpperArm bone not found");
       }
+    } else {
+      if (Math.random() < 0.01) console.log("RightUpperArm tracking lost");
+    }
+
+    // 左手首（Hand）
+    if (pose.LeftHand) {
+      const leftHand = humanoid.getNormalizedBoneNode("leftHand");
+      if (leftHand) {
+        // 手首は表情豊かに動くので少し感度高めでも良いが、ノイズも拾いやすい
+        const rotation = {
+          x: pose.LeftHand.x || 0,
+          y: pose.LeftHand.y || 0,
+          z: pose.LeftHand.z || 0,
+        };
+        applySmoothRotation(leftHand, rotation, 0.4); // 0.2 -> 0.4
+      }
+    } else {
+      if (Math.random() < 0.01) console.log("LeftHand tracking lost");
     }
 
     if (riggedPose.RightLowerArm) {
       const rightLowerArm = humanoid.getNormalizedBoneNode("rightLowerArm");
       if (rightLowerArm) {
-        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.15); // 0.3 → 0.2
+        applySmoothRotation(rightLowerArm, riggedPose.RightLowerArm, 0.4); // 0.15 -> 0.4
       }
+    } else {
+      if (Math.random() < 0.01) console.log("RightLowerArm tracking lost");
+    }
+
+    // 右手首（Hand）
+    if (pose.RightHand) {
+      const rightHand = humanoid.getNormalizedBoneNode("rightHand");
+      if (rightHand) {
+        const rotation = {
+          x: pose.RightHand.x || 0,
+          y: pose.RightHand.y || 0,
+          z: pose.RightHand.z || 0,
+        };
+        applySmoothRotation(rightHand, rotation, 0.4); // 0.2 -> 0.4
+      }
+    } else {
+      if (Math.random() < 0.01) console.log("RightHand tracking lost");
     }
 
     // 脚の動きは最小限に（ビデオ会議用 - 座位想定）
@@ -696,10 +749,12 @@ export const calculateRiggedPose = (
       rotations.chest = toQuaternion(chestRot);
     }
 
-    // Cast to access optional Shoulder properties
+    // Cast to access optional Shoulder/Hand properties
     const pose = riggedPose as unknown as {
       LeftShoulder?: { x: number; y: number; z: number };
       RightShoulder?: { x: number; y: number; z: number };
+      LeftHand?: { x: number; y: number; z: number };
+      RightHand?: { x: number; y: number; z: number };
     };
 
     if (pose.LeftShoulder) {
@@ -724,10 +779,21 @@ export const calculateRiggedPose = (
       rotations.leftUpperArm = toQuaternion(riggedPose.LeftUpperArm);
     if (riggedPose.LeftLowerArm)
       rotations.leftLowerArm = toQuaternion(riggedPose.LeftLowerArm);
+
+    // 手首 (Hand) - Left
+    if (pose.LeftHand) {
+      rotations.leftHand = toQuaternion(pose.LeftHand);
+    }
+
     if (riggedPose.RightUpperArm)
       rotations.rightUpperArm = toQuaternion(riggedPose.RightUpperArm);
     if (riggedPose.RightLowerArm)
       rotations.rightLowerArm = toQuaternion(riggedPose.RightLowerArm);
+
+    // 手首 (Hand) - Right
+    if (pose.RightHand) {
+      rotations.rightHand = toQuaternion(pose.RightHand);
+    }
 
     return rotations;
   } catch (error) {

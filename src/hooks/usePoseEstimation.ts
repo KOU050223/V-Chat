@@ -162,16 +162,18 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
           setWorldLandmarks(null);
         }
 
-        // 顔検出
-        const faceResult = faceLandmarkerRef.current.detectForVideo(
-          video,
-          timestamp
-        );
+        // Face detection
+        if (faceLandmarkerRef.current) {
+          const faceResult = faceLandmarkerRef.current.detectForVideo(
+            video,
+            timestamp
+          );
 
-        if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
-          setFaceLandmarks(faceResult.faceLandmarks[0]);
-        } else {
-          setFaceLandmarks(null);
+          if (faceResult.faceLandmarks && faceResult.faceLandmarks.length > 0) {
+            setFaceLandmarks(faceResult.faceLandmarks[0]);
+          } else {
+            setFaceLandmarks(null);
+          }
         }
       } catch (err) {
         console.error("ポーズ検出エラー:", err);

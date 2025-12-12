@@ -220,17 +220,28 @@ export const retargetPoseToVRMWithKalidokit = (
         const blinkR = faceRig.eye.r;
 
         // Apply to VRM ExpressionManager
-        vrm.expressionManager.setValue("blink_l", 1 - blinkL); // Kalidokit seems to return 1 for open? Check docs.
-        // Documentation says: 1 is open, 0 is closed for Kalidokit?
-        // Wait, Kalidokit docs: "0 - 1 Refers to the openness of the eye"
-        // VRM Blink: 1.0 is Closed.
-        // So VRM Blink = 1 - Kalidokit Openness.
+        // VRM 1.0 standard preset names are camelCase: 'blink', 'blinkLeft', 'blinkRight'
+        const blinkValL = 1 - blinkL;
+        const blinkValR = 1 - blinkR;
 
-        // Let's verify Kalidokit output. Usually it matches standard blendshapes.
-        // If Kalidokit "l" is "Eye Openness":
-        // VRM "Blink" = 1 - l
-        vrm.expressionManager.setValue("blink_left", 1 - blinkL);
-        vrm.expressionManager.setValue("blink_right", 1 - blinkR);
+        // Log available expressions once for debugging
+        if (Math.random() < 0.01) {
+          // Low frequency log
+          console.log("VRM Expressions:", vrm.expressionManager.expressionMap);
+          console.log("Blink L/R:", blinkValL, blinkValR);
+        }
+
+        // Try standard VRM 1.0 preset names
+        vrm.expressionManager.setValue("blinkLeft", blinkValL);
+        vrm.expressionManager.setValue("blinkRight", blinkValR);
+
+        // Also set main 'blink' if needed (using max of both or just average)
+        vrm.expressionManager.setValue("blink", Math.max(blinkValL, blinkValR));
+
+        // Legacy / Fallback names (just in case)
+        vrm.expressionManager.setValue("Blink", Math.max(blinkValL, blinkValR));
+        vrm.expressionManager.setValue("BlinkL", blinkValL);
+        vrm.expressionManager.setValue("BlinkR", blinkValR);
 
         // Apply Mouth
         // Kalidokit mouth: { x, y, shape: { A, E, I, O, U } }

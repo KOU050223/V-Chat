@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminStorage, adminAuth } from "@/lib/firebase-admin";
 import { sanitizeModelId } from "@/lib/modelIdUtils";
 
+const ALLOWED_MIME_TYPES = [
+  "application/octet-stream",
+  "model/gltf-binary",
+  "model/vrm",
+];
+
+const UPLOAD_URL_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+interface UploadRequestBody {
+  modelId?: string;
+  contentType?: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // 1. 環境変数の検証
@@ -29,7 +42,6 @@ export async function POST(request: NextRequest) {
     // トークン検証
     try {
       await adminAuth.verifyIdToken(idToken);
-      // 必要であればuidを確認: const decodedToken = ...; console.log(decodedToken.uid);
     } catch (authError) {
       console.error("Auth Error:", authError);
       return NextResponse.json(
@@ -38,10 +50,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. 入力データの検証
-    const formData = await request.formData();
-    const rawModelId = formData.get("modelId");
-    const file = formData.get("file");
+    // 3. 入力データの検証 (JSON Body)
+    let body: UploadRequestBody;
+    try {
+      body = await request.json();
+    } catch (e) {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    const { modelId: rawModelId, contentType } = body;
 
     if (!rawModelId || typeof rawModelId !== "string") {
       return NextResponse.json(
@@ -62,107 +79,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // File型かどうかを確認 (Next.js/Web standard File interface)
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json(
-        { error: "Validation Error: file is required" },
-        { status: 400 }
-      );
-    }
-
-    // ファイルタイプの検証
-    // VRMファイルは「application/octet-stream」または「model/gltf-binary」として送信される
-    const allowedMimeTypes = [
-      "application/octet-stream",
-      "model/gltf-binary",
-      "model/vrm",
-    ];
-    const hasValidMimeType = allowedMimeTypes.includes(file.type);
-    const hasVrmExtension = file.name.toLowerCase().endsWith(".vrm");
-
-    if (!hasValidMimeType && !hasVrmExtension) {
+    // コンテンツタイプの検証
+    if (!contentType || !ALLOWED_MIME_TYPES.includes(contentType)) {
       return NextResponse.json(
         {
           error:
-            "Invalid file type. Only VRM files are allowed. Expected MIME type: application/octet-stream, model/gltf-binary, or .vrm extension",
+            "Invalid content type. Expected: application/octet-stream, model/gltf-binary, or model/vrm",
         },
         { status: 400 }
       );
     }
 
-    // ファイルサイズの検証 (最大50MB)
-    // VRMファイルは通常5-20MBだが、高品質モデルを考慮して50MBに設定
-    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB in bytes
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: `File size exceeds the maximum allowed size of ${MAX_FILE_SIZE / 1024 / 1024}MB. Current size: ${(file.size / 1024 / 1024).toFixed(2)}MB`,
-        },
-        { status: 413 } // 413 Payload Too Large
-      );
-    }
-
-    // 最小ファイルサイズの検証 (1KB以上)
-    // 極端に小さいファイルは不正なファイルの可能性が高い
-    const MIN_FILE_SIZE = 1024; // 1KB
-    if (file.size < MIN_FILE_SIZE) {
-      return NextResponse.json(
-        {
-          error: `File size is too small. Minimum size: ${MIN_FILE_SIZE / 1024}KB`,
-        },
-        { status: 400 }
-      );
-    }
-
-    // 4. ファイルアップロード処理
+    // 4. Signed URLの生成
     const bucket = adminStorage.bucket(bucketName);
     const storageFile = bucket.file(`avatars/${modelId}.vrm`);
 
-    // 重複チェック (必要であれば有効化、現在は上書き)
-    // const [exists] = await storageFile.exists();
-    // if (exists) { ... }
+    const expires = Date.now() + UPLOAD_URL_TTL_MS;
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const uploadedAt = new Date().toISOString();
 
-    // VRMファイルの構造検証（マジックバイトチェック）
-    // VRMファイルはglTF 2.0バイナリ形式なので、先頭4バイトが "glTF" (0x676C5446)
-    if (buffer.length >= 4) {
-      const magicBytes = buffer.subarray(0, 4).toString("ascii");
-      if (magicBytes !== "glTF") {
-        return NextResponse.json(
-          {
-            error:
-              "Invalid VRM file structure. File does not appear to be a valid glTF/VRM binary.",
-          },
-          { status: 400 }
-        );
-      }
-    } else {
-      return NextResponse.json(
-        { error: "File is too small to be a valid VRM file" },
-        { status: 400 }
-      );
-    }
-
-    await storageFile.save(buffer, {
-      contentType: "application/octet-stream",
-      metadata: {
-        customMetadata: {
-          modelId: modelId,
-          uploadedAt: new Date().toISOString(),
-          originalName: file.name,
-        },
+    const [uploadUrl] = await storageFile.getSignedUrl({
+      action: "write",
+      expires,
+      contentType, // クライアントがアップロード時にこのContent-Typeを指定する必要がある
+      extensionHeaders: {
+        "x-goog-meta-modelId": modelId,
+        "x-goog-meta-uploadedAt": uploadedAt,
       },
     });
 
-    console.log(`Successfully uploaded VRM to storage: ${modelId}`);
+    console.log(`Generated Signed URL for VRM upload: ${modelId}`);
 
-    return NextResponse.json({ success: true, modelId });
+    return NextResponse.json({ success: true, uploadUrl, modelId, uploadedAt });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Storage Upload Error:", error);
+    console.error("Signed URL Generation Error:", error);
 
-    // エラー詳細を返すかどうかはセキュリティ要件によるが、ここでは簡易化
     return NextResponse.json(
       {
         error: "Internal Server Error",

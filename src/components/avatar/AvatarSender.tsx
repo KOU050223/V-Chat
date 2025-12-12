@@ -23,6 +23,10 @@ export interface AvatarSenderHandle {
   stopCamera: () => void;
 }
 
+// 送信レート制限 (FPS)
+const SEND_FPS = 30;
+const SEND_INTERVAL = 1000 / SEND_FPS;
+
 export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
   ({ autoStart = false, onRotationsUpdate, cameraId }, ref) => {
     const { localParticipant } = useLocalParticipant();
@@ -32,10 +36,6 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
     const lastSendTimeRef = useRef<number>(0);
     const frameCounterRef = useRef<number>(0); // ログ用カウンタ
     const textEncoderRef = useRef<TextEncoder>(new TextEncoder()); // TextEncoderを再利用
-
-    // 送信レート制限 (FPS)
-    const SEND_FPS = 30;
-    const SEND_INTERVAL = 1000 / SEND_FPS;
 
     // ポーズ推定フック
     const {
@@ -51,11 +51,15 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
     } = usePoseEstimation();
 
     // 外部から制御できるようにメソッドを公開
-    useImperativeHandle(ref, () => ({
-      stopCamera: () => {
-        stopCamera();
-      },
-    }));
+    useImperativeHandle(
+      ref,
+      () => ({
+        stopCamera: () => {
+          stopCamera();
+        },
+      }),
+      [stopCamera]
+    );
 
     // データ送信ループ
     const sendLoop = useCallback(async () => {
@@ -137,7 +141,7 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
       }
 
       animationFrameRef.current = requestAnimationFrame(sendLoop);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+       
     }, [
       localParticipant,
       roomContext.state,

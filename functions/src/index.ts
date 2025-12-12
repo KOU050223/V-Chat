@@ -19,6 +19,9 @@ const db = admin.firestore();
 // グローバル設定: コスト管理のため最大インスタンス数を制限
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 
+// ルームのTTL（Time To Live）: 72時間（ミリ秒）
+const ROOM_TTL_MS = 72 * 60 * 60 * 1000;
+
 /**
  * 短いルームIDを生成（8文字の英数字）
  * 暗号学的に安全なランダムバイトを使用
@@ -90,7 +93,7 @@ export const createRoom = onCall(async (request) => {
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         // 72時間後（3日後）に削除されるようにTTLを設定
         expiresAt: admin.firestore.Timestamp.fromMillis(
-          Date.now() + 72 * 60 * 60 * 1000
+          Date.now() + ROOM_TTL_MS
         ),
         livekitRoomId,
       };
@@ -600,7 +603,7 @@ export const findMatch = onCall(async (request) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
           // 72時間後（3日後）に削除されるようにTTLを設定
           expiresAt: admin.firestore.Timestamp.fromMillis(
-            Date.now() + 72 * 60 * 60 * 1000
+            Date.now() + ROOM_TTL_MS
           ),
           livekitRoomId,
         };

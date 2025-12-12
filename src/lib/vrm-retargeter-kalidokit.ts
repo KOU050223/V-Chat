@@ -255,19 +255,178 @@ export const retargetPoseToVRMWithKalidokit = (
         vrm.expressionManager.setValue("BlinkL", remLeft);
         vrm.expressionManager.setValue("BlinkR", remRight);
 
-        // Apply Mouth
-        // Kalidokit mouth: { x, y, shape: { A, E, I, O, U } }
+        // Apply Mouth (Vowels)
         const mouthShape = faceRig.mouth.shape;
+        // Basic Vowels (Removed unused variables: aa, ih, ou, ee, oh)
 
-        // VRM AEIOU
-        vrm.expressionManager.setValue("aa", mouthShape.A);
-        vrm.expressionManager.setValue("ih", mouthShape.I);
-        vrm.expressionManager.setValue("ou", mouthShape.U);
-        vrm.expressionManager.setValue("ee", mouthShape.E);
-        vrm.expressionManager.setValue("oh", mouthShape.O);
+        // Apply Smile & Emotions based on Mouth & Brows
+        // Happy: Mouth corners up (smile) + Brows raised/relaxed
+        // Angry: Brows lowered/furrowed
+        // Sorrow: Brows tiled upwards? (Simplification: just use generic "Sorrow" if Brows are sad-shaped)
 
-        // If satisfied, we can also use general mouth open if vowels aren't good
-        // vrm.expressionManager.setValue("neutral", ...);
+        // Kalidokit gives us:
+        // faceRig.brow = 0 (low) to 1 (high) typically
+
+        // Brows: 0 - 1 (1 is raised)
+        // Note: Kalidokit type definition might define brow as number or {l, r} depending on version.
+        // If it's a number, use it for both.
+        let browL = 0;
+        let browR = 0;
+
+        if (faceRig.brow) {
+          if (typeof faceRig.brow === "number") {
+            browL = faceRig.brow;
+            browR = faceRig.brow;
+          } else if (typeof faceRig.brow === "object") {
+            const browObj = faceRig.brow as { l?: number; r?: number };
+            browL = browObj.l || 0;
+            browR = browObj.r || 0;
+          }
+        }
+
+        const browAvg = (browL + browR) / 2;
+
+        // Smile Detection (Heuristic)
+        // Mouth X (width): increases when smiling
+        // Mouth Y (open): high for 'a', 'o', but smile is usually closed or slightly open wide.
+        const mouthX = faceRig.mouth.x || 0; // Width
+        // const mouthY = faceRig.mouth.y || 0; // Openness (Unused)
+
+        // Experimental Smile Logic: Wide mouth + Not too open
+        // specific threshold needs tuning based on logs.
+        // Usually width > 0.3 might be a smile?
+        const smileFactor = Math.max(0, (mouthX - 0.2) * 3);
+
+        // Debug Log (Throttled)
+        if (Math.random() < 0.05) {
+          console.log("Face Debug Enhanced:", {
+            brow: faceRig.brow,
+            pupil: faceRig.pupil,
+            mouth: faceRig.mouth,
+            calcJoy: smileFactor + browAvg,
+            calcAngry: 0, // Temporarily disabled
+          });
+        }
+
+        // Logic Update:
+        // Joy = Smile (mouth width) + Brow Raise
+        // Angry = 0 (Brow down is hard to detect with just 'brow' 0-1 if 0 is neutral)
+
+        const joyValue = Math.min(1, smileFactor + browAvg);
+        const angryValue = 0; // Disable to remove "frozen angry face"
+
+        // Smoothing Helper
+        const lerp = (current: number, target: number, speed: number) => {
+          return current * (1 - speed) + target * speed;
+        };
+
+        // Get current values to smooth
+        const currentJoy = vrm.expressionManager?.getValue("Joy") || 0;
+        const currentAngry = vrm.expressionManager?.getValue("Angry") || 0;
+
+        // Apply Smoothed Expressions
+        const smoothing = 0.2;
+        vrm.expressionManager?.setValue(
+          "Joy",
+          lerp(currentJoy, joyValue, smoothing)
+        );
+        vrm.expressionManager?.setValue(
+          "Angry",
+          lerp(currentAngry, angryValue, smoothing)
+        );
+
+        // Apply Vowels (Smoothed)
+        ["aa", "ih", "ou", "ee", "oh"].forEach((vowel) => {
+          const target =
+            mouthShape[
+              vowel.toUpperCase() === "IH"
+                ? "I"
+                : vowel.toUpperCase() === "OH"
+                  ? "O"
+                  : vowel.toUpperCase() === "AA"
+                    ? "A"
+                    : vowel.toUpperCase() === "EE"
+                      ? "E"
+                      : "U"
+            ] || 0;
+          const current = vrm.expressionManager?.getValue(vowel) || 0;
+          // Mouth moves fast, so less smoothing
+          vrm.expressionManager?.setValue(vowel, lerp(current, target, 0.4));
+        });
+
+        // --- Pupil (Gaze) Tracking ---
+        if (faceRig.pupil) {
+          // Kalidokit pupil: { x, y } -1 to 1 range (approx)
+          // VRM LookAt is usually controlled by `vrm.lookAt.target` (Vector3 position)
+          // We need to set a target position relative to the head.
+
+          const pupilX = faceRig.pupil.x; // -1(left) ... 1(right)
+          const pupilY = faceRig.pupil.y; // -1(up) ... 1(down) ? Check Kalidokit spec.
+          // Actually Kalidokit `pupil`: x range [-1, 1], y range [-1, 1]
+          // VRM LookAt Target implies a position in world space to look at.
+
+          // Define a virtual target distance
+          // const DISTANCE = 10.0; (Unused)
+
+          // X: Left/Right (Mirroring already handled by Kalidokit?
+          // Usually user looks left -> pupil.x is -1. Avatar should look right (its left) -> x = +1.
+          // Let's try direct mapping first, then flip if needed.
+          // Kalidokit does no mirroring by default for pupils usually.
+          // Mirroring: User Look Left (screen left) -> Avatar Look Right (screen right, its Left).
+          // So if user.x = -1 (Left), Avatar.x should be +1 (Left).
+          // Wait, "Avatar Left" means +X in local head space? No, usually +X is Left in VRM/GLTF Humanoid?
+          // Let's use vrm.lookAt.applier IF available, but `target` is safer.
+
+          // Basic approximation:
+          // Calculate offset from head position
+          const headNode = vrm.humanoid.getNormalizedBoneNode("head");
+          if (headNode && vrm.lookAt) {
+            // We want to construct a target position in World Space
+            // Head Position + Forward * Distance + Offset(x,y)
+            // But wait, VRM `lookAt.target` is an Object3D usually?
+            // Pixiv Three-VRM v3 uses a `LookAt` class which might have `target` as a property update.
+            // Actually we usually just set `vrm.lookAt.target.position`.
+
+            // If the app doesn't have a dedicated lookAt target object in the scene,
+            // we might be fighting with other logic.
+            // Assuming we can control it here:
+
+            // Create a relative vector
+            // Mirror X for "Mirror effect"
+            const sensitivity = 0.5; // Reduced from 1.5 to 0.7 for stability, user reported "too intense". Actually let's try 0.5 for stability.
+            const lookAtX = -pupilX * sensitivity;
+
+            // Y-axis: User reported inversion (Up -> Down).
+            // Prev code: `const lookAtY = -pupilY * 1.5;`
+            // If pupilY is negative for Up, then -(-1) = 1 (Positive Pitch) -> Down (if Pitch+ is Down).
+            // So we should NOT invert logic if we want Up (-Y) -> Up (Negative Pitch).
+            // Let's use `pupilY * sensitivity`.
+            const lookAtY = pupilY * sensitivity + 0.05; // Added slight offset to prevent "sleepy eyes" look
+
+            // Logging for Gaze
+            if (Math.random() < 0.01) {
+              console.log("Gaze Debug:", { pupilX, pupilY, lookAtX, lookAtY });
+            }
+
+            const leftEye = vrm.humanoid.getNormalizedBoneNode("leftEye");
+            const rightEye = vrm.humanoid.getNormalizedBoneNode("rightEye");
+
+            if (leftEye && rightEye) {
+              // Create LookAt rotation
+              // Yaw (Y-axis), Pitch (X-axis)
+              const yaw = lookAtX * 1.0;
+              const pitch = lookAtY * 1.0;
+
+              const euler = new THREE.Euler(pitch, yaw, 0, "XYZ");
+              const quat = new THREE.Quaternion().setFromEuler(euler);
+
+              // Slerp for smooth eyes
+              // 0.2 -> 0.1 for more smoothing
+              leftEye.quaternion.slerp(quat, 0.1);
+              rightEye.quaternion.slerp(quat, 0.1);
+            }
+          }
+        }
       }
     }
 
@@ -324,9 +483,9 @@ export const retargetPoseToVRMWithKalidokit = (
       const spine = humanoid.getNormalizedBoneNode("spine");
       if (spine) {
         const spineRotation = {
-          x: (riggedPose.Spine.x || 0) * 0.2, // 前後の傾きを20%に
-          y: (riggedPose.Spine.y || 0) * 0.2, // 左右の回転を20%に
-          z: (riggedPose.Spine.z || 0) * 0.2, // 左右の傾きを20%に
+          x: (riggedPose.Spine.x || 0) * 0.4, // 前後の傾きを20% -> 40%
+          y: (riggedPose.Spine.y || 0) * 0.4, // 左右の回転を20% -> 40%
+          z: (riggedPose.Spine.z || 0) * 0.4, // 左右の傾きを20% -> 40%
         };
         applySmoothRotation(spine, spineRotation, 0.1);
       }
@@ -335,11 +494,44 @@ export const retargetPoseToVRMWithKalidokit = (
       const chest = humanoid.getNormalizedBoneNode("chest");
       if (chest) {
         const chestRotation = {
-          x: (riggedPose.Spine.x || 0) * 0.1,
-          y: (riggedPose.Spine.y || 0) * 0.1,
-          z: (riggedPose.Spine.z || 0) * 0.1,
+          x: (riggedPose.Spine.x || 0) * 0.2, // Increased from 0.1
+          y: (riggedPose.Spine.y || 0) * 0.2, // Increased from 0.1
+          z: (riggedPose.Spine.z || 0) * 0.2, // Increased from 0.1
         };
         applySmoothRotation(chest, chestRotation, 0.1);
+      }
+    }
+
+    // 肩（Shoulder）のトラッキング追加
+    // 肩をすくめる動作などを反映
+    // Cast to access optional Shoulder properties
+    const pose = riggedPose as unknown as {
+      LeftShoulder?: { x: number; y: number; z: number };
+      RightShoulder?: { x: number; y: number; z: number };
+    };
+
+    if (pose.LeftShoulder) {
+      const leftShoulder = humanoid.getNormalizedBoneNode("leftShoulder");
+      if (leftShoulder) {
+        // 肩の動きは少し抑えめにしないと貫通しやすいので0.5くらい
+        const rotation = {
+          x: (pose.LeftShoulder.x || 0) * 0.5,
+          y: (pose.LeftShoulder.y || 0) * 0.5,
+          z: (pose.LeftShoulder.z || 0) * 0.5,
+        };
+        applySmoothRotation(leftShoulder, rotation, 0.2);
+      }
+    }
+
+    if (pose.RightShoulder) {
+      const rightShoulder = humanoid.getNormalizedBoneNode("rightShoulder");
+      if (rightShoulder) {
+        const rotation = {
+          x: (pose.RightShoulder.x || 0) * 0.5,
+          y: (pose.RightShoulder.y || 0) * 0.5,
+          z: (pose.RightShoulder.z || 0) * 0.5,
+        };
+        applySmoothRotation(rightShoulder, rotation, 0.2);
       }
     }
 
@@ -500,6 +692,30 @@ export const calculateRiggedPose = (
         z: (riggedPose.Spine.z || 0) * 0.5,
       };
       rotations.chest = toQuaternion(chestRot);
+    }
+
+    // Cast to access optional Shoulder properties
+    const pose = riggedPose as unknown as {
+      LeftShoulder?: { x: number; y: number; z: number };
+      RightShoulder?: { x: number; y: number; z: number };
+    };
+
+    if (pose.LeftShoulder) {
+      const scaled = {
+        x: (pose.LeftShoulder.x || 0) * 0.5,
+        y: (pose.LeftShoulder.y || 0) * 0.5,
+        z: (pose.LeftShoulder.z || 0) * 0.5,
+      };
+      rotations.leftShoulder = toQuaternion(scaled);
+    }
+
+    if (pose.RightShoulder) {
+      const scaled = {
+        x: (pose.RightShoulder.x || 0) * 0.5,
+        y: (pose.RightShoulder.y || 0) * 0.5,
+        z: (pose.RightShoulder.z || 0) * 0.5,
+      };
+      rotations.rightShoulder = toQuaternion(scaled);
     }
 
     if (riggedPose.LeftUpperArm)

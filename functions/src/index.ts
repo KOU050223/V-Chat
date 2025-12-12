@@ -238,10 +238,10 @@ export const joinRoom = onCall(async (request) => {
 
       // 既に参加している場合はスキップ
       if (!currentParticipants.includes(userId)) {
-        // 参加者数のチェック（2人まで）
-        if (currentParticipants.length >= 2) {
-          throw new HttpsError("resource-exhausted", "ルームが満員です");
-        }
+        // 参加者数のチェック（制限なし）
+        // if (currentParticipants.length >= 2) {
+        //   throw new HttpsError("resource-exhausted", "ルームが満員です");
+        // }
 
         // 参加者リストに追加
         tx.update(roomRef, {

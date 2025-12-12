@@ -291,6 +291,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
         {/* カメラ許可ボタン */}
         {!isCameraPermissionGranted && (
           <button
+            type="button"
             onClick={onRequestCameraPermission}
             style={{
               padding: "12px 24px",
@@ -359,18 +360,21 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
                     }}
                   />
                   <button
+                    type="button"
                     onClick={() => onCameraViewChange("front")}
                     style={viewButtonStyle}
                   >
                     正面
                   </button>
                   <button
+                    type="button"
                     onClick={() => onCameraViewChange("side")}
                     style={viewButtonStyle}
                   >
                     横
                   </button>
                   <button
+                    type="button"
                     onClick={() => onCameraViewChange("back")}
                     style={viewButtonStyle}
                   >
@@ -383,6 +387,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
             <div style={{ display: "flex", gap: "10px" }}>
               {!isMotionActive ? (
                 <button
+                  type="button"
                   onClick={onStartMotionSync}
                   disabled={!isInitialized || isLoading || !vrmLoaded}
                   style={{
@@ -401,6 +406,7 @@ export const MotionSyncUI: React.FC<MotionSyncUIProps> = ({
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={onStopMotionSync}
                   style={{
                     padding: "10px 20px",

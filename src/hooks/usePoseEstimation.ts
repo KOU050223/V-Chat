@@ -179,10 +179,14 @@ export const usePoseEstimation = (): UsePoseEstimationReturn => {
           } catch (faceErr) {
             // Suppress face detection errors to prevent crashing the whole app
             console.warn("Face detection error (transient):", faceErr);
+            setFaceLandmarks(null);
           }
         }
       } catch (err) {
         console.error("ポーズ検出エラー:", err);
+        setLandmarks(null);
+        setWorldLandmarks(null);
+        setFaceLandmarks(null);
       }
     }
 

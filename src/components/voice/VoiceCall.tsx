@@ -40,7 +40,10 @@ import { Button } from "@/components/ui";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { app } from "@/lib/firebaseConfig";
 import type { VoiceCallState } from "@/types/voice";
-import { AvatarSender } from "@/components/avatar/AvatarSender";
+import {
+  AvatarSender,
+  AvatarSenderHandle,
+} from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
 import { BoneRotations, AvatarMetadata } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
@@ -1139,8 +1142,8 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
                     console.log("VRM cache miss, downloading...", modelId);
                     const accessToken = nextAuthSession?.accessToken;
                     if (!accessToken) {
-                      console.error(
-                        "VRoid access token is missing. Cannot download model, falling back to default avatar."
+                      console.warn(
+                        "VRoid access token is missing. Falling back to default avatar."
                       );
                       return null;
                     }
@@ -1212,9 +1215,26 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     }
   }, [localParticipant, isMicrophoneEnabled]);
 
+  const avatarSenderRef = useRef<AvatarSenderHandle>(null);
+
   // 退出処理
   const handleDisconnect = useCallback(async () => {
     try {
+      // カメラを明示的に停止
+      if (avatarSenderRef.current) {
+        avatarSenderRef.current.stopCamera();
+      }
+      setIsCameraOn(false);
+
+      // LiveKitのローカルトラックを明示的に停止 (カメラ/マイクのハードウェア解放)
+      if (room && room.localParticipant) {
+        room.localParticipant.trackPublications.forEach((publication) => {
+          if (publication.track) {
+            publication.track.stop();
+          }
+        });
+      }
+
       setDisconnectError(null);
       await room.disconnect();
       onLeave?.();
@@ -1243,7 +1263,9 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
       {/* 送信側のための不可視/ユーティリティコンポーネント */}
       <div className="absolute top-0 right-0 w-32 h-24 opacity-0 hover:opacity-100 transition-opacity z-50 pointer-events-none hover:pointer-events-auto bg-black border border-gray-600">
         {/* カメラプレビュー（デバッグ用の小窓） */}
+        {/* カメラプレビュー（デバッグ用の小窓） */}
         <AvatarSender
+          ref={avatarSenderRef}
           autoStart={isCameraOn}
           onRotationsUpdate={setLocalRotations}
           cameraId={selectedVideoDeviceId}

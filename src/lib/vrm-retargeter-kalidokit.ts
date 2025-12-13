@@ -671,9 +671,8 @@ export const retargetPoseToVRMWithKalidokit = (
 
 export const calculateRiggedPose = (
   landmarks: PoseLandmark[],
-  worldLandmarks: PoseLandmark[] | null = null,
-  faceLandmarks: FaceLandmark[] | null = null
-): { bones: BoneRotations; blendShapes: Record<string, number> } | null => {
+  worldLandmarks: PoseLandmark[] | null = null
+): BoneRotations | null => {
   if (landmarks.length === 0) {
     return null;
   }
@@ -795,82 +794,8 @@ export const calculateRiggedPose = (
     if (pose.RightHand) {
       rotations.rightHand = toQuaternion(pose.RightHand);
     }
-    // --- Facial Expression Calculation ---
-    const blendShapes: Record<string, number> = {};
 
-    if (faceLandmarks && faceLandmarks.length > 0) {
-      const faceRig = Kalidokit.Face.solve(faceLandmarks, {
-        runtime: "mediapipe",
-        imageSize: { width: 640, height: 480 },
-      });
-
-      if (faceRig) {
-        // Blink
-        // Kalidokit gives 0(Open) - 1(Closed) usually, but check prev logic:
-        // "blinkL = faceRig.eye.l" (0 to 1). VRM blink is 0 to 1.
-        // PREVIOUS LOGIC in retargetPoseToVRMWithKalidokit:
-        // const blinkL = faceRig.eye.l;
-        // const blinkValL = 1 - blinkL;
-        // This implies faceRig.eye.l is 1(Open) to 0(Closed)?
-        // Kalidokit docs say eye.l is "Eye openness" (1=open, 0=closed).
-        // VRM Blink is "Weight of Blink" (0=open, 1=closed).
-        // So VRM = 1 - Kalidokit.
-
-        const blinkOpenL = faceRig.eye.l || 0;
-        const blinkOpenR = faceRig.eye.r || 0;
-
-        const blinkValL = 1 - blinkOpenL;
-        const blinkValR = 1 - blinkOpenR;
-
-        // Mirroring: User Left -> Avatar Right
-        const targetRight = blinkValL;
-        const targetLeft = blinkValR;
-
-        const combinedBlink = Math.min(targetLeft, targetRight);
-        const remLeft = targetLeft - combinedBlink;
-        const remRight = targetRight - combinedBlink;
-
-        blendShapes["blink"] = combinedBlink;
-        blendShapes["blinkLeft"] = remLeft;
-        blendShapes["blinkRight"] = remRight;
-
-        // Vowels
-        const mouthShape = faceRig.mouth.shape;
-        // VRM 0.0 / 1.0 Preset Names
-        // Typical VRM uses ["aa", "ih", "ou", "ee", "oh"] or ["A", "I", "U", "E", "O"]
-        // Let's use standard Preset names. V-Chat seems to use standard VRM.
-        // Previous logic: vrm.expressionManager.setValue("aa", ...);
-        blendShapes["aa"] = mouthShape.A || 0;
-        blendShapes["ih"] = mouthShape.I || 0;
-        blendShapes["ou"] = mouthShape.U || 0;
-        blendShapes["ee"] = mouthShape.E || 0;
-        blendShapes["oh"] = mouthShape.O || 0;
-
-        // Joy
-        // Logic from retargetPoseToVRMWithKalidokit
-        let browL = 0;
-        let browR = 0;
-        if (faceRig.brow) {
-          if (typeof faceRig.brow === "number") {
-            browL = browR = faceRig.brow;
-          } else {
-            browL = (faceRig.brow as { l?: number; r?: number }).l || 0;
-            browR = (faceRig.brow as { l?: number; r?: number }).r || 0;
-          }
-        }
-        const browAvg = (browL + browR) / 2;
-        const mouthX = faceRig.mouth.x || 0;
-        // smileFactor = Math.max(0, (mouthX - 0.2) * 3);
-        const smileFactor = Math.max(0, (mouthX - 0.2) * 3);
-        const joyValue = Math.min(1, smileFactor + browAvg);
-
-        blendShapes["Joy"] = joyValue;
-
-        // Angry = 0 per previous logic
-      }
-    }
-
-    return { bones: rotations, blendShapes };
+    return rotations;
   } catch (error) {
     console.error("❌ Error calculating rigged pose:", error);
     return null;

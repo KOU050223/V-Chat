@@ -204,7 +204,8 @@ export const retargetPoseToVRMWithKalidokit = (
   vrm: VRM,
   landmarks: PoseLandmark[],
   worldLandmarks: PoseLandmark[] | null = null,
-  faceLandmarks: FaceLandmark[] | null = null
+  faceLandmarks: FaceLandmark[] | null = null,
+  imageSize: { width: number; height: number } = { width: 640, height: 480 }
 ): void => {
   if (!vrm.humanoid || landmarks.length === 0) {
     return;
@@ -215,7 +216,7 @@ export const retargetPoseToVRMWithKalidokit = (
     if (faceLandmarks && faceLandmarks.length > 0) {
       const faceRig = Kalidokit.Face.solve(faceLandmarks, {
         runtime: "mediapipe",
-        imageSize: { width: 640, height: 480 },
+        imageSize: imageSize,
       });
 
       if (faceRig && vrm.expressionManager) {
@@ -672,7 +673,8 @@ export const retargetPoseToVRMWithKalidokit = (
 export const calculateRiggedPose = (
   landmarks: PoseLandmark[],
   worldLandmarks: PoseLandmark[] | null = null,
-  faceLandmarks: FaceLandmark[] | null = null
+  faceLandmarks: FaceLandmark[] | null = null,
+  imageSize: { width: number; height: number } = { width: 640, height: 480 }
 ): { bones: BoneRotations; blendShapes: Record<string, number> } | null => {
   if (landmarks.length === 0) {
     return null;
@@ -801,7 +803,7 @@ export const calculateRiggedPose = (
     if (faceLandmarks && faceLandmarks.length > 0) {
       const faceRig = Kalidokit.Face.solve(faceLandmarks, {
         runtime: "mediapipe",
-        imageSize: { width: 640, height: 480 },
+        imageSize: imageSize,
       });
 
       if (faceRig) {

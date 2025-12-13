@@ -164,6 +164,7 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
     faceLandmarks,
     isMotionActive,
     handleVRMLoaded,
+    videoRef,
   } = useMotionSync(autoStart, onMotionSync);
 
   // フレームごとの更新処理
@@ -181,11 +182,23 @@ export const MotionSyncViewer: React.FC<MotionSyncViewerProps> = ({
       const currentFaceLandmarks = faceLandmarks; // トップレベルから取得した値を使用
 
       if (landmarks && landmarks.length > 0) {
+        // ビデオ要素から実際の解像度を取得（フォールバック: 640x480）
+        const imageSize =
+          videoRef.current &&
+          videoRef.current.videoWidth > 0 &&
+          videoRef.current.videoHeight > 0
+            ? {
+                width: videoRef.current.videoWidth,
+                height: videoRef.current.videoHeight,
+              }
+            : { width: 640, height: 480 };
+
         retargetPoseToVRMWithKalidokit(
           vrm,
           landmarks,
           currentWorldLandmarks,
-          currentFaceLandmarks
+          currentFaceLandmarks,
+          imageSize
         );
       }
 

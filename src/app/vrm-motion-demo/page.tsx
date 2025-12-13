@@ -20,7 +20,7 @@ import * as THREE from "three";
 const CameraController: React.FC<{
   view: CameraView;
   onViewChangeComplete: () => void;
-   
+
   controlsRef: React.RefObject<React.ElementRef<typeof OrbitControls> | null>;
 }> = ({ view, onViewChangeComplete, controlsRef }) => {
   const { camera } = useThree();
@@ -94,12 +94,24 @@ const MotionSyncRenderer: React.FC<{
       if (motionSyncState.landmarks && motionSyncState.landmarks.length > 0) {
         // Kalidokit版と現状版を切り替え
         if (useKalidokit) {
+          // ビデオ要素から実際の解像度を取得（フォールバック: 640x480）
+          const imageSize =
+            motionSyncState.videoRef.current &&
+            motionSyncState.videoRef.current.videoWidth > 0 &&
+            motionSyncState.videoRef.current.videoHeight > 0
+              ? {
+                  width: motionSyncState.videoRef.current.videoWidth,
+                  height: motionSyncState.videoRef.current.videoHeight,
+                }
+              : { width: 640, height: 480 };
+
           // worldLandmarksを渡して正確な3D回転を計算
           retargetPoseToVRMWithKalidokit(
             vrm,
             motionSyncState.landmarks,
             motionSyncState.worldLandmarks,
-            motionSyncState.faceLandmarks
+            motionSyncState.faceLandmarks,
+            imageSize
           );
         } else {
           retargetPoseToVRM(vrm, motionSyncState.landmarks);
@@ -151,7 +163,7 @@ export default function VRMMotionDemoPage() {
   const [cameraView, setCameraView] = useState<CameraView>("reset");
 
   // OrbitControlsへの参照
-   
+
   const controlsRef = useRef<React.ElementRef<typeof OrbitControls> | null>(
     null
   );

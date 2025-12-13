@@ -101,10 +101,22 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
 
         // ランドマークがあればポーズ計算
         if (landmarks && landmarks.length > 0) {
+          // ビデオ要素から実際の解像度を取得（フォールバック: 640x480）
+          const imageSize =
+            videoRef.current &&
+            videoRef.current.videoWidth > 0 &&
+            videoRef.current.videoHeight > 0
+              ? {
+                  width: videoRef.current.videoWidth,
+                  height: videoRef.current.videoHeight,
+                }
+              : { width: 640, height: 480 };
+
           const result = calculateRiggedPose(
             landmarks,
             worldLandmarks,
-            faceLandmarks
+            faceLandmarks,
+            imageSize
           );
 
           if (result) {

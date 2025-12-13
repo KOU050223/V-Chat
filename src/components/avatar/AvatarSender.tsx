@@ -15,10 +15,7 @@ import { MotionDataPacket, BoneRotations } from "@/types/avatar";
 
 interface AvatarSenderProps {
   autoStart?: boolean;
-  onRotationsUpdate?: (data: {
-    bones: BoneRotations;
-    blendShapes: Record<string, number>;
-  }) => void;
+  onRotationsUpdate?: (rotations: BoneRotations) => void;
   cameraId?: string; // カメラID (指定がない場合はデフォルト)
 }
 
@@ -44,7 +41,6 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
     const {
       landmarks,
       worldLandmarks,
-      faceLandmarks,
       isInitialized,
       isLoading,
       error,
@@ -101,25 +97,18 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
 
         // ランドマークがあればポーズ計算
         if (landmarks && landmarks.length > 0) {
-          const result = calculateRiggedPose(
-            landmarks,
-            worldLandmarks,
-            faceLandmarks
-          );
+          const rotations = calculateRiggedPose(landmarks, worldLandmarks);
 
-          if (result) {
-            const { bones, blendShapes } = result;
-
+          if (rotations) {
             // プレビュー用のローカルループバック
             if (onRotationsUpdate) {
-              onRotationsUpdate({ bones, blendShapes });
+              onRotationsUpdate(rotations);
             }
 
             packet = {
               t: "m",
               v: 1, // カメラON
-              bones: bones,
-              b: blendShapes,
+              bones: rotations,
             };
           } else {
             // 失敗した場合は稀にログ出力（10秒ごと）
@@ -152,12 +141,12 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
       }
 
       animationFrameRef.current = requestAnimationFrame(sendLoop);
+       
     }, [
       localParticipant,
       roomContext.state,
       landmarks,
       worldLandmarks,
-      faceLandmarks,
       onRotationsUpdate,
       // SEND_INTERVALは定数なので依存配列に含める必要なし
     ]);

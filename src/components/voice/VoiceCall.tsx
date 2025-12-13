@@ -45,7 +45,7 @@ import {
   AvatarSenderHandle,
 } from "@/components/avatar/AvatarSender";
 import { AvatarReceiver } from "@/components/avatar/AvatarReceiver";
-import { AvatarMetadata, AvatarMotionState } from "@/types/avatar";
+import { BoneRotations, AvatarMetadata } from "@/types/avatar";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useVModel } from "@/contexts/VModelContext";
 import { ensureVRMInStorage } from "@/lib/vrmStorage";
@@ -492,7 +492,7 @@ function DeviceSettings({
 
 // 参加者個別のタイルコンポーネント
 interface ParticipantTileProps {
-  localMotionDataRef: React.MutableRefObject<AvatarMotionState | null>;
+  localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset?: { x: number; y: number; z: number };
   myAvatarScale?: number;
@@ -500,7 +500,7 @@ interface ParticipantTileProps {
 }
 
 const ParticipantTile = memo(function ParticipantTile({
-  localMotionDataRef,
+  localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
@@ -580,15 +580,8 @@ const ParticipantTile = memo(function ParticipantTile({
 
   const isMicrophoneEnabled = participant.isMicrophoneEnabled;
 
-  // 自分の場合のみ、ローカルの回転情報と表情データを渡す
-  const manualRotations =
-    participant.isLocal && localMotionDataRef.current
-      ? localMotionDataRef.current.bones
-      : undefined;
-  const manualBlendShapes =
-    participant.isLocal && localMotionDataRef.current
-      ? localMotionDataRef.current.blendShapes
-      : undefined;
+  // 自分の場合のみ、ローカルの回転情報を渡す
+  const manualRotations = participant.isLocal ? localRotations : undefined;
 
   // 自分の場合で、かつモデルを選択している場合は、デフォルトモデルを表示せず、メタデータ（動的URL）が設定されるのを待つ
   const defaultUrl =
@@ -606,43 +599,15 @@ const ParticipantTile = memo(function ParticipantTile({
         } bg-gray-900`}
       >
         {/* 3Dアバター表示 */}
-        <Canvas
-          camera={{
-            fov: 50,
-          }}
-          gl={{
-            antialias: true,
-            powerPreference: "high-performance",
-            alpha: false,
-          }}
-          dpr={
-            typeof window !== "undefined" && window.devicePixelRatio > 2
-              ? 2
-              : typeof window !== "undefined"
-                ? window.devicePixelRatio
-                : 1
-          }
-        >
+        <Canvas>
           <CameraUpdater position={cameraConfig} />
-
-          {/* 環境光（全体を明るく） */}
           <ambientLight intensity={0.8} />
-
-          {/* メインの方向光（正面やや上から） */}
-          <directionalLight position={[5, 5, 5]} intensity={1.2} />
-
-          {/* 補助ライト（左側から） */}
-          <directionalLight position={[-3, 3, 2]} intensity={0.5} />
-
-          {/* 補助ライト（後ろから、リムライト効果） */}
-          <directionalLight position={[0, 3, -5]} intensity={0.3} />
-
+          <directionalLight position={[0, 0, 5]} intensity={1} />
           {/* <OrbitControls target={[0, 1.4, 0]} /> 安定した表示のためOrbitControlsは無効化（必要に応じて有効化） */}
           <AvatarReceiver
             participant={participant}
             defaultAvatarUrl={defaultUrl}
             manualRotations={manualRotations}
-            manualBlendShapes={manualBlendShapes}
             // 自分の場合はローカルの設定を即時反映し、他人の場合はMetadataから読み取る
             localOverrideOffset={
               participant.isLocal ? myAvatarOffset : undefined
@@ -763,7 +728,7 @@ const ScreenShareTile = memo(function ScreenShareTile({
 
 // 参加者グリッド表示コンポーネント (Unified Grid & Click-to-Expand)
 interface ParticipantGridProps {
-  localMotionDataRef: React.MutableRefObject<AvatarMotionState | null>;
+  localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset: { x: number; y: number; z: number };
   myAvatarScale: number;
@@ -771,7 +736,7 @@ interface ParticipantGridProps {
 }
 
 function ParticipantGrid({
-  localMotionDataRef,
+  localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
@@ -841,7 +806,7 @@ function ParticipantGrid({
                  */}
               <ParticipantLoop participants={[focusedParticipant]}>
                 <ParticipantTile
-                  localMotionDataRef={localMotionDataRef}
+                  localRotations={localRotations}
                   cameraConfig={cameraConfig}
                   myAvatarOffset={myAvatarOffset}
                   myAvatarScale={myAvatarScale}
@@ -892,7 +857,7 @@ function ParticipantGrid({
            */}
           <ParticipantTileWrapper
             onClick={(p) => handleFocus("participant", p)}
-            localMotionDataRef={localMotionDataRef}
+            localRotations={localRotations}
             cameraConfig={cameraConfig}
             myAvatarOffset={myAvatarOffset}
             myAvatarScale={myAvatarScale}
@@ -914,7 +879,7 @@ function ParticipantGrid({
 // useParticipantContextをして、自身のparticipant情報を取得し、onClickハンドラに渡す
 interface ParticipantTileWrapperProps {
   onClick: (participant: Participant) => void;
-  localMotionDataRef: React.MutableRefObject<AvatarMotionState | null>;
+  localRotations?: BoneRotations | null;
   cameraConfig: [number, number, number];
   myAvatarOffset: { x: number; y: number; z: number };
   myAvatarScale: number;
@@ -923,7 +888,7 @@ interface ParticipantTileWrapperProps {
 
 const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
   onClick,
-  localMotionDataRef,
+  localRotations,
   cameraConfig,
   myAvatarOffset,
   myAvatarScale,
@@ -981,7 +946,7 @@ const ParticipantTileWrapper = memo(function ParticipantTileWrapper({
       aria-label={`${displayName}のアバターを拡大表示`}
     >
       <ParticipantTile
-        localMotionDataRef={localMotionDataRef}
+        localRotations={localRotations}
         cameraConfig={cameraConfig}
         myAvatarOffset={myAvatarOffset}
         myAvatarScale={myAvatarScale}
@@ -1070,8 +1035,10 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
     };
   }, [room, toast]);
 
-  // アバター統合の状態（useRefで管理し、再レンダリングを防ぐ）
-  const localMotionDataRef = useRef<AvatarMotionState | null>(null);
+  // アバター統合の状態
+  const [localRotations, setLocalRotations] = useState<BoneRotations | null>(
+    null
+  );
   const [isCameraOn, setIsCameraOn] = useState(true); // AvatarSenderの制御用
 
   // 3D調整の状態
@@ -1387,9 +1354,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
         <AvatarSender
           ref={avatarSenderRef}
           autoStart={isCameraOn}
-          onRotationsUpdate={(data) => {
-            localMotionDataRef.current = data;
-          }}
+          onRotationsUpdate={setLocalRotations}
           cameraId={selectedVideoDeviceId}
         />
       </div>
@@ -1397,7 +1362,7 @@ function VoiceCallContent({ onLeave }: VoiceCallContentProps) {
       {/* メインエリア：参加者グリッド */}
       <div className="flex-1 overflow-y-auto flex items-center justify-center min-h-[400px]">
         <ParticipantGrid
-          localMotionDataRef={localMotionDataRef}
+          localRotations={localRotations}
           cameraConfig={cameraConfig}
           myAvatarOffset={avatarOffset}
           myAvatarScale={avatarScale}

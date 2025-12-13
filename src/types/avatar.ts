@@ -33,11 +33,6 @@ export interface BoneRotations {
   rightFoot?: QuaternionArray;
 }
 
-export interface AvatarMotionState {
-  bones: BoneRotations;
-  blendShapes?: Record<string, number>;
-}
-
 export interface MotionDataPacket {
   t: "m"; // タイプ: モーション
   b?: Record<string, number>; // ブレンドシェイプ（表情）

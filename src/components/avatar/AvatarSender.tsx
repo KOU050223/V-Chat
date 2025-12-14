@@ -141,7 +141,7 @@ export const AvatarSender = forwardRef<AvatarSenderHandle, AvatarSenderProps>(
       }
 
       animationFrameRef.current = requestAnimationFrame(sendLoop);
-       
+
     }, [
       localParticipant,
       roomContext.state,

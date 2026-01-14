@@ -14,7 +14,8 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
-    "knip": "knip --fix"
+    "knip": "knip",
+    "knip:fix": "knip --fix"
   },
   "dependencies": {
     "@growthbook/growthbook-react": "^1.6.1",

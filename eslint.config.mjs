@@ -1,36 +1,25 @@
-import { defineConfig } from "eslint/config";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import js from "@eslint/js";
-import { FlatCompat } from "@eslint/eslintrc";
+import nextConfig from "eslint-config-next";
+import globals from "globals";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const compat = new FlatCompat({
-    baseDirectory: __dirname,
-    recommendedConfig: js.configs.recommended,
-    allConfig: js.configs.all
-});
-
-export default defineConfig([
+export default [
+    js.configs.recommended,
+    ...nextConfig,
     {
-        ignores: [
-            ".next/**",
-            "out/**",
-            "node_modules/**",
-            ".env*",
-            "coverage/**",
-            "*.tsbuildinfo",
-            "next-env.d.ts",
-        ],
-    },
-    ...compat.config({
-        extends: ["next/core-web-vitals", "next/typescript"]
-    }),
-    {
+        languageOptions: {
+            globals: {
+                ...globals.browser,
+                ...globals.node,
+                ...globals.jest, // テスト用
+            },
+        },
         rules: {
             "prefer-const": "error",
             "no-var": "error",
+            "react/react-in-jsx-scope": "off", // React 17+ 用
+            "no-undef": "off", // TypeScriptがチェックするのでESLintでは不要
+            "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+            "no-unused-vars": "off", // TS版を使うためオフ
         },
     },
-]);
+];
